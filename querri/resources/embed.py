@@ -72,13 +72,26 @@ class Embed:
         resp = self._http.get("/embed/sessions", params={"limit": limit})
         return EmbedSessionList.model_validate(resp.json())
 
-    def revoke_session(self, session_id: str) -> EmbedSessionRevokeResponse:
+    def revoke_session(
+        self,
+        session_id: Optional[str] = None,
+        *,
+        session_token: Optional[str] = None,
+    ) -> EmbedSessionRevokeResponse:
         """Revoke an embed session.
 
+        Accepts either ``session_id`` or ``session_token`` (they are the same
+        ``es_`` value).  ``session_token`` is provided for consistency with
+        :meth:`refresh_session`.
+
         Args:
-            session_id: The ``es_`` session token to revoke.
+            session_id: The ``es_`` session token to revoke (positional, legacy).
+            session_token: Alias for ``session_id`` (keyword, preferred).
         """
-        resp = self._http.delete(f"/embed/sessions/{session_id}")
+        token = session_id or session_token
+        if token is None:
+            raise ValueError("Either session_id or session_token must be provided")
+        resp = self._http.delete(f"/embed/sessions/{token}")
         return EmbedSessionRevokeResponse.model_validate(resp.json())
 
     def get_session(
@@ -142,9 +155,21 @@ class AsyncEmbed:
         resp = await self._http.get("/embed/sessions", params={"limit": limit})
         return EmbedSessionList.model_validate(resp.json())
 
-    async def revoke_session(self, session_id: str) -> EmbedSessionRevokeResponse:
-        """Revoke an embed session."""
-        resp = await self._http.delete(f"/embed/sessions/{session_id}")
+    async def revoke_session(
+        self,
+        session_id: Optional[str] = None,
+        *,
+        session_token: Optional[str] = None,
+    ) -> EmbedSessionRevokeResponse:
+        """Revoke an embed session.
+
+        Accepts either ``session_id`` or ``session_token`` for consistency
+        with :meth:`refresh_session`.
+        """
+        token = session_id or session_token
+        if token is None:
+            raise ValueError("Either session_id or session_token must be provided")
+        resp = await self._http.delete(f"/embed/sessions/{token}")
         return EmbedSessionRevokeResponse.model_validate(resp.json())
 
     async def get_session(

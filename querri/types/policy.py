@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RowFilter(BaseModel):
@@ -23,10 +23,15 @@ class Policy(BaseModel):
     source_ids: List[str] = []
     row_filters: List[RowFilter] = []
     user_count: int = 0
-    assigned_user_ids: Optional[List[str]] = None
-    """Only present on get (detail) responses."""
+    assigned_user_ids: Optional[List[str]] = Field(default=None, alias="user_ids")
+    """Only present on get (detail) responses.
+
+    Accepts both ``assigned_user_ids`` and ``user_ids`` from the API.
+    """
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+
+    model_config = {"populate_by_name": True}
 
 
 class PolicyDeleteResponse(BaseModel):
@@ -58,12 +63,21 @@ class PolicyRemoveUserResponse(BaseModel):
     removed: bool = True
 
 
+class ResolvedFilters(BaseModel):
+    """The effective filters resolved for a user+source pair."""
+
+    row_filters: Dict[str, Any] = {}
+    has_any_policy: bool = False
+
+
 class ResolvedAccess(BaseModel):
     """Resolved access for a user+source combination."""
 
     user_id: str
     source_id: str
-    resolved_filters: List[Dict[str, Any]] = []
+    source_is_access_controlled: bool = False
+    effective_access: str = ""
+    resolved_filters: ResolvedFilters = ResolvedFilters()
     where_clause: str = ""
 
 

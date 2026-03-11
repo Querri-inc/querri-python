@@ -130,9 +130,12 @@ class TestResolveUserParam:
         with pytest.raises(ValueError, match="external_id"):
             _resolve_user_param({"email": "alice@example.com"})
 
-    def test_dict_missing_email_raises(self):
-        with pytest.raises(ValueError, match="email"):
-            _resolve_user_param({"external_id": "cust-42"})
+    def test_dict_missing_email_allowed(self):
+        """Email is optional — omitting it should not raise."""
+        ext_id, body = _resolve_user_param({"external_id": "cust-42"})
+        assert ext_id == "cust-42"
+        assert body is not None
+        assert "email" not in body
 
     def test_invalid_type_raises(self):
         with pytest.raises(TypeError, match="must be a string"):

@@ -117,14 +117,10 @@ def _resolve_user_param(user: Union[str, Dict[str, Any]]) -> tuple[str, Optional
             "Example: {'external_id': 'cust-42', 'email': 'alice@example.com'}"
         )
 
+    body: Dict[str, Any] = {"role": user.get("role", "member")}
     email = user.get("email")
-    if not email:
-        raise ValueError(
-            "User dict must contain 'email' (required when creating new users). "
-            "Example: {'external_id': 'cust-42', 'email': 'alice@example.com'}"
-        )
-
-    body: Dict[str, Any] = {"email": email, "role": user.get("role", "member")}
+    if email:
+        body["email"] = email
     if user.get("first_name"):
         body["first_name"] = user["first_name"]
     if user.get("last_name"):

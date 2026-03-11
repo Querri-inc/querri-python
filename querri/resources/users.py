@@ -119,7 +119,7 @@ class Users:
         self,
         *,
         external_id: str,
-        email: str,
+        email: Optional[str] = None,
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
         role: str = "member",
@@ -132,12 +132,15 @@ class Users:
 
         Args:
             external_id: Customer-provided external ID.
-            email: User email (used only on creation).
+            email: User email. Required when creating a new user; optional
+                when retrieving an existing user.
             first_name: First name (used only on creation).
             last_name: Last name (used only on creation).
             role: Role (used only on creation).
         """
-        body: dict[str, Any] = {"email": email, "role": role}
+        body: dict[str, Any] = {"role": role}
+        if email is not None:
+            body["email"] = email
         if first_name is not None:
             body["first_name"] = first_name
         if last_name is not None:
@@ -184,7 +187,7 @@ class AsyncUsers:
         resp = await self._http.get(f"/users/{user_id}")
         return User.model_validate(resp.json())
 
-    def list(
+    async def list(
         self,
         *,
         limit: int = 50,
@@ -227,13 +230,24 @@ class AsyncUsers:
         self,
         *,
         external_id: str,
-        email: str,
+        email: Optional[str] = None,
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
         role: str = "member",
     ) -> User:
-        """Idempotent get-or-create by external ID."""
-        body: dict[str, Any] = {"email": email, "role": role}
+        """Idempotent get-or-create by external ID.
+
+        Args:
+            external_id: Customer-provided external ID.
+            email: User email. Required when creating a new user; optional
+                when retrieving an existing user.
+            first_name: First name (used only on creation).
+            last_name: Last name (used only on creation).
+            role: Role (used only on creation).
+        """
+        body: dict[str, Any] = {"role": role}
+        if email is not None:
+            body["email"] = email
         if first_name is not None:
             body["first_name"] = first_name
         if last_name is not None:

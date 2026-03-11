@@ -20,6 +20,39 @@ class Data:
     def __init__(self, http: SyncHTTPClient) -> None:
         self._http = http
 
+    def create_source(
+        self,
+        *,
+        name: str,
+        rows: List[Dict[str, Any]],
+    ) -> Source:
+        """Create a new data source with inline JSON data.
+
+        Args:
+            name: Display name for the source (1-200 chars).
+            rows: List of row dicts. All rows should share the same keys.
+
+        Returns:
+            Source object with id, name, columns, row_count, updated_at.
+        """
+        resp = self._http.post(
+            "/data/sources",
+            json={"name": name, "rows": rows},
+        )
+        return Source.model_validate(resp.json())
+
+    def delete_source(self, source_id: str) -> Dict[str, Any]:
+        """Delete a data source and its associated data.
+
+        Args:
+            source_id: The source UUID.
+
+        Returns:
+            Dict with id and deleted status.
+        """
+        resp = self._http.delete(f"/data/sources/{source_id}")
+        return resp.json()
+
     def sources(self) -> List[Source]:
         """List available data sources.
 
@@ -101,6 +134,24 @@ class AsyncData:
 
     def __init__(self, http: AsyncHTTPClient) -> None:
         self._http = http
+
+    async def create_source(
+        self,
+        *,
+        name: str,
+        rows: List[Dict[str, Any]],
+    ) -> Source:
+        """Create a new data source with inline JSON data."""
+        resp = await self._http.post(
+            "/data/sources",
+            json={"name": name, "rows": rows},
+        )
+        return Source.model_validate(resp.json())
+
+    async def delete_source(self, source_id: str) -> Dict[str, Any]:
+        """Delete a data source and its associated data."""
+        resp = await self._http.delete(f"/data/sources/{source_id}")
+        return resp.json()
 
     async def sources(self) -> List[Source]:
         """List available data sources."""

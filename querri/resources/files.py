@@ -39,7 +39,11 @@ class Files:
         filename = name or os.path.basename(file_path)
         with open(file_path, "rb") as f:
             files = {"file": (filename, f)}
-            resp = self._http.post("/files/upload", files=files)
+            resp = self._http.post(
+                "/files",
+                files=files,
+                headers={"filename": filename},
+            )
         return File.model_validate(resp.json())
 
     def get(self, file_id: str) -> File:
@@ -89,7 +93,11 @@ class AsyncFiles:
         filename = name or os.path.basename(file_path)
         with open(file_path, "rb") as f:
             files = {"file": (filename, f)}
-            resp = await self._http.post("/files/upload", files=files)
+            resp = await self._http.post(
+                "/files",
+                files=files,
+                headers={"filename": filename},
+            )
         return File.model_validate(resp.json())
 
     async def get(self, file_id: str) -> File:
