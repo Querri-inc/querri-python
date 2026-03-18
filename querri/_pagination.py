@@ -68,15 +68,20 @@ class SyncCursorPage(Generic[T]):
     def _fetch_page(self, params: dict[str, Any]) -> SyncPage[T]:
         """Fetch one page from the API and parse the response body.
 
-        Handles two pagination protocols:
-        1. Cursor-based: response contains ``has_more`` (bool) and ``next_cursor`` (str).
-        2. Offset-based fallback: if no cursor fields, checks for ``page`` and
-           ``total_pages`` and synthesizes a cursor from ``page + 1``.
+        Handles three response formats:
+        1. Paginated envelope: ``{"data": [...], "has_more": bool, "next_cursor": str}``
+        2. Offset-based fallback: ``{"data": [...], "page": int, "total_pages": int}``
+        3. Plain list: ``[...]`` (internal API returns raw arrays)
 
-        This dual support lets the same iterator work with both API styles.
+        This lets the same iterator work with both the public and internal APIs.
         """
         response = self._http.get(self._path, params=params)
         body = response.json()
+
+        # Internal API may return a plain list instead of a paginated envelope
+        if isinstance(body, list):
+            items = [self._model.model_validate(item) for item in body]
+            return SyncPage(data=items, has_more=False)
 
         items_raw = body.get(self._data_key, [])
         items = [self._model.model_validate(item) for item in items_raw]
@@ -191,15 +196,20 @@ class AsyncCursorPage(Generic[T]):
     async def _fetch_page(self, params: dict[str, Any]) -> AsyncPage[T]:
         """Fetch one page from the API and parse the response body.
 
-        Handles two pagination protocols:
-        1. Cursor-based: response contains ``has_more`` (bool) and ``next_cursor`` (str).
-        2. Offset-based fallback: if no cursor fields, checks for ``page`` and
-           ``total_pages`` and synthesizes a cursor from ``page + 1``.
+        Handles three response formats:
+        1. Paginated envelope: ``{"data": [...], "has_more": bool, "next_cursor": str}``
+        2. Offset-based fallback: ``{"data": [...], "page": int, "total_pages": int}``
+        3. Plain list: ``[...]`` (internal API returns raw arrays)
 
-        This dual support lets the same iterator work with both API styles.
+        This lets the same iterator work with both the public and internal APIs.
         """
         response = await self._http.get(self._path, params=params)
         body = response.json()
+
+        # Internal API may return a plain list instead of a paginated envelope
+        if isinstance(body, list):
+            items = [self._model.model_validate(item) for item in body]
+            return AsyncPage(data=items, has_more=False)
 
         items_raw = body.get(self._data_key, [])
         items = [self._model.model_validate(item) for item in items_raw]
