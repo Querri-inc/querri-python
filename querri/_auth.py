@@ -9,7 +9,7 @@ import secrets
 import stat
 import sys
 import webbrowser
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from threading import Thread
@@ -50,6 +50,11 @@ class TokenProfile:
     user_name: str = ""
     org_name: str = ""
     host: str = ""  # server used for login (used for token refresh)
+    all_organizations: dict[str, str] = field(default_factory=dict)
+    # Active workspace state
+    active_project_id: str = ""
+    active_project_name: str = ""
+    active_chat_id: str = ""
 
     def __repr__(self) -> str:
         """Redact tokens to prevent accidental exposure."""
@@ -141,6 +146,10 @@ class TokenStore:
                     user_name=profile_data.get("user_name", ""),
                     org_name=profile_data.get("org_name", ""),
                     host=profile_data.get("host", ""),
+                    all_organizations=profile_data.get("all_organizations", {}),
+                    active_project_id=profile_data.get("active_project_id", ""),
+                    active_project_name=profile_data.get("active_project_name", ""),
+                    active_chat_id=profile_data.get("active_chat_id", ""),
                 )
         return store
 
@@ -250,12 +259,18 @@ def needs_refresh(profile: TokenProfile) -> bool:
         return True
 
 
-def refresh_tokens(profile: TokenProfile, host: str) -> TokenProfile:
+def refresh_tokens(
+    profile: TokenProfile,
+    host: str,
+    *,
+    organization_id: Optional[str] = None,
+) -> TokenProfile:
     """Refresh an expired access token using the refresh token.
 
     Args:
         profile: The profile whose tokens to refresh.
         host: The Querri server host (e.g. ``https://app.querri.com``).
+        organization_id: Optional org ID to switch to during refresh.
 
     Returns:
         Updated TokenProfile with new tokens.
@@ -265,15 +280,14 @@ def refresh_tokens(profile: TokenProfile, host: str) -> TokenProfile:
         RuntimeError: If refresh fails.
     """
     url = host.rstrip("/") + "/api/v1/auth/cli/token"
+    payload: dict[str, str] = {
+        "grant_type": "refresh_token",
+        "refresh_token": profile.refresh_token,
+    }
+    if organization_id:
+        payload["organization_id"] = organization_id
     try:
-        response = httpx.post(
-            url,
-            json={
-                "grant_type": "refresh_token",
-                "refresh_token": profile.refresh_token,
-            },
-            timeout=30.0,
-        )
+        response = httpx.post(url, json=payload, timeout=30.0)
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
         raise RuntimeError(
@@ -775,6 +789,11 @@ def start_oauth_flow(
         else claims.get("urn:querri:full_name", "")
     )
 
+    # org_name from server response (looked up from WorkOS)
+    all_organizations = data.get("all_organizations") or {}
+    if not org_name and org_id:
+        org_name = all_organizations.get(org_id, org_name)
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -784,4 +803,5 @@ def start_oauth_flow(
         "org_name": org_name,
         "user_email": user_email,
         "user_name": full_name,
+        "all_organizations": all_organizations,
     }

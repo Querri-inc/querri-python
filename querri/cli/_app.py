@@ -22,7 +22,15 @@ IS_INTERACTIVE = sys.stdout.isatty()
 
 main_app = typer.Typer(
     name="querri",
-    help="Querri CLI — command-line interface for the Querri data analysis platform.",
+    help=(
+        "[bold #f15a24]Querri CLI[/bold #f15a24] — command-line interface for the "
+        "[#f15a24]Querri[/#f15a24] data analysis platform.\n\n"
+        "Get started:\n"
+        "  [#f15a24]querri auth login[/#f15a24]              Authenticate via browser\n"
+        "  [#f15a24]querri project new[/#f15a24]             Create a new project\n"
+        "  [#f15a24]querri files upload data.csv[/#f15a24]   Upload a data file\n"
+        "  [#f15a24]querri chat \"analyze this\"[/#f15a24]     Chat with your data"
+    ),
     no_args_is_help=True,
     rich_markup_mode="rich",
     pretty_exceptions_enable=False,
@@ -35,7 +43,13 @@ main_app = typer.Typer(
 
 def _version_callback(value: bool) -> None:
     if value:
-        print(f"querri {__version__}")
+        if IS_INTERACTIVE:
+            from rich.console import Console
+            Console(stderr=True).print(
+                f"[bold #f15a24]querri[/bold #f15a24] {__version__}"
+            )
+        else:
+            print(f"querri {__version__}")
         raise typer.Exit()
 
 
@@ -94,6 +108,20 @@ def _global_options(
         help="Force interactive/non-interactive mode.",
         show_default=False,
     ),
+    project: Optional[str] = typer.Option(
+        None,
+        "--project", "-p",
+        envvar="QUERRI_PROJECT_ID",
+        help="Project ID (overrides active project).",
+        show_default=False,
+    ),
+    chat: Optional[str] = typer.Option(
+        None,
+        "--chat",
+        envvar="QUERRI_CHAT_ID",
+        help="Chat ID (overrides active chat).",
+        show_default=False,
+    ),
     version: bool = typer.Option(
         False,
         "--version",
@@ -102,7 +130,7 @@ def _global_options(
         help="Show version and exit.",
     ),
 ) -> None:
-    """Querri CLI — manage projects, data, and AI chats from the terminal."""
+    """[#f15a24]Querri CLI[/#f15a24] — manage projects, data, and AI chats from the terminal."""
     # Determine interactive mode
     is_interactive = interactive if interactive is not None else IS_INTERACTIVE
 
@@ -121,6 +149,8 @@ def _global_options(
     ctx.obj["api_key"] = api_key
     ctx.obj["org_id"] = org_id
     ctx.obj["profile"] = profile
+    ctx.obj["project"] = project
+    ctx.obj["chat"] = chat
     ctx.obj["json"] = json_output
     ctx.obj["quiet"] = quiet
     ctx.obj["verbose"] = verbose
@@ -135,23 +165,25 @@ def _global_options(
 from querri.cli.auth import auth_app
 from querri.cli.whoami import whoami_app
 
-main_app.add_typer(auth_app, name="auth", rich_help_panel="Getting Started")
-main_app.add_typer(whoami_app, name="whoami", rich_help_panel="Getting Started")
+main_app.add_typer(auth_app, name="auth", rich_help_panel="[#f15a24]Getting Started[/#f15a24]")
+main_app.add_typer(whoami_app, name="whoami", rich_help_panel="[#f15a24]Getting Started[/#f15a24]")
 
 # ── Projects & Data ─────────────────────────────────────────────────────
 from querri.cli.projects import projects_app
+from querri.cli.chat import chat_app
 from querri.cli.steps import steps_app
 from querri.cli.chats import chats_app
 from querri.cli.files import files_app
 from querri.cli.data import data_app
 from querri.cli.sources import sources_app
 
-main_app.add_typer(projects_app, name="projects", rich_help_panel="Projects & Data")
-main_app.add_typer(steps_app, name="steps", rich_help_panel="Projects & Data")
-main_app.add_typer(chats_app, name="chats", rich_help_panel="Projects & Data")
-main_app.add_typer(files_app, name="files", rich_help_panel="Projects & Data")
-main_app.add_typer(data_app, name="data", rich_help_panel="Projects & Data")
-main_app.add_typer(sources_app, name="sources", rich_help_panel="Projects & Data")
+main_app.add_typer(projects_app, name="project", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
+main_app.add_typer(chat_app, name="chat", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
+main_app.add_typer(steps_app, name="steps", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
+main_app.add_typer(chats_app, name="chats", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]", hidden=True)
+main_app.add_typer(files_app, name="files", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
+main_app.add_typer(data_app, name="data", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
+main_app.add_typer(sources_app, name="sources", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
 
 # ── Administration ──────────────────────────────────────────────────────
 from querri.cli.users import users_app
@@ -160,17 +192,17 @@ from querri.cli.keys import keys_app
 from querri.cli.policies import policies_app
 from querri.cli.sharing import sharing_app
 
-main_app.add_typer(users_app, name="users", rich_help_panel="Administration")
-main_app.add_typer(dashboards_app, name="dashboards", rich_help_panel="Administration")
-main_app.add_typer(keys_app, name="keys", rich_help_panel="Administration")
-main_app.add_typer(policies_app, name="policies", rich_help_panel="Administration")
-main_app.add_typer(sharing_app, name="sharing", rich_help_panel="Administration")
+main_app.add_typer(users_app, name="users", rich_help_panel="[#f15a24]Administration[/#f15a24]")
+main_app.add_typer(dashboards_app, name="dashboards", rich_help_panel="[#f15a24]Administration[/#f15a24]")
+main_app.add_typer(keys_app, name="keys", rich_help_panel="[#f15a24]Administration[/#f15a24]")
+main_app.add_typer(policies_app, name="policies", rich_help_panel="[#f15a24]Administration[/#f15a24]")
+main_app.add_typer(sharing_app, name="sharing", rich_help_panel="[#f15a24]Administration[/#f15a24]")
 
 # ── Advanced ────────────────────────────────────────────────────────────
 from querri.cli.embed import embed_app
 from querri.cli.usage import usage_app
 from querri.cli.audit import audit_app
 
-main_app.add_typer(embed_app, name="embed", rich_help_panel="Advanced")
-main_app.add_typer(usage_app, name="usage", rich_help_panel="Advanced")
-main_app.add_typer(audit_app, name="audit", rich_help_panel="Advanced")
+main_app.add_typer(embed_app, name="embed", rich_help_panel="[#f15a24]Advanced[/#f15a24]")
+main_app.add_typer(usage_app, name="usage", rich_help_panel="[#f15a24]Advanced[/#f15a24]")
+main_app.add_typer(audit_app, name="audit", rich_help_panel="[#f15a24]Advanced[/#f15a24]")

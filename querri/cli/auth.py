@@ -22,9 +22,14 @@ from querri.cli._output import (
     exit_auth_error,
 )
 
+_PICK_ORG_HINT = (
+    "Tip: use --organization <org_id> to skip this prompt next time."
+)
+
 auth_app = typer.Typer(
     help="Manage authentication (login, logout, token management).",
     no_args_is_help=True,
+    rich_markup_mode="rich",
 )
 
 
@@ -43,6 +48,49 @@ def _get_profile_name(ctx: typer.Context) -> str:
 def _is_json(ctx: typer.Context) -> bool:
     obj = ctx.ensure_object(dict)
     return obj.get("json", False)
+
+
+def _pick_organization(
+    all_orgs: dict[str, str],
+    *,
+    current_org_id: str = "",
+) -> tuple[str, str]:
+    """Show an interactive org picker in the terminal.
+
+    Returns:
+        (org_id, org_name) tuple for the selected organization.
+    """
+    print("\nYou belong to multiple organizations:\n", file=sys.stderr)
+    sorted_orgs = sorted(all_orgs.items(), key=lambda x: x[1].lower())
+    for i, (org_id, org_name) in enumerate(sorted_orgs, 1):
+        marker = " (current)" if org_id == current_org_id else ""
+        print(f"  [{i}] {org_name}{marker}", file=sys.stderr)
+    print(file=sys.stderr)
+
+    # Find the default (current org's index)
+    default_idx = 1
+    for i, (org_id, _) in enumerate(sorted_orgs, 1):
+        if org_id == current_org_id:
+            default_idx = i
+            break
+
+    while True:
+        try:
+            raw = input(f"Select organization [{default_idx}]: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print(file=sys.stderr)
+            raw = ""
+        if not raw:
+            raw = str(default_idx)
+        try:
+            choice = int(raw)
+            if 1 <= choice <= len(sorted_orgs):
+                selected_id, selected_name = sorted_orgs[choice - 1]
+                print(f"\n  {_PICK_ORG_HINT}\n", file=sys.stderr)
+                return selected_id, selected_name
+        except ValueError:
+            pass
+        print(f"  Please enter a number between 1 and {len(sorted_orgs)}.", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -100,18 +148,54 @@ def login(
         print_error(str(exc))
         raise typer.Exit(code=2)  # noqa: B904
 
+    all_orgs: dict[str, str] = result.get("all_organizations") or {}
+    chosen_org_id = result["org_id"]
+    chosen_org_name = result.get("org_name", "")
+
+    # If the user didn't pass --organization and they belong to multiple orgs,
+    # show a terminal picker so they can choose which org to work in.
+    if not organization and len(all_orgs) > 1 and not is_json:
+        chosen_org_id, chosen_org_name = _pick_organization(
+            all_orgs, current_org_id=result["org_id"],
+        )
+        # If they picked a different org, refresh tokens scoped to that org
+        if chosen_org_id != result["org_id"]:
+            try:
+                temp_profile = TokenProfile(
+                    auth_type="jwt",
+                    access_token=result["access_token"],
+                    refresh_token=result["refresh_token"],
+                    expires_at=result["expires_at"],
+                    org_id=chosen_org_id,
+                    org_name=chosen_org_name,
+                    user_email=result["user_email"],
+                    user_id=result["user_id"],
+                    user_name=result.get("user_name", ""),
+                    host=host,
+                )
+                temp_profile = refresh_tokens(
+                    temp_profile, host, organization_id=chosen_org_id,
+                )
+                result["access_token"] = temp_profile.access_token
+                result["refresh_token"] = temp_profile.refresh_token
+                result["expires_at"] = temp_profile.expires_at
+            except RuntimeError as exc:
+                print_error(f"Failed to switch organization: {exc}")
+                raise typer.Exit(code=2)  # noqa: B904
+
     # Save profile
     profile = TokenProfile(
         auth_type="jwt",
         access_token=result["access_token"],
         refresh_token=result["refresh_token"],
         expires_at=result["expires_at"],
-        org_id=result["org_id"],
-        org_name=result.get("org_name", ""),
+        org_id=chosen_org_id,
+        org_name=chosen_org_name,
         user_email=result["user_email"],
         user_id=result["user_id"],
         user_name=result.get("user_name", ""),
         host=host,
+        all_organizations=all_orgs,
     )
     store.active_profile = profile_name
     store.save_profile(profile_name, profile)
@@ -121,8 +205,8 @@ def login(
             "user_id": result["user_id"],
             "email": result["user_email"],
             "name": result.get("user_name", ""),
-            "org_id": result["org_id"],
-            "org_name": result.get("org_name", ""),
+            "org_id": chosen_org_id,
+            "org_name": chosen_org_name,
             "expires_at": result["expires_at"],
         })
     else:
@@ -130,9 +214,8 @@ def login(
         name = result.get("user_name")
         if name:
             identity = f"{name} ({identity})"
-        org_name = result.get("org_name")
-        if org_name:
-            identity = f"{identity} — {org_name}"
+        if chosen_org_name:
+            identity = f"{identity} — {chosen_org_name}"
         print_success(f"Logged in as {identity}")
 
 
@@ -363,3 +446,83 @@ def switch(
         print_json({"active_profile": profile})
     else:
         print_success(f"Switched to profile '{profile}'.")
+
+
+# ---------------------------------------------------------------------------
+# querri auth switch-org
+# ---------------------------------------------------------------------------
+
+
+@auth_app.command("switch-org")
+def switch_org(
+    ctx: typer.Context,
+    org: Optional[str] = typer.Argument(
+        None,
+        help="Organization ID to switch to (omit for interactive picker).",
+    ),
+) -> None:
+    """Switch to a different organization without re-authenticating.
+
+    Uses the stored refresh token to obtain new credentials scoped to
+    the selected organization.
+    """
+    host = _get_host(ctx)
+    profile_name = _get_profile_name(ctx)
+    is_json = _is_json(ctx)
+
+    store = TokenStore.load()
+    profile = store.profiles.get(profile_name)
+
+    if not profile or not profile.access_token:
+        print_error("Not authenticated. Run 'querri auth login' first.")
+        raise typer.Exit(code=2)  # noqa: B904
+
+    if not profile.refresh_token:
+        print_error("No refresh token stored. Run 'querri auth login' to re-authenticate.")
+        raise typer.Exit(code=2)  # noqa: B904
+
+    all_orgs = profile.all_organizations
+    if not all_orgs or len(all_orgs) < 2:
+        if is_json:
+            print_json({"error": "single_org", "message": "Only one organization available."})
+        else:
+            print_error("Only one organization available. Nothing to switch to.")
+        raise typer.Exit(code=1)  # noqa: B904
+
+    # Resolve target org
+    if org:
+        if org not in all_orgs:
+            print_error(f"Organization '{org}' not found. Available: {', '.join(all_orgs.keys())}")
+            raise typer.Exit(code=1)  # noqa: B904
+        target_org_id = org
+        target_org_name = all_orgs[org]
+    else:
+        if is_json:
+            # Can't do interactive picker in JSON mode — list orgs instead
+            print_json({"all_organizations": all_orgs, "current_org_id": profile.org_id})
+            return
+        target_org_id, target_org_name = _pick_organization(
+            all_orgs, current_org_id=profile.org_id,
+        )
+
+    if target_org_id == profile.org_id:
+        if is_json:
+            print_json({"status": "no_change", "org_id": target_org_id})
+        else:
+            print_success(f"Already on {target_org_name}.")
+        return
+
+    # Refresh tokens scoped to the new org
+    try:
+        profile = refresh_tokens(profile, host, organization_id=target_org_id)
+        profile.org_id = target_org_id
+        profile.org_name = target_org_name
+        store.save_profile(profile_name, profile)
+    except RuntimeError as exc:
+        print_error(f"Failed to switch organization: {exc}")
+        raise typer.Exit(code=2)  # noqa: B904
+
+    if is_json:
+        print_json({"status": "switched", "org_id": target_org_id, "org_name": target_org_name})
+    else:
+        print_success(f"Switched to {target_org_name} ({target_org_id})")

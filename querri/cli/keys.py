@@ -141,7 +141,7 @@ def create_key(
                 f"[bold]{key.secret}[/bold]",
                 title="API Key Secret",
                 subtitle="Save now — cannot be retrieved later",
-                border_style="yellow",
+                border_style="#f15a24",
                 padding=(1, 2),
             ))
         else:

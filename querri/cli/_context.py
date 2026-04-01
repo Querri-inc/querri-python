@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Any
+from typing import Any, Optional
 
 import typer
 
@@ -121,3 +121,82 @@ def _handle_config_error(obj: dict[str, Any], exc: ConfigError) -> None:
             "  querri --api-key qk_... --org-id org_... <command>",
             file=sys.stderr,
         )
+
+
+# ---------------------------------------------------------------------------
+# Workspace state helpers
+# ---------------------------------------------------------------------------
+
+
+def _get_profile(ctx: typer.Context) -> Optional["TokenProfile"]:  # noqa: F821
+    """Load the active TokenProfile (or None)."""
+    from querri._auth import TokenStore
+
+    obj = ctx.ensure_object(dict)
+    profile_name = obj.get("profile") or "default"
+    store = TokenStore.load()
+    return store.profiles.get(profile_name)
+
+
+def _save_profile(ctx: typer.Context, profile: "TokenProfile") -> None:  # noqa: F821
+    """Persist updates to the active TokenProfile."""
+    from querri._auth import TokenStore
+
+    obj = ctx.ensure_object(dict)
+    profile_name = obj.get("profile") or "default"
+    store = TokenStore.load()
+    store.save_profile(profile_name, profile)
+
+
+def resolve_project_id(ctx: typer.Context) -> str:
+    """Resolve project ID from --project flag → stored state → error."""
+    obj = ctx.ensure_object(dict)
+    is_json = obj.get("json", False)
+
+    # 1. Explicit --project flag
+    project = obj.get("project")
+    if project:
+        return project
+
+    # 2. Stored active project
+    profile = _get_profile(ctx)
+    if profile and profile.active_project_id:
+        return profile.active_project_id
+
+    # 3. Error
+    from querri.cli._output import print_error
+    if is_json:
+        from querri.cli._output import print_json_error
+        print_json_error(
+            "no_project",
+            "No active project. Run 'querri project select <name>' or pass --project.",
+            1,
+        )
+    else:
+        print_error(
+            "No active project.\n"
+            "  querri project select <name>   # Set active project\n"
+            "  querri project new             # Create a new project\n"
+            "  --project <id>                 # Pass explicitly"
+        )
+    raise typer.Exit(code=1)
+
+
+def resolve_user_id(ctx: typer.Context) -> str:
+    """Resolve user ID from env → stored profile → error."""
+    env_user = os.environ.get("QUERRI_USER_ID")
+    if env_user:
+        return env_user
+
+    profile = _get_profile(ctx)
+    if profile and profile.user_id:
+        return profile.user_id
+
+    obj = ctx.ensure_object(dict)
+    from querri.cli._output import print_error
+    if obj.get("json"):
+        from querri.cli._output import print_json_error
+        print_json_error("no_user_id", "Could not determine user ID.", 1)
+    else:
+        print_error("Could not determine user ID. Set QUERRI_USER_ID or log in with 'querri auth login'.")
+    raise typer.Exit(code=1)

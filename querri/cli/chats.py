@@ -298,7 +298,7 @@ def _stream_rich(stream: object) -> None:
             elif event.event_type == "terminate":
                 reason = event.terminate_reason or "unknown"
                 msg = event.terminate_message or "Start a new chat to continue."
-                console.print(f"\n[yellow]Stream closed: {reason}. {msg}[/yellow]")
+                console.print(f"\n[#f15a24]Stream closed: {reason}. {msg}[/#f15a24]")
             elif event.event_type == "error":
                 console.print(f"\n[red]Error: {event.error}[/red]")
 

@@ -86,15 +86,11 @@ def upload_file(
     ctx: typer.Context,
     path: str = typer.Argument(help="File path or glob pattern (e.g. '*.csv')."),
     name: Optional[str] = typer.Option(None, "--name", "-n", help="Override file name."),
-    project: Optional[str] = typer.Option(None, "--project", "-p", help="Add uploaded file(s) as source(s) to this project."),
 ) -> None:
     """Upload a file (supports glob patterns for batch upload).
 
-    When --project is provided, each uploaded file is also added as a data
-    source to the specified project, triggering execution automatically.
-
-    Path validation: resolves to absolute path, checks file exists and is a
-    regular file (no symlinks to sensitive paths).
+    After uploading, use ``querri data add-source <id>`` to add the
+    file as a data source to your active project.
     """
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -102,7 +98,6 @@ def upload_file(
     # Expand glob patterns
     matches = sorted(globmod.glob(path))
     if not matches:
-        # Try as literal path
         resolved = Path(path).resolve()
         if not resolved.exists():
             from querri.cli._output import print_error
@@ -118,7 +113,6 @@ def upload_file(
     for match in matches:
         file_path = Path(match).resolve()
 
-        # Security: reject non-regular files (R18)
         if not file_path.is_file():
             from querri.cli._output import print_error
             print_error(f"Skipping non-regular file: {match}")
@@ -133,25 +127,8 @@ def upload_file(
         except Exception as exc:
             raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
 
-    # Optionally add each uploaded file to a project
-    source_results = []
-    if project:
-        for f in results:
-            try:
-                source_resp = client.projects.add_source(project, f.id)
-                source_results.append(source_resp)
-            except Exception as exc:
-                raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
-
     if obj.get("json"):
-        if project and source_results:
-            output = []
-            for f, sr in zip(results, source_results):
-                entry = f.model_dump(mode="json") if hasattr(f, "model_dump") else {"id": f.id, "name": f.name}
-                entry["source"] = sr.model_dump(mode="json") if hasattr(sr, "model_dump") else {"step_id": sr.step_id, "project_id": sr.project_id, "status": sr.status}
-                output.append(entry)
-            print_json(output[0] if len(output) == 1 else output)
-        elif len(results) == 1:
+        if len(results) == 1:
             print_json(results[0])
         else:
             print_json([f.model_dump(mode="json") for f in results])
@@ -159,11 +136,14 @@ def upload_file(
         for f in results:
             print_id(f.id)
     else:
+        import sys as _sys
         for f in results:
             print_success(f"Uploaded {f.name} → {f.id}")
-        if project and source_results:
-            for sr in source_results:
-                print_success(f"Added to project {sr.project_id} → step {sr.step_id} ({sr.status})")
+        if results:
+            print(
+                f"\nTo add to your project: querri project add-source {results[0].id}",
+                file=_sys.stderr,
+            )
 
 
 @files_app.command("delete")

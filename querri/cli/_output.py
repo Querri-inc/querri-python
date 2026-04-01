@@ -13,6 +13,13 @@ from typing import Any, Sequence
 import typer
 
 # ---------------------------------------------------------------------------
+# Querri brand colors
+# ---------------------------------------------------------------------------
+
+QUERRI_ORANGE = "#f15a24"
+QUERRI_ORANGE_LIGHT = "#ff7a47"
+
+# ---------------------------------------------------------------------------
 # TTY auto-detection — single check, drives all output behavior
 # ---------------------------------------------------------------------------
 
@@ -107,7 +114,7 @@ def _print_rich_table(data: Sequence[Any], columns: list[tuple[str, str]]) -> No
     from rich.console import Console
     from rich.table import Table
 
-    table = Table(show_header=True, header_style="bold")
+    table = Table(show_header=True, header_style=f"bold {QUERRI_ORANGE}")
     for _, header in columns:
         table.add_column(header)
 
@@ -141,7 +148,7 @@ def print_detail(data: Any, fields: list[tuple[str, str]]) -> None:
         from rich.table import Table
 
         table = Table(show_header=False, box=None, padding=(0, 2))
-        table.add_column("Field", style="bold")
+        table.add_column("Field", style=f"bold {QUERRI_ORANGE}")
         table.add_column("Value")
 
         for field, label in fields:
@@ -158,7 +165,7 @@ def print_success(message: str) -> None:
     """Print a success message."""
     if IS_INTERACTIVE:
         from rich.console import Console
-        Console(stderr=True).print(f"[green]✓[/green] {message}")
+        Console(stderr=True).print(f"[{QUERRI_ORANGE}]✓[/{QUERRI_ORANGE}] {message}")
     else:
         print(message, file=sys.stderr)
 

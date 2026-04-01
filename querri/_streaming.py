@@ -155,6 +155,92 @@ def _build_event(event_type: str, data: str) -> ChatStreamEvent:
             return ChatStreamEvent(event_type=event_type, raw_data=data)
 
 
+def _build_event_from_json(data: str) -> Optional[ChatStreamEvent]:
+    """Build a ChatStreamEvent from a JSON SSE payload.
+
+    Handles the server's native JSON SSE format where each line is:
+        data: {"type": "...", ...}
+
+    Maps server event types to ChatStreamEvent types.
+    """
+    parsed = _parse_json_safe(data)
+    if not parsed or "type" not in parsed:
+        return None
+
+    event_type = parsed["type"]
+
+    match event_type:
+        # Text content
+        case "text-delta":
+            return ChatStreamEvent(
+                event_type="text-delta",
+                text=parsed.get("textDelta", parsed.get("delta", "")),
+            )
+
+        # Reasoning / thinking (show as text for CLI)
+        case "reasoning-delta":
+            return None  # Skip reasoning in output for now
+
+        # Tool calls
+        case "tool-call-start":
+            return ChatStreamEvent(
+                event_type="tool-output-available",
+                tool_name=parsed.get("toolName", parsed.get("name")),
+                raw_data=data,
+            )
+        case "tool-call-delta":
+            return None  # Intermediate tool output, skip
+
+        # Choices (Querri's suggestion cards)
+        case "choices":
+            summary = parsed.get("summary", "")
+            choices = parsed.get("choices", [])
+            labels = [c.get("label", c.get("prompt", "")) for c in choices]
+            text = summary
+            if labels:
+                text += "\n" + "\n".join(f"  • {l}" for l in labels)
+            return ChatStreamEvent(event_type="text-delta", text=text + "\n")
+
+        # Status updates (SSE comments become events here)
+        case "status-update" | "update":
+            msg = parsed.get("message", "")
+            return ChatStreamEvent(
+                event_type="text-delta",
+                text=f"\n[{msg}]\n" if msg else None,
+            )
+
+        # Stream lifecycle
+        case "start":
+            return None
+        case "start-step" | "end-step":
+            return None
+        case "reasoning-start" | "reasoning-end":
+            return None
+        case "finish" | "done":
+            return ChatStreamEvent(
+                event_type="finish",
+                usage=parsed.get("usage"),
+                raw_data=data,
+            )
+        case "error":
+            return ChatStreamEvent(
+                event_type="error",
+                error=parsed.get("message", parsed.get("error", data)),
+                raw_data=data,
+            )
+        case "terminate":
+            return ChatStreamEvent(
+                event_type="terminate",
+                terminate_reason=parsed.get("reason"),
+                terminate_message=parsed.get("message"),
+                raw_data=data,
+            )
+
+        case _:
+            # Unknown — pass through
+            return ChatStreamEvent(event_type=event_type, raw_data=data)
+
+
 # ---------------------------------------------------------------------------
 # Synchronous stream
 # ---------------------------------------------------------------------------
@@ -233,9 +319,10 @@ class ChatStream:
     def events(self) -> Iterator[ChatStreamEvent]:
         """Iterate typed events (v2 API).
 
-        Yields ``ChatStreamEvent`` objects for each SSE event. Handles both
-        v1 prefix format (``0:``, ``e:``, ``d:``) and v2 SSE format
-        (``event: text-delta`` / ``data: {...}``).
+        Yields ``ChatStreamEvent`` objects for each SSE event. Handles:
+        - v1 prefix format (``0:``, ``e:``, ``d:``)
+        - v2 SSE format (``event: text-delta`` / ``data: {...}``)
+        - JSON SSE format (``data: {"type": "...", ...}``)
         """
         current_event_type: str | None = None
 
@@ -263,6 +350,21 @@ class ChatStream:
                     current_event_type = None
                     yield event
                     continue
+
+                # JSON SSE: "data: {"type": "...", ...}" (no preceding event: line)
+                if prefix == "data" and data.startswith("{"):
+                    event = _build_event_from_json(data)
+                    if event is not None:
+                        self._events.append(event)
+                        if event.event_type == "text-delta" and event.text:
+                            self._text_chunks.append(event.text)
+                        yield event
+                    continue
+
+                # "data: [DONE]" — end of stream
+                if prefix == "data" and data.strip() == "[DONE]":
+                    self._done = True
+                    break
 
                 # v1 prefix format fallback
                 if prefix == "0":
@@ -422,6 +524,21 @@ class AsyncChatStream:
                     current_event_type = None
                     yield event
                     continue
+
+                # JSON SSE: "data: {"type": "...", ...}"
+                if prefix == "data" and data.startswith("{"):
+                    event = _build_event_from_json(data)
+                    if event is not None:
+                        self._events.append(event)
+                        if event.event_type == "text-delta" and event.text:
+                            self._text_chunks.append(event.text)
+                        yield event
+                    continue
+
+                # "data: [DONE]" — end of stream
+                if prefix == "data" and data.strip() == "[DONE]":
+                    self._done = True
+                    break
 
                 # v1 prefix format fallback
                 if prefix == "0":

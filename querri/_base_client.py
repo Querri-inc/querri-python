@@ -107,7 +107,12 @@ class SyncHTTPClient:
         self._client = httpx.Client(
             base_url=config.base_url,
             headers=_default_headers(config),
-            timeout=httpx.Timeout(config.timeout),
+            timeout=httpx.Timeout(
+                connect=config.timeout,
+                read=600.0,  # Long read timeout for streaming
+                write=config.timeout,
+                pool=config.timeout,
+            ),
         )
 
     def request(
@@ -222,7 +227,12 @@ class AsyncHTTPClient:
         self._client = httpx.AsyncClient(
             base_url=config.base_url,
             headers=_default_headers(config),
-            timeout=httpx.Timeout(config.timeout),
+            timeout=httpx.Timeout(
+                connect=config.timeout,
+                read=600.0,
+                write=config.timeout,
+                pool=config.timeout,
+            ),
         )
 
     async def request(
