@@ -62,7 +62,13 @@ class Audit:
 
 
 class AsyncAudit:
-    """Asynchronous audit log resource."""
+    """Asynchronous audit log resource.
+
+    Usage::
+
+        events = await client.audit.list()
+        events = await client.audit.list(action="data.query", page_size=10)
+    """
 
     def __init__(self, http: AsyncHTTPClient) -> None:
         self._http = http
@@ -78,7 +84,20 @@ class AsyncAudit:
         page: int = 1,
         page_size: int = 50,
     ) -> List[AuditEvent]:
-        """Query audit events for the organization."""
+        """Query audit events for the organization.
+
+        Args:
+            actor_id: Filter by actor (user or API key).
+            target_id: Filter by target resource ID.
+            action: Filter by action type (e.g. "data.query", "file.upload").
+            start_date: ISO date string for range start.
+            end_date: ISO date string for range end.
+            page: Page number (1-based).
+            page_size: Results per page (1-200, default 50).
+
+        Returns:
+            List of AuditEvent objects.
+        """
         params: Dict[str, Any] = {"page": page, "page_size": page_size}
         if actor_id is not None:
             params["actor_id"] = actor_id

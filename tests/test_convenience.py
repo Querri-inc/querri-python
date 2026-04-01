@@ -21,6 +21,7 @@ class TestHashAccessSpec:
         assert h1 == h2
 
     def test_ignores_key_order(self):
+        """Verify that the hash is deterministic regardless of dict key order."""
         spec1 = {"sources": ["src_a"], "filters": {"region": ["APAC"]}}
         spec2 = {"filters": {"region": ["APAC"]}, "sources": ["src_a"]}
         assert _hash_access_spec(spec1) == _hash_access_spec(spec2)
@@ -32,6 +33,7 @@ class TestHashAccessSpec:
         assert all(c in "0123456789abcdef" for c in h)
 
     def test_ignores_non_hashable_keys(self):
+        """Verify that non-canonical keys like policy_ids are excluded from the hash."""
         spec1 = {"sources": ["src_a"]}
         spec2 = {"sources": ["src_a"], "policy_ids": ["pol_123"]}
         assert _hash_access_spec(spec1) == _hash_access_spec(spec2)
@@ -69,6 +71,7 @@ class TestBuildPolicyBody:
         ]
 
     def test_filters_single_value_wrapped(self):
+        """Verify that a single filter value string is auto-wrapped in a list."""
         access = {"filters": {"department": "Sales"}}
         body = _build_policy_body(access, "pol")
         assert body["row_filters"] == [
@@ -142,6 +145,7 @@ class TestResolveUserParam:
             _resolve_user_param(42)  # type: ignore[arg-type]
 
     def test_dict_default_role_is_member(self):
+        """Verify that role defaults to 'member' when not explicitly provided."""
         _, body = _resolve_user_param({
             "external_id": "cust-42",
             "email": "alice@example.com",

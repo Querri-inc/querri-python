@@ -10,44 +10,42 @@ from pydantic import BaseModel
 class Dashboard(BaseModel):
     """A Querri dashboard."""
 
-    id: str
-    name: str
-    description: Optional[str] = None
-    widget_count: int = 0
-    widgets: Optional[List[Dict[str, Any]]] = None
-    """Only present on detail responses."""
-    filters: Optional[List[Dict[str, Any]]] = None
-    """Only present on detail responses."""
-    created_by: Optional[str] = None
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    id: str  #: Unique dashboard identifier.
+    name: str  #: Dashboard display name.
+    description: Optional[str] = None  #: Optional dashboard description.
+    widget_count: int = 0  #: Number of widgets on the dashboard.
+    widgets: Optional[List[Dict[str, Any]]] = None  #: Only on detail responses.
+    filters: Optional[List[Dict[str, Any]]] = None  #: Only on detail responses.
+    created_by: Optional[str] = None  #: User ID of the dashboard creator.
+    created_at: Optional[str] = None  #: ISO-8601 creation timestamp.
+    updated_at: Optional[str] = None  #: ISO-8601 last-update timestamp.
 
 
 class DashboardUpdateResponse(BaseModel):
     """Response from updating a dashboard."""
 
-    id: str
-    updated: bool = True
+    id: str  #: ID of the updated dashboard.
+    updated: bool = True  #: Whether the dashboard was successfully updated.
 
 
 class DashboardDeleteResponse(BaseModel):
     """Response from deleting a dashboard."""
 
-    id: str
-    deleted: bool = True
+    id: str  #: ID of the deleted dashboard.
+    deleted: bool = True  #: Whether the dashboard was successfully deleted.
 
 
 class DashboardRefreshResponse(BaseModel):
     """Response from triggering a dashboard refresh."""
 
-    id: str
-    status: str = "refreshing"
-    project_count: int = 0
+    id: str  #: Dashboard identifier.
+    status: str = "refreshing"  #: Refresh status, e.g. ``"refreshing"``.
+    project_count: int = 0  #: Number of projects being refreshed.
 
 
 class DashboardRefreshStatus(BaseModel):
     """Status of a dashboard refresh."""
 
-    id: str
-    status: str = "idle"
-    project_count: Optional[int] = None
+    id: str  #: Dashboard identifier.
+    status: str = "idle"  #: Current status, e.g. ``"idle"`` or ``"refreshing"``.
+    project_count: Optional[int] = None  #: Number of projects in the refresh.

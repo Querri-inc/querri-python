@@ -100,7 +100,13 @@ class Keys:
 
 
 class AsyncKeys:
-    """Asynchronous API key management resource."""
+    """Asynchronous API key management resource.
+
+    Usage::
+
+        new_key = await client.keys.create(name="CI Pipeline", scopes=["data:read"])
+        keys = await client.keys.list()
+    """
 
     def __init__(self, http: AsyncHTTPClient) -> None:
         self._http = http
@@ -117,7 +123,22 @@ class AsyncKeys:
         rate_limit_per_minute: Optional[int] = None,
         ip_allowlist: Optional[List[str]] = None,
     ) -> ApiKeyCreated:
-        """Create a new API key. Returns the plaintext secret once."""
+        """Create a new API key. Returns the plaintext secret once.
+
+        Args:
+            name: Display name for the key.
+            scopes: List of permission scopes.
+            expires_in_days: Days until expiration.
+            source_scope: Source access scope configuration.
+            access_policy_ids: Bound access policy UUIDs.
+            bound_user_id: User ID to bind RLS to.
+            rate_limit_per_minute: Rate limit override.
+            ip_allowlist: Allowed IP addresses.
+
+        Returns:
+            ApiKeyCreated with id, name, key_prefix, secret, scopes, status, etc.
+            The ``secret`` field is only returned on creation.
+        """
         payload: Dict[str, Any] = {"name": name, "scopes": scopes}
         if expires_in_days is not None:
             payload["expires_in_days"] = expires_in_days
@@ -135,17 +156,35 @@ class AsyncKeys:
         return ApiKeyCreated.model_validate(resp.json())
 
     async def get(self, key_id: str) -> ApiKey:
-        """Get API key details (never returns the secret)."""
+        """Get API key details (never returns the secret).
+
+        Args:
+            key_id: The key UUID.
+
+        Returns:
+            ApiKey object.
+        """
         resp = await self._http.get(f"/keys/{key_id}")
         return ApiKey.model_validate(resp.json())
 
     async def list(self) -> List[ApiKey]:
-        """List API keys for the organization."""
+        """List API keys for the organization.
+
+        Returns:
+            List of ApiKey objects (secrets are never included).
+        """
         resp = await self._http.get("/keys")
         body = resp.json()
         return [ApiKey.model_validate(k) for k in body.get("data", [])]
 
     async def delete(self, key_id: str) -> Dict[str, Any]:
-        """Revoke an API key."""
+        """Revoke an API key.
+
+        Args:
+            key_id: The key UUID.
+
+        Returns:
+            Dict with id and status ("revoked").
+        """
         resp = await self._http.delete(f"/keys/{key_id}")
         return resp.json()

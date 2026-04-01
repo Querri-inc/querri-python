@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from ._base_client import AsyncHTTPClient, SyncHTTPClient
 from ._config import resolve_config
@@ -35,7 +35,18 @@ class Querri:
         max_retries: Optional[int] = None,
         profile: Optional[str] = None,
     ) -> None:
-        self._profile = profile  # v0.2.1: used for token store profile selection
+        """Initialize the synchronous Querri client.
+
+        Args:
+            api_key: API key (``qk_`` prefix). Falls back to ``QUERRI_API_KEY`` env var.
+            access_token: JWT access token. Falls back to ``QUERRI_ACCESS_TOKEN`` env var.
+            org_id: Organization ID. Falls back to ``QUERRI_ORG_ID`` env var.
+            host: API host URL. Falls back to ``QUERRI_HOST`` (default: ``https://app.querri.com``).
+            timeout: Request timeout in seconds (default: 30.0).
+            max_retries: Max retry attempts for failed requests (default: 3).
+            profile: Named auth profile for token store selection.
+        """
+        self._profile = profile
         self._config = resolve_config(
             api_key=api_key,
             access_token=access_token,
@@ -46,7 +57,8 @@ class Querri:
         )
         self._http = SyncHTTPClient(self._config)
 
-        # Resource namespaces — lazily initialized on first access
+        # Resource namespaces — lazily initialized on first access.
+        # Deferred imports keep client creation fast and avoid circular imports.
         self._users: Optional[object] = None
         self._embed: Optional[object] = None
         self._policies: Optional[object] = None
@@ -144,14 +156,30 @@ class Querri:
             self._audit = Audit(self._http)
         return self._audit  # type: ignore[return-value]
 
+    def as_user(self, session: Dict[str, Any]) -> "UserQuerri":
+        """Create a user-scoped client from a ``get_session()`` result.
+
+        The returned client uses the embed session token for auth and
+        only exposes resources visible to the user (projects, dashboards,
+        sources, data, chats). All queries are automatically filtered
+        by the user's access policies.
+
+        Args:
+            session: Result from ``get_session()`` containing ``session_token``.
+        """
+        from ._user_client import UserQuerri
+        return UserQuerri(session, self._config)
+
     def close(self) -> None:
         """Close the underlying HTTP client."""
         self._http.close()
 
     def __enter__(self) -> "Querri":
+        """Enter context manager for automatic resource cleanup."""
         return self
 
     def __exit__(self, *args: object) -> None:
+        """Close the HTTP client on context manager exit."""
         self.close()
 
 
@@ -178,7 +206,18 @@ class AsyncQuerri:
         max_retries: Optional[int] = None,
         profile: Optional[str] = None,
     ) -> None:
-        self._profile = profile  # v0.2.1: used for token store profile selection
+        """Initialize the asynchronous Querri client.
+
+        Args:
+            api_key: API key (``qk_`` prefix). Falls back to ``QUERRI_API_KEY`` env var.
+            access_token: JWT access token. Falls back to ``QUERRI_ACCESS_TOKEN`` env var.
+            org_id: Organization ID. Falls back to ``QUERRI_ORG_ID`` env var.
+            host: API host URL. Falls back to ``QUERRI_HOST`` (default: ``https://app.querri.com``).
+            timeout: Request timeout in seconds (default: 30.0).
+            max_retries: Max retry attempts for failed requests (default: 3).
+            profile: Named auth profile for token store selection.
+        """
+        self._profile = profile
         self._config = resolve_config(
             api_key=api_key,
             access_token=access_token,
@@ -286,12 +325,28 @@ class AsyncQuerri:
             self._audit = AsyncAudit(self._http)
         return self._audit  # type: ignore[return-value]
 
+    def as_user(self, session: Dict[str, Any]) -> "AsyncUserQuerri":
+        """Create a user-scoped async client from a ``get_session()`` result.
+
+        The returned client uses the embed session token for auth and
+        only exposes resources visible to the user (projects, dashboards,
+        sources, data, chats). All queries are automatically filtered
+        by the user's access policies.
+
+        Args:
+            session: Result from ``get_session()`` containing ``session_token``.
+        """
+        from ._user_client import AsyncUserQuerri
+        return AsyncUserQuerri(session, self._config)
+
     async def close(self) -> None:
         """Close the underlying HTTP client."""
         await self._http.close()
 
     async def __aenter__(self) -> "AsyncQuerri":
+        """Enter async context manager for automatic resource cleanup."""
         return self
 
     async def __aexit__(self, *args: object) -> None:
+        """Close the HTTP client on async context manager exit."""
         await self.close()

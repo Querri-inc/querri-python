@@ -77,6 +77,7 @@ class TestChatStream:
         assert stream.text() == "Hello world"
 
     def test_newline_unescaping(self):
+        """Verify that escaped \\n sequences in SSE text chunks are unescaped to real newlines."""
         response = self._make_response([
             '0:"line1\\nline2"',
             'd:done',
@@ -86,6 +87,7 @@ class TestChatStream:
         assert chunks == ["line1\nline2"]
 
     def test_quote_unescaping(self):
+        """Verify that escaped quotes inside SSE text chunks are unescaped."""
         response = self._make_response([
             '0:"say \\"hi\\""',
             'd:done',
@@ -95,6 +97,7 @@ class TestChatStream:
         assert chunks == ['say "hi"']
 
     def test_backslash_unescaping(self):
+        """Verify that double-escaped backslashes are reduced to single backslashes."""
         response = self._make_response([
             '0:"path\\\\to\\\\file"',
             'd:done',
@@ -104,6 +107,7 @@ class TestChatStream:
         assert chunks == ["path\\to\\file"]
 
     def test_error_event_raises(self):
+        """Verify that an 'e:' SSE event raises StreamError with the error message."""
         response = self._make_response([
             '0:"partial"',
             'e:something went wrong',
@@ -113,6 +117,7 @@ class TestChatStream:
             list(stream)
 
     def test_done_signal_stops_iteration(self):
+        """Verify that a 'd:' done signal stops iteration, ignoring subsequent chunks."""
         response = self._make_response([
             '0:"a"',
             'd:done',
@@ -148,12 +153,14 @@ class TestChatStream:
         assert stream.message_id is None
 
     def test_response_closed_after_iteration(self):
+        """Verify that the underlying HTTP response is closed when iteration completes."""
         response = self._make_response(['d:done'])
         stream = ChatStream(response)
         list(stream)
         response.close.assert_called_once()
 
     def test_cancel(self):
+        """Verify that cancel() closes the response and raises StreamCancelledError."""
         response = self._make_response([
             '0:"chunk1"',
             '0:"chunk2"',
@@ -164,6 +171,7 @@ class TestChatStream:
         response.close.assert_called_once()
 
     def test_unquoted_text_chunk(self):
+        """Verify that text chunks without surrounding quotes are passed through as-is."""
         response = self._make_response([
             '0:raw text without quotes',
             'd:done',

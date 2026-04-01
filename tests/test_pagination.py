@@ -57,6 +57,7 @@ class TestSyncCursorPage:
 
     @respx.mock
     def test_multi_page_iteration(self):
+        """Verify that the iterator follows next_cursor across multiple pages."""
         respx.get("https://test.querri.com/api/v1/items").mock(
             side_effect=[
                 httpx.Response(
@@ -148,6 +149,7 @@ class TestSyncCursorPage:
 
     @respx.mock
     def test_has_more_property(self):
+        """Verify that accessing has_more triggers a lazy first-page fetch."""
         respx.get("https://test.querri.com/api/v1/items").mock(
             return_value=httpx.Response(
                 200,

@@ -59,7 +59,13 @@ class Usage:
 
 
 class AsyncUsage:
-    """Asynchronous usage metrics resource."""
+    """Asynchronous usage metrics resource.
+
+    Usage::
+
+        org = await client.usage.org_usage()
+        user = await client.usage.user_usage("user_id")
+    """
 
     def __init__(self, http: AsyncHTTPClient) -> None:
         self._http = http
@@ -69,7 +75,14 @@ class AsyncUsage:
         *,
         period: str = "current_month",
     ) -> UsageReport:
-        """Get organization-level usage summary."""
+        """Get organization-level usage summary.
+
+        Args:
+            period: One of "current_month", "last_month", "last_30_days".
+
+        Returns:
+            UsageReport with period, totals, and details.
+        """
         resp = await self._http.get("/usage", params={"period": period})
         return UsageReport.model_validate(resp.json())
 
@@ -79,7 +92,15 @@ class AsyncUsage:
         *,
         period: str = "current_month",
     ) -> UsageReport:
-        """Get per-user usage breakdown."""
+        """Get per-user usage breakdown.
+
+        Args:
+            user_id: The user ID.
+            period: One of "current_month", "last_month", "last_30_days".
+
+        Returns:
+            UsageReport with period, totals, and details.
+        """
         resp = await self._http.get(
             f"/usage/users/{user_id}",
             params={"period": period},

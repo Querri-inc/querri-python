@@ -10,19 +10,26 @@ from pydantic import BaseModel
 class User(BaseModel):
     """A user in the Querri organization."""
 
-    id: str
-    email: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    role: str = "member"
-    external_id: Optional[str] = None
-    created_at: Optional[str] = None
-    created: Optional[bool] = None
-    """Only present on get_or_create responses. True if a new user was created."""
+    id: str  #: Unique user identifier.
+    email: str  #: User's email address.
+    first_name: Optional[str] = None  #: User's first name.
+    last_name: Optional[str] = None  #: User's last name.
+    role: str = "member"  #: Role, e.g. ``"admin"`` or ``"member"``.
+    external_id: Optional[str] = None  #: Caller-supplied external identifier.
+    created_at: Optional[str] = None  #: ISO-8601 timestamp of creation.
+    created: Optional[bool] = None  #: Only on get_or_create; ``True`` if newly created.
 
 
 class UserDeleteResponse(BaseModel):
     """Response from deleting a user."""
 
-    id: str
-    deleted: bool = True
+    id: str  #: ID of the deleted user.
+    deleted: bool = True  #: Whether the user was successfully deleted.
+
+
+class ExternalIdDeleteResponse(BaseModel):
+    """Response from removing an external ID mapping."""
+
+    external_id: str  #: The external ID that was removed.
+    user_id: str  #: The user ID that was unlinked.
+    deleted: bool  #: Whether the mapping was deleted.

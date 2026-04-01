@@ -11,7 +11,7 @@ from .dashboard import (
     DashboardRefreshStatus,
     DashboardUpdateResponse,
 )
-from .data import DataPage, QueryResult, Source
+from .data import DataPage, DataWriteResult, QueryResult, Source
 from .embed import (
     EmbedSession,
     EmbedSessionList,
@@ -26,6 +26,7 @@ from .policy import (
     PolicyAssignResponse,
     PolicyDeleteResponse,
     PolicyRemoveUserResponse,
+    PolicyReplaceResponse,
     PolicyUpdateResponse,
     ResolvedAccess,
     RowFilter,
@@ -42,10 +43,11 @@ from .project import (
 )
 from .sharing import ShareEntry
 from .usage import UsageReport
-from .user import User, UserDeleteResponse
+from .user import ExternalIdDeleteResponse, User, UserDeleteResponse
 
 __all__ = [
     # User
+    "ExternalIdDeleteResponse",
     "User",
     "UserDeleteResponse",
     # Embed
@@ -58,6 +60,7 @@ __all__ = [
     "PolicyAssignResponse",
     "PolicyDeleteResponse",
     "PolicyRemoveUserResponse",
+    "PolicyReplaceResponse",
     "PolicyUpdateResponse",
     "ResolvedAccess",
     "RowFilter",
@@ -84,6 +87,7 @@ __all__ = [
     "DashboardUpdateResponse",
     # Data
     "DataPage",
+    "DataWriteResult",
     "QueryResult",
     "Source",
     # File

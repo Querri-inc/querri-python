@@ -142,13 +142,24 @@ class Sources:
 
 
 class AsyncSources:
-    """Asynchronous connector and source management resource."""
+    """Asynchronous connector and source management resource.
+
+    Usage::
+
+        connectors = await client.sources.list_connectors()
+        sources = await client.sources.list()
+        new_source = await client.sources.create(name="My Source", connector_id="...", config={})
+    """
 
     def __init__(self, http: AsyncHTTPClient) -> None:
         self._http = http
 
     async def list_connectors(self) -> List[Dict[str, Any]]:
-        """List available connector types with connection status."""
+        """List available connector types with connection status.
+
+        Returns:
+            List of connector dicts with id, name, service, status.
+        """
         resp = await self._http.get("/connectors")
         body = resp.json()
         return body.get("data", [])
@@ -160,7 +171,16 @@ class AsyncSources:
         connector_id: str,
         config: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Create a data source."""
+        """Create a data source.
+
+        Args:
+            name: Display name for the source.
+            connector_id: The connector UUID to use.
+            config: Source-specific configuration dict.
+
+        Returns:
+            Dict with id, name, connector_id, status.
+        """
         resp = await self._http.post(
             "/sources",
             json={
@@ -172,7 +192,14 @@ class AsyncSources:
         return resp.json()
 
     async def get(self, source_id: str) -> Dict[str, Any]:
-        """Get source details."""
+        """Get source details.
+
+        Args:
+            source_id: The source UUID.
+
+        Returns:
+            Source detail dict.
+        """
         resp = await self._http.get("/sources")
         body = resp.json()
         for s in body.get("data", []):
@@ -188,7 +215,11 @@ class AsyncSources:
         )
 
     async def list(self) -> List[Dict[str, Any]]:
-        """List data sources for the organization."""
+        """List data sources for the organization.
+
+        Returns:
+            List of source summary dicts with id, name, service, connector_id, etc.
+        """
         resp = await self._http.get("/sources")
         body = resp.json()
         return body.get("data", [])
@@ -200,7 +231,16 @@ class AsyncSources:
         name: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Update source configuration."""
+        """Update source configuration.
+
+        Args:
+            source_id: The source UUID.
+            name: New display name.
+            config: Updated configuration dict.
+
+        Returns:
+            Dict with id and updated status.
+        """
         payload: Dict[str, Any] = {}
         if name is not None:
             payload["name"] = name
@@ -210,10 +250,21 @@ class AsyncSources:
         return resp.json()
 
     async def delete(self, source_id: str) -> None:
-        """Delete a data source."""
+        """Delete a data source.
+
+        Args:
+            source_id: The source UUID.
+        """
         await self._http.delete(f"/sources/{source_id}")
 
     async def sync(self, source_id: str) -> Dict[str, Any]:
-        """Trigger a source sync."""
+        """Trigger a source sync.
+
+        Args:
+            source_id: The source UUID.
+
+        Returns:
+            Dict with id and status ("sync_queued").
+        """
         resp = await self._http.post(f"/sources/{source_id}/sync")
         return resp.json()

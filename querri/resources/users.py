@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from .._pagination import AsyncCursorPage, SyncCursorPage
-from ..types.user import User, UserDeleteResponse
+from ..types.user import ExternalIdDeleteResponse, User, UserDeleteResponse
 
 
 class Users:
@@ -148,6 +148,15 @@ class Users:
         resp = self._http.put(f"/users/external/{external_id}", json=body)
         return User.model_validate(resp.json())
 
+    def remove_external_id(self, external_id: str) -> ExternalIdDeleteResponse:
+        """Remove an external ID mapping without deleting the user.
+
+        Args:
+            external_id: The external ID to unlink.
+        """
+        resp = self._http.delete(f"/users/external/{external_id}")
+        return ExternalIdDeleteResponse.model_validate(resp.json())
+
 
 class AsyncUsers:
     """Asynchronous user management.
@@ -171,7 +180,15 @@ class AsyncUsers:
         last_name: Optional[str] = None,
         role: str = "member",
     ) -> User:
-        """Create a user in the organization."""
+        """Create a user in the organization.
+
+        Args:
+            email: User email address.
+            external_id: Optional customer-provided external ID.
+            first_name: Optional first name.
+            last_name: Optional last name.
+            role: ``"admin"`` or ``"member"`` (default).
+        """
         body: dict[str, Any] = {"email": email, "role": role}
         if external_id is not None:
             body["external_id"] = external_id
@@ -183,7 +200,11 @@ class AsyncUsers:
         return User.model_validate(resp.json())
 
     async def get(self, user_id: str) -> User:
-        """Get user by ID (WorkOS user ID or external ID)."""
+        """Get user by ID (WorkOS user ID or external ID).
+
+        Args:
+            user_id: WorkOS user ID or external ID.
+        """
         resp = await self._http.get(f"/users/{user_id}")
         return User.model_validate(resp.json())
 
@@ -194,7 +215,13 @@ class AsyncUsers:
         after: Optional[str] = None,
         external_id: Optional[str] = None,
     ) -> AsyncCursorPage[User]:
-        """List organization users with cursor pagination."""
+        """List organization users with cursor pagination.
+
+        Args:
+            limit: Max users per page (1-100).
+            after: Cursor for the next page.
+            external_id: Filter by external ID (returns at most one user).
+        """
         params: dict[str, Any] = {"limit": limit}
         if after is not None:
             params["after"] = after
@@ -210,7 +237,14 @@ class AsyncUsers:
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
     ) -> User:
-        """Update a user's role or profile fields."""
+        """Update a user's role or profile fields.
+
+        Args:
+            user_id: WorkOS user ID or external ID.
+            role: New role (``"admin"`` or ``"member"``).
+            first_name: New first name.
+            last_name: New last name.
+        """
         body: dict[str, Any] = {}
         if role is not None:
             body["role"] = role
@@ -222,7 +256,11 @@ class AsyncUsers:
         return User.model_validate(resp.json())
 
     async def delete(self, user_id: str) -> UserDeleteResponse:
-        """Remove a user from the organization."""
+        """Remove a user from the organization.
+
+        Args:
+            user_id: WorkOS user ID or external ID.
+        """
         resp = await self._http.delete(f"/users/{user_id}")
         return UserDeleteResponse.model_validate(resp.json())
 
@@ -254,3 +292,12 @@ class AsyncUsers:
             body["last_name"] = last_name
         resp = await self._http.put(f"/users/external/{external_id}", json=body)
         return User.model_validate(resp.json())
+
+    async def remove_external_id(self, external_id: str) -> ExternalIdDeleteResponse:
+        """Remove an external ID mapping without deleting the user.
+
+        Args:
+            external_id: The external ID to unlink.
+        """
+        resp = await self._http.delete(f"/users/external/{external_id}")
+        return ExternalIdDeleteResponse.model_validate(resp.json())

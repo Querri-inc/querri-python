@@ -5,7 +5,6 @@ Demonstrates:
 - Async iteration over paginated results
 - Using get_data() instead of .data for async pagination
 - Async get_session()
-- Async chat streaming
 
 Prerequisites:
     export QUERRI_API_KEY="qk_..."
@@ -70,20 +69,25 @@ async def main():
             await client.embed.revoke_session(session["session_token"])
 
             # ----------------------------------------------------------
-            # Dashboards
+            # Dashboards (async iteration — no await on .list())
             # ----------------------------------------------------------
             print("\n=== Async dashboards ===")
-            dashboards = await client.dashboards.list(limit=5)
-            for d in dashboards:
+            async for d in client.dashboards.list(limit=5):
                 print(f"  {d.name}")
 
             # ----------------------------------------------------------
-            # Policies
+            # Policies (async iteration — no await on .list())
             # ----------------------------------------------------------
             print("\n=== Async policies ===")
-            policies = await client.policies.list()
-            for p in policies:
+            async for p in client.policies.list():
                 print(f"  {p.name} ({p.id})")
+
+            # ----------------------------------------------------------
+            # Collect all items with to_list()
+            # ----------------------------------------------------------
+            print("\n=== to_list() convenience ===")
+            all_policies = await client.policies.list().to_list()
+            print(f"  Total policies: {len(all_policies)}")
 
         finally:
             await client.users.delete(user.id)

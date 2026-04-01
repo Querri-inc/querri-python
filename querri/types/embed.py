@@ -10,30 +10,30 @@ from pydantic import BaseModel
 class EmbedSession(BaseModel):
     """An embed session token and metadata."""
 
-    session_token: str
-    expires_in: int
-    user_id: Optional[str] = None
+    session_token: str  #: The ``es_``-prefixed token for iframe embedding.
+    expires_in: int  #: Seconds until the session expires.
+    user_id: Optional[str] = None  #: Querri user ID, if the session is user-scoped.
 
 
 class EmbedSessionListItem(BaseModel):
     """An active embed session as returned by list."""
 
-    session_token: str
-    user_id: Optional[str] = None
-    origin: Optional[str] = None
-    created_at: Optional[Union[str, float]] = None
-    auth_method: Optional[str] = None
+    session_token: str  #: The ``es_``-prefixed session token.
+    user_id: Optional[str] = None  #: Querri user ID bound to this session.
+    origin: Optional[str] = None  #: Allowed origin URL for the embedded iframe.
+    created_at: Optional[Union[str, float]] = None  #: When the session was created.
+    auth_method: Optional[str] = None  #: Auth method used, e.g. ``"api_key"``.
 
 
 class EmbedSessionList(BaseModel):
     """Response from listing embed sessions."""
 
-    data: list[EmbedSessionListItem] = []
-    count: int = 0
+    data: list[EmbedSessionListItem] = []  #: List of active embed sessions.
+    count: int = 0  #: Total number of active sessions.
 
 
 class EmbedSessionRevokeResponse(BaseModel):
     """Response from revoking an embed session."""
 
-    session_id: str
-    revoked: bool = True
+    session_id: str  #: ID of the revoked session.
+    revoked: bool = True  #: Whether the session was successfully revoked.

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Querri Python SDK — Embed + Explorer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; height: 100vh; display: flex; flex-direction: column; }
+        .header { background: #1a1a2e; color: white; padding: 12px 24px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+        .header h1 { font-size: 18px; font-weight: 500; }
+        .header .badge { background: #e94560; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+        .tabs { display: flex; background: #fff; border-bottom: 1px solid #e0e0e0; flex-shrink: 0; }
+        .tab { padding: 10px 24px; cursor: pointer; font-size: 14px; font-weight: 500; color: #666; border-bottom: 2px solid transparent; transition: all 0.2s; }
+        .tab:hover { color: #333; }
+        .tab.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+        .tab-content { display: none; flex: 1; overflow: hidden; }
+        .tab-content.active { display: flex; flex-direction: column; }
+        .status { padding: 8px 24px; background: #fff; border-bottom: 1px solid #e0e0e0; font-size: 13px; color: #666; flex-shrink: 0; }
+        .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+        .dot.green { background: #4caf50; } .dot.yellow { background: #ff9800; } .dot.red { background: #f44336; }
+        #embed-container { flex: 1; }
+
+        /* Explorer styles */
+        .explorer { display: flex; flex: 1; overflow: hidden; }
+        .explorer-sidebar { width: 380px; background: #fff; border-right: 1px solid #e0e0e0; display: flex; flex-direction: column; flex-shrink: 0; }
+        .explorer-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .sidebar-section { padding: 16px; border-bottom: 1px solid #f0f0f0; }
+        .sidebar-section label { display: block; font-size: 12px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .sidebar-section select, .sidebar-section textarea { width: 100%; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; font-size: 13px; border: 1px solid #ddd; border-radius: 6px; padding: 8px 10px; background: #fafafa; }
+        .sidebar-section select { cursor: pointer; }
+        .sidebar-section textarea { resize: vertical; min-height: 200px; flex: 1; line-height: 1.5; }
+        .params-section { flex: 1; display: flex; flex-direction: column; padding: 16px; overflow: hidden; }
+        .params-section textarea { flex: 1; }
+        .btn-run { display: block; width: calc(100% - 32px); margin: 0 16px 16px; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+        .btn-run:hover { background: #2563eb; }
+        .btn-run:disabled { background: #94a3b8; cursor: not-allowed; }
+        .response-header { padding: 12px 20px; background: #1e293b; color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .response-status { font-family: monospace; }
+        .response-status.ok { color: #4ade80; }
+        .response-status.err { color: #f87171; }
+        .response-body { flex: 1; overflow: auto; background: #0f172a; padding: 16px 20px; }
+        .response-body pre { color: #e2e8f0; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+        .action-group { font-weight: 600; color: #333; padding: 4px 10px; font-size: 12px; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Querri Python SDK</h1>
+        <span class="badge">Demo</span>
+    </div>
+
+    <div class="tabs">
+        <div class="tab active" data-tab="embed">Embed</div>
+        <div class="tab" data-tab="explorer">SDK Explorer</div>
+    </div>
+
+    <!-- Tab 1: Embed -->
+    <div class="tab-content active" id="tab-embed">
+        <div class="status" id="status"><span class="dot yellow"></span> Connecting...</div>
+        <div id="embed-container"></div>
+    </div>
+
+    <!-- Tab 2: SDK Explorer -->
+    <div class="tab-content" id="tab-explorer">
+        <div class="explorer">
+            <div class="explorer-sidebar">
+                <div class="sidebar-section">
+                    <label>Action</label>
+                    <select id="action-select"></select>
+                </div>
+                <div class="sidebar-section" style="flex-shrink:0;">
+                    <label>Description</label>
+                    <div id="action-desc" style="font-size:13px;color:#555;line-height:1.4;"></div>
+                </div>
+                <div class="params-section">
+                    <label style="font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Params (JSON)</label>
+                    <textarea id="params-editor">{}</textarea>
+                </div>
+                <button class="btn-run" id="btn-run">Run</button>
+            </div>
+            <div class="explorer-main">
+                <div class="response-header">
+                    <span>Response</span>
+                    <span class="response-status" id="resp-status"></span>
+                </div>
+                <div class="response-body">
+                    <pre id="resp-body">Select an action and click Run</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Querri Embed SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@querri-inc/embed/dist/core/querri-embed.iife.global.js"></script>
+
+    <script>
+    // ── Tab switching ──────────────────────────────────────────
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        });
+    });
+
+    // ── Embed ─────────────────────────────────────────────────
+    const statusEl = document.getElementById('status');
+    function setStatus(color, text) {
+        statusEl.innerHTML = `<span class="dot ${color}"></span> ${text}`;
+    }
+
+    // Fetch server config (serverUrl) then initialize embed
+    fetch('/api/config').then(r => r.json()).then(cfg => {
+        try {
+            const embed = QuerriEmbed.create(
+                document.getElementById('embed-container'),
+                {
+                    serverUrl: cfg.serverUrl,
+                    auth: {
+                        fetchSessionToken: async () => {
+                            const res = await fetch('/api/querri-session', { method: 'POST' });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.error || 'Session failed');
+                            return data.session_token;
+                        }
+                    },
+                    startView: '/home',
+                    chrome: { sidebar: { show: true }, header: { show: true } },
+                }
+            );
+            embed.on('ready', () => setStatus('green', 'Connected'));
+            embed.on('error', (e) => setStatus('red', 'Error: ' + (e.message || e.code)));
+            embed.on('session-expired', () => setStatus('yellow', 'Session expired — refreshing...'));
+        } catch (e) {
+            setStatus('red', 'Failed: ' + e.message);
+        }
+    }).catch(e => setStatus('red', 'Config fetch failed: ' + e.message));
+
+    // ── SDK Explorer ──────────────────────────────────────────
+    const ACTIONS = {
+        'Users': {
+            'users.list':              { desc: 'List users (paginated)', params: { limit: 10 } },
+            'users.create':            { desc: 'Create a user', params: { email: 'test@example.com', external_id: 'ext_123', first_name: 'Test', last_name: 'User' } },
+            'users.get':               { desc: 'Get user by ID', params: { user_id: '' } },
+            'users.update':            { desc: 'Update a user', params: { user_id: '', first_name: 'Updated' } },
+            'users.delete':            { desc: 'Delete a user', params: { user_id: '' } },
+            'users.getOrCreate':       { desc: 'Get or create user by external ID (idempotent)', params: { external_id: '', email: 'user@example.com' } },
+            'users.removeExternalId':  { desc: 'Unlink external ID (keeps user)', params: { external_id: '' } },
+        },
+        'Embed': {
+            'embed.getSession':        { desc: 'Create session (flagship method)', params: { user: { external_id: 'ext_123', email: 'user@example.com' }, access: { sources: ['src_id'] }, ttl: 3600 } },
+            'embed.createSession':     { desc: 'Create raw embed session', params: { user_id: '', ttl: 3600 } },
+            'embed.refreshSession':    { desc: 'Refresh a session token', params: { session_token: '' } },
+            'embed.listSessions':      { desc: 'List active sessions', params: { limit: 20 } },
+            'embed.revokeSession':     { desc: 'Revoke a session', params: { session_token: '' } },
+            'embed.revokeUserSessions':{ desc: 'Revoke all sessions for user', params: { user_id: '' } },
+        },
+        'Policies': {
+            'policies.list':               { desc: 'List policies (paginated)', params: { limit: 25 } },
+            'policies.create':             { desc: 'Create a policy', params: { name: 'My Policy', source_ids: [], row_filters: [{ column: 'region', values: ['APAC'] }] } },
+            'policies.get':                { desc: 'Get policy by ID', params: { policy_id: '' } },
+            'policies.update':             { desc: 'Update a policy', params: { policy_id: '', name: 'Updated' } },
+            'policies.delete':             { desc: 'Delete a policy', params: { policy_id: '' } },
+            'policies.assignUsers':        { desc: 'Assign users to policy (additive)', params: { policy_id: '', user_ids: [] } },
+            'policies.removeUser':         { desc: 'Remove user from policy', params: { policy_id: '', user_id: '' } },
+            'policies.replaceUserPolicies':{ desc: 'Atomically replace all user policies', params: { user_id: '', policy_ids: [] } },
+            'policies.resolve':            { desc: 'Resolve effective access for user+source', params: { user_id: '', source_id: '' } },
+            'policies.columns':            { desc: 'List filterable columns', params: { source_id: '' } },
+            'policies.setup':              { desc: 'Create policy + assign users in one call', params: { name: 'Quick Policy', sources: [], row_filters: {}, users: [] } },
+        },
+        'Projects': {
+            'projects.list':       { desc: 'List projects (paginated)', params: { limit: 10 } },
+            'projects.create':     { desc: 'Create a project', params: { name: 'New Project', user_id: '' } },
+            'projects.get':        { desc: 'Get project by ID', params: { project_id: '' } },
+            'projects.update':     { desc: 'Update project', params: { project_id: '', name: 'Renamed' } },
+            'projects.delete':     { desc: 'Delete project', params: { project_id: '' } },
+            'projects.run':        { desc: 'Run/execute a project', params: { project_id: '', user_id: '' } },
+            'projects.runStatus':  { desc: 'Check run status', params: { project_id: '' } },
+            'projects.runCancel':  { desc: 'Cancel a running project', params: { project_id: '' } },
+            'projects.listSteps':  { desc: 'List project steps', params: { project_id: '' } },
+            'projects.getStepData':{ desc: 'Get step output data', params: { project_id: '', step_id: '', page: 1, page_size: 50 } },
+        },
+        'Chats': {
+            'chats.create': { desc: 'Create a chat on a project', params: { project_id: '' } },
+            'chats.list':   { desc: 'List chats for a project', params: { project_id: '', limit: 25 } },
+            'chats.get':    { desc: 'Get chat by ID', params: { project_id: '', chat_id: '' } },
+            'chats.delete': { desc: 'Delete a chat', params: { project_id: '', chat_id: '' } },
+            'chats.cancel': { desc: 'Cancel streaming chat', params: { project_id: '', chat_id: '' } },
+        },
+        'Dashboards': {
+            'dashboards.list':          { desc: 'List dashboards (paginated)', params: { limit: 10 } },
+            'dashboards.create':        { desc: 'Create a dashboard', params: { name: 'New Dashboard' } },
+            'dashboards.get':           { desc: 'Get dashboard by ID', params: { dashboard_id: '' } },
+            'dashboards.update':        { desc: 'Update dashboard', params: { dashboard_id: '', name: 'Renamed' } },
+            'dashboards.delete':        { desc: 'Delete dashboard', params: { dashboard_id: '' } },
+            'dashboards.refresh':       { desc: 'Trigger dashboard refresh', params: { dashboard_id: '' } },
+            'dashboards.refreshStatus': { desc: 'Check refresh status', params: { dashboard_id: '' } },
+        },
+        'Data': {
+            'data.sources':      { desc: 'List data sources (paginated)', params: { limit: 25 } },
+            'data.source':       { desc: 'Get source by ID', params: { source_id: '' } },
+            'data.createSource': { desc: 'Create source with rows', params: { name: 'Test Source', rows: [{ col1: 'val1' }] } },
+            'data.appendRows':   { desc: 'Append rows to source', params: { source_id: '', rows: [{ col1: 'val2' }] } },
+            'data.replaceData':  { desc: 'Replace all data in source', params: { source_id: '', rows: [{ col1: 'new' }] } },
+            'data.deleteSource': { desc: 'Delete a data source', params: { source_id: '' } },
+            'data.query':        { desc: 'Run SQL query', params: { sql: 'SELECT * FROM src LIMIT 10', source_id: '' } },
+            'data.sourceData':   { desc: 'Get source data (paginated)', params: { source_id: '', page: 1, page_size: 50 } },
+        },
+        'Sources': {
+            'sources.listConnectors': { desc: 'List available connectors', params: {} },
+            'sources.list':           { desc: 'List connected sources', params: {} },
+            'sources.create':         { desc: 'Create a source', params: { name: '', connector_id: '' } },
+            'sources.update':         { desc: 'Update source config', params: { source_id: '' } },
+            'sources.delete':         { desc: 'Delete a source', params: { source_id: '' } },
+            'sources.sync':           { desc: 'Trigger source sync', params: { source_id: '' } },
+        },
+        'Files': {
+            'files.list':   { desc: 'List uploaded files', params: {} },
+            'files.get':    { desc: 'Get file by ID', params: { file_id: '' } },
+            'files.delete': { desc: 'Delete a file', params: { file_id: '' } },
+        },
+        'Keys': {
+            'keys.list':   { desc: 'List API keys', params: {} },
+            'keys.create': { desc: 'Create an API key', params: { name: 'Test Key', scopes: ['read'] } },
+            'keys.get':    { desc: 'Get key by ID', params: { key_id: '' } },
+            'keys.delete': { desc: 'Revoke/delete a key', params: { key_id: '' } },
+        },
+        'Audit': {
+            'audit.list': { desc: 'List audit events', params: { limit: 20 } },
+        },
+        'Usage': {
+            'usage.org':  { desc: 'Org usage report', params: { period: 'current_month' } },
+            'usage.user': { desc: 'User usage report', params: { user_id: '', period: 'current_month' } },
+        },
+        'Sharing': {
+            'sharing.shareProject':         { desc: 'Share project with user', params: { project_id: '', user_id: '', permission: 'view' } },
+            'sharing.revokeProjectShare':    { desc: 'Revoke project share', params: { project_id: '', user_id: '' } },
+            'sharing.listProjectShares':     { desc: 'List project shares', params: { project_id: '' } },
+            'sharing.shareDashboard':        { desc: 'Share dashboard with user', params: { dashboard_id: '', user_id: '', permission: 'view' } },
+            'sharing.revokeDashboardShare':  { desc: 'Revoke dashboard share', params: { dashboard_id: '', user_id: '' } },
+            'sharing.listDashboardShares':   { desc: 'List dashboard shares', params: { dashboard_id: '' } },
+            'sharing.shareSource':           { desc: 'Share data source with user', params: { source_id: '', user_id: '', permission: 'view' } },
+            'sharing.orgShareSource':        { desc: 'Org-wide source sharing', params: { source_id: '', enabled: true, permission: 'view' } },
+        },
+    };
+
+    // Populate action dropdown
+    const select = document.getElementById('action-select');
+    const paramsEditor = document.getElementById('params-editor');
+    const descEl = document.getElementById('action-desc');
+
+    for (const [group, actions] of Object.entries(ACTIONS)) {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = group;
+        for (const [action, meta] of Object.entries(actions)) {
+            const opt = document.createElement('option');
+            opt.value = action;
+            opt.textContent = action;
+            optgroup.appendChild(opt);
+        }
+        select.appendChild(optgroup);
+    }
+
+    function getActionMeta(action) {
+        for (const actions of Object.values(ACTIONS)) {
+            if (actions[action]) return actions[action];
+        }
+        return null;
+    }
+
+    select.addEventListener('change', () => {
+        const meta = getActionMeta(select.value);
+        if (meta) {
+            paramsEditor.value = JSON.stringify(meta.params, null, 2);
+            descEl.textContent = meta.desc;
+        }
+    });
+
+    // Set initial
+    if (select.value) {
+        const meta = getActionMeta(select.value);
+        if (meta) {
+            paramsEditor.value = JSON.stringify(meta.params, null, 2);
+            descEl.textContent = meta.desc;
+        }
+    }
+
+    // Run button
+    const btnRun = document.getElementById('btn-run');
+    const respStatus = document.getElementById('resp-status');
+    const respBody = document.getElementById('resp-body');
+
+    btnRun.addEventListener('click', async () => {
+        const action = select.value;
+        let params;
+        try {
+            params = JSON.parse(paramsEditor.value);
+        } catch (e) {
+            respStatus.textContent = 'JSON Error';
+            respStatus.className = 'response-status err';
+            respBody.textContent = 'Invalid JSON in params: ' + e.message;
+            return;
+        }
+
+        btnRun.disabled = true;
+        btnRun.textContent = 'Running...';
+        respStatus.textContent = '';
+        respBody.textContent = 'Loading...';
+
+        try {
+            const start = performance.now();
+            const res = await fetch('/api/sdk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action, params }),
+            });
+            const elapsed = Math.round(performance.now() - start);
+            const data = await res.json();
+
+            respStatus.textContent = `${res.status} ${res.statusText} (${elapsed}ms)`;
+            respStatus.className = 'response-status ' + (res.ok ? 'ok' : 'err');
+            respBody.textContent = JSON.stringify(data, null, 2);
+        } catch (e) {
+            respStatus.textContent = 'Network Error';
+            respStatus.className = 'response-status err';
+            respBody.textContent = e.message;
+        } finally {
+            btnRun.disabled = false;
+            btnRun.textContent = 'Run';
+        }
+    });
+
+    // Ctrl+Enter to run
+    paramsEditor.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            btnRun.click();
+        }
+    });
+    </script>
+</body>
+</html>

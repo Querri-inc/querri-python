@@ -30,12 +30,20 @@ _RETRYABLE_STATUSES = {429, 500, 502, 503}
 
 
 def _default_headers(config: ClientConfig) -> dict[str, str]:
+    """Build default HTTP headers including auth, tenant ID, user agent, and Accept.
+
+    Auth priority:
+    1. Session token (``X-Embed-Session``) — user-scoped client via ``as_user()``.
+    2. JWT access token (``Bearer ey*``) — OAuth login, no X-Tenant-ID needed.
+    3. API key (``Bearer qk_*``) — API key auth with X-Tenant-ID for tenant isolation.
+    """
     headers: dict[str, str] = {
         "User-Agent": config.user_agent,
         "Accept": "application/json",
     }
-    # Header branching: qk_* → API key + X-Tenant-ID, ey* → JWT only
-    if config.access_token:
+    if config.session_token:
+        headers["X-Embed-Session"] = config.session_token
+    elif config.access_token:
         headers["Authorization"] = f"Bearer {config.access_token}"
     elif config.api_key:
         headers["Authorization"] = f"Bearer {config.api_key}"
@@ -45,6 +53,11 @@ def _default_headers(config: ClientConfig) -> dict[str, str]:
 
 
 def _should_retry(status: int, method: str) -> bool:
+    """Check if a failed request should be retried.
+
+    429 (rate limit) always retries. 5xx only retries for idempotent methods
+    (GET, PUT, DELETE, HEAD, OPTIONS) to avoid duplicate side effects from POST.
+    """
     if status == 429:
         return True
     if status in _RETRYABLE_STATUSES and method.upper() in _IDEMPOTENT_METHODS:
@@ -53,7 +66,12 @@ def _should_retry(status: int, method: str) -> bool:
 
 
 def _backoff_delay(attempt: int, retry_after: Optional[float] = None) -> float:
-    """Exponential backoff with jitter."""
+    """Exponential backoff with jitter.
+
+    Uses 2^attempt capped at 30s, plus 0-0.5s random jitter to prevent
+    thundering herd. If the server sent a Retry-After header, uses that
+    value instead.
+    """
     if retry_after is not None and retry_after > 0:
         return retry_after
     base = min(2**attempt, 30)
@@ -70,6 +88,7 @@ def _parse_error_response(response: httpx.Response) -> dict[str, Any]:
 
 
 def _get_retry_after(response: httpx.Response) -> Optional[float]:
+    """Parse the Retry-After response header as seconds. Returns None if absent or unparseable."""
     header = response.headers.get("retry-after")
     if header is None:
         return None
@@ -83,6 +102,7 @@ class SyncHTTPClient:
     """Synchronous HTTP client with retry and error handling."""
 
     def __init__(self, config: ClientConfig) -> None:
+        """Initialize with auth headers and connection pool from config."""
         self._config = config
         self._client = httpx.Client(
             base_url=config.base_url,
@@ -163,25 +183,30 @@ class SyncHTTPClient:
                     status=0,
                 ) from last_exc
 
-        # Should not reach here, but just in case
+        # Loop exhausted all retries without returning or raising — re-raise the last error.
         raise APIError(
             f"Request failed after {max_retries + 1} attempts",
             status=0,
         )
 
     def get(self, path: str, **kwargs: Any) -> httpx.Response:
+        """Shorthand for :meth:`request` with method=GET."""
         return self.request("GET", path, **kwargs)
 
     def post(self, path: str, **kwargs: Any) -> httpx.Response:
+        """Shorthand for :meth:`request` with method=POST."""
         return self.request("POST", path, **kwargs)
 
     def put(self, path: str, **kwargs: Any) -> httpx.Response:
+        """Shorthand for :meth:`request` with method=PUT."""
         return self.request("PUT", path, **kwargs)
 
     def patch(self, path: str, **kwargs: Any) -> httpx.Response:
+        """Shorthand for :meth:`request` with method=PATCH."""
         return self.request("PATCH", path, **kwargs)
 
     def delete(self, path: str, **kwargs: Any) -> httpx.Response:
+        """Shorthand for :meth:`request` with method=DELETE."""
         return self.request("DELETE", path, **kwargs)
 
     def close(self) -> None:
@@ -192,6 +217,7 @@ class AsyncHTTPClient:
     """Asynchronous HTTP client with retry and error handling."""
 
     def __init__(self, config: ClientConfig) -> None:
+        """Initialize with auth headers and connection pool from config."""
         self._config = config
         self._client = httpx.AsyncClient(
             base_url=config.base_url,
@@ -271,24 +297,30 @@ class AsyncHTTPClient:
                     status=0,
                 ) from last_exc
 
+        # Loop exhausted all retries without returning or raising — re-raise the last error.
         raise APIError(
             f"Request failed after {max_retries + 1} attempts",
             status=0,
         )
 
     async def get(self, path: str, **kwargs: Any) -> httpx.Response:
+        """Shorthand for :meth:`request` with method=GET."""
         return await self.request("GET", path, **kwargs)
 
     async def post(self, path: str, **kwargs: Any) -> httpx.Response:
+        """Shorthand for :meth:`request` with method=POST."""
         return await self.request("POST", path, **kwargs)
 
     async def put(self, path: str, **kwargs: Any) -> httpx.Response:
+        """Shorthand for :meth:`request` with method=PUT."""
         return await self.request("PUT", path, **kwargs)
 
     async def patch(self, path: str, **kwargs: Any) -> httpx.Response:
+        """Shorthand for :meth:`request` with method=PATCH."""
         return await self.request("PATCH", path, **kwargs)
 
     async def delete(self, path: str, **kwargs: Any) -> httpx.Response:
+        """Shorthand for :meth:`request` with method=DELETE."""
         return await self.request("DELETE", path, **kwargs)
 
     async def close(self) -> None:

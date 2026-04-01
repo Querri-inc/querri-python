@@ -16,7 +16,7 @@ import logging
 from typing import Any, Dict, List, Optional, Union
 
 from ._base_client import AsyncHTTPClient, SyncHTTPClient
-from ._exceptions import NotFoundError, ValidationError
+from ._exceptions import ValidationError
 from .types.policy import Policy
 
 logger = logging.getLogger("querri")
@@ -263,48 +263,43 @@ def _sync_apply_access(
     """Apply access policies to a user (sync).
 
     Handles both ``policy_ids`` references and inline specs.
+    Uses atomic replace (PUT) to prevent stale policy accumulation.
     """
-    policy_ids = access.get("policy_ids")
-
-    if policy_ids:
-        # Assign user to each referenced policy (idempotent on the server)
-        for pid in policy_ids:
-            http.post(
-                f"/access/policies/{pid}/users",
-                json={"user_ids": [user_id]},
-            )
-            logger.debug("Assigned user %s to policy %s", user_id, pid)
-        return
+    all_policy_ids: List[str] = list(access.get("policy_ids") or [])
 
     # Inline spec — find-or-create a policy by deterministic content hash
-    if not access.get("sources") and not access.get("filters"):
-        # Empty access dict with no policy_ids — nothing to do
+    if access.get("sources") or access.get("filters"):
+        spec_hash = _hash_access_spec(access)
+        policy_name = f"sdk_auto_{spec_hash}"
+
+        # Try to find an existing policy with this name
+        resp = http.get("/access/policies", params={"name": policy_name})
+        policies = resp.json().get("data", [])
+
+        if policies:
+            policy_id = policies[0]["id"]
+            logger.debug("Reusing existing auto-policy %s (name=%s)", policy_id, policy_name)
+        else:
+            # Create a new policy
+            policy_body = _build_policy_body(access, policy_name)
+            resp = http.post("/access/policies", json=policy_body)
+            policy_id = resp.json()["id"]
+            logger.debug("Created auto-policy %s (name=%s)", policy_id, policy_name)
+
+        all_policy_ids.append(policy_id)
+
+    if not all_policy_ids:
         logger.debug("Empty access spec, skipping policy assignment")
         return
 
-    spec_hash = _hash_access_spec(access)
-    policy_name = f"sdk_auto_{spec_hash}"
-
-    # Try to find an existing policy with this name
-    resp = http.get("/access/policies", params={"name": policy_name})
-    policies = resp.json().get("data", [])
-
-    if policies:
-        policy_id = policies[0]["id"]
-        logger.debug("Reusing existing auto-policy %s (name=%s)", policy_id, policy_name)
-    else:
-        # Create a new policy
-        policy_body = _build_policy_body(access, policy_name)
-        resp = http.post("/access/policies", json=policy_body)
-        policy_id = resp.json()["id"]
-        logger.debug("Created auto-policy %s (name=%s)", policy_id, policy_name)
-
-    # Assign user to the policy (idempotent on the server)
-    http.post(
-        f"/access/policies/{policy_id}/users",
-        json={"user_ids": [user_id]},
+    # Atomically replace all policy assignments for the user
+    http.put(
+        f"/access/users/{user_id}/policies",
+        json={"policy_ids": all_policy_ids},
     )
-    logger.debug("Assigned user %s to auto-policy %s", user_id, policy_id)
+    logger.debug(
+        "Replaced policies for user %s with %s", user_id, all_policy_ids,
+    )
 
 
 def sync_setup_policy(
@@ -449,42 +444,41 @@ async def _async_apply_access(
     """Apply access policies to a user (async).
 
     Handles both ``policy_ids`` references and inline specs.
+    Uses atomic replace (PUT) to prevent stale policy accumulation.
     """
-    policy_ids = access.get("policy_ids")
+    all_policy_ids: List[str] = list(access.get("policy_ids") or [])
 
-    if policy_ids:
-        for pid in policy_ids:
-            await http.post(
-                f"/access/policies/{pid}/users",
-                json={"user_ids": [user_id]},
-            )
-            logger.debug("Assigned user %s to policy %s", user_id, pid)
-        return
+    # Inline spec — find-or-create a policy by deterministic content hash
+    if access.get("sources") or access.get("filters"):
+        spec_hash = _hash_access_spec(access)
+        policy_name = f"sdk_auto_{spec_hash}"
 
-    if not access.get("sources") and not access.get("filters"):
+        resp = await http.get("/access/policies", params={"name": policy_name})
+        policies = resp.json().get("data", [])
+
+        if policies:
+            policy_id = policies[0]["id"]
+            logger.debug("Reusing existing auto-policy %s (name=%s)", policy_id, policy_name)
+        else:
+            policy_body = _build_policy_body(access, policy_name)
+            resp = await http.post("/access/policies", json=policy_body)
+            policy_id = resp.json()["id"]
+            logger.debug("Created auto-policy %s (name=%s)", policy_id, policy_name)
+
+        all_policy_ids.append(policy_id)
+
+    if not all_policy_ids:
         logger.debug("Empty access spec, skipping policy assignment")
         return
 
-    spec_hash = _hash_access_spec(access)
-    policy_name = f"sdk_auto_{spec_hash}"
-
-    resp = await http.get("/access/policies", params={"name": policy_name})
-    policies = resp.json().get("data", [])
-
-    if policies:
-        policy_id = policies[0]["id"]
-        logger.debug("Reusing existing auto-policy %s (name=%s)", policy_id, policy_name)
-    else:
-        policy_body = _build_policy_body(access, policy_name)
-        resp = await http.post("/access/policies", json=policy_body)
-        policy_id = resp.json()["id"]
-        logger.debug("Created auto-policy %s (name=%s)", policy_id, policy_name)
-
-    await http.post(
-        f"/access/policies/{policy_id}/users",
-        json={"user_ids": [user_id]},
+    # Atomically replace all policy assignments for the user
+    await http.put(
+        f"/access/users/{user_id}/policies",
+        json={"policy_ids": all_policy_ids},
     )
-    logger.debug("Assigned user %s to auto-policy %s", user_id, policy_id)
+    logger.debug(
+        "Replaced policies for user %s with %s", user_id, all_policy_ids,
+    )
 
 
 async def async_setup_policy(

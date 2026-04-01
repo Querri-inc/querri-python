@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
+from .._pagination import AsyncCursorPage, SyncCursorPage
 from ..types.dashboard import (
     Dashboard,
     DashboardDeleteResponse,
@@ -81,22 +82,21 @@ class Dashboards:
         *,
         limit: int = 25,
         after: Optional[str] = None,
-    ) -> List[Dashboard]:
-        """List dashboards for the organization.
+        user_id: Optional[str] = None,
+    ) -> SyncCursorPage[Dashboard]:
+        """List dashboards for the organization with cursor pagination.
 
         Args:
-            limit: Maximum number of dashboards to return.
-            after: Cursor for the next page (if supported).
-
-        Returns:
-            List of Dashboard objects.
+            limit: Maximum number of dashboards per page.
+            after: Cursor for the next page.
+            user_id: Filter dashboards by owner user ID.
         """
         params: Dict[str, Any] = {"limit": limit}
         if after is not None:
             params["after"] = after
-        response = self._http.get("/dashboards", params=params)
-        body = response.json()
-        return [Dashboard.model_validate(d) for d in body.get("data", [])]
+        if user_id is not None:
+            params["user_id"] = user_id
+        return SyncCursorPage(self._http, "/dashboards", Dashboard, params=params)
 
     def update(
         self,
@@ -170,7 +170,14 @@ class AsyncDashboards:
 
     Example::
 
+        # List dashboards
         dashboards = await client.dashboards.list()
+
+        # Create a dashboard
+        dashboard = await client.dashboards.create(name="Sales Overview")
+
+        # Trigger a refresh
+        await client.dashboards.refresh(dashboard.id)
     """
 
     def __init__(self, http: AsyncHTTPClient) -> None:
@@ -182,7 +189,15 @@ class AsyncDashboards:
         name: str,
         description: Optional[str] = None,
     ) -> Dashboard:
-        """Create a new dashboard."""
+        """Create a new dashboard.
+
+        Args:
+            name: Dashboard name (1-200 chars).
+            description: Optional description (max 1000 chars).
+
+        Returns:
+            Created Dashboard object.
+        """
         body: Dict[str, Any] = {"name": name}
         if description is not None:
             body["description"] = description
@@ -190,23 +205,37 @@ class AsyncDashboards:
         return Dashboard.model_validate(response.json())
 
     async def get(self, dashboard_id: str) -> Dashboard:
-        """Get dashboard details including widgets."""
+        """Get dashboard details including widgets.
+
+        Args:
+            dashboard_id: The dashboard UUID.
+
+        Returns:
+            Dashboard object with widgets and filters.
+        """
         response = await self._http.get(f"/dashboards/{dashboard_id}")
         return Dashboard.model_validate(response.json())
 
-    async def list(
+    def list(
         self,
         *,
         limit: int = 25,
         after: Optional[str] = None,
-    ) -> List[Dashboard]:
-        """List dashboards for the organization."""
+        user_id: Optional[str] = None,
+    ) -> AsyncCursorPage[Dashboard]:
+        """List dashboards for the organization with cursor pagination.
+
+        Args:
+            limit: Maximum number of dashboards per page.
+            after: Cursor for the next page.
+            user_id: Filter dashboards by owner user ID.
+        """
         params: Dict[str, Any] = {"limit": limit}
         if after is not None:
             params["after"] = after
-        response = await self._http.get("/dashboards", params=params)
-        body = response.json()
-        return [Dashboard.model_validate(d) for d in body.get("data", [])]
+        if user_id is not None:
+            params["user_id"] = user_id
+        return AsyncCursorPage(self._http, "/dashboards", Dashboard, params=params)
 
     async def update(
         self,
@@ -215,7 +244,16 @@ class AsyncDashboards:
         name: Optional[str] = None,
         description: Optional[str] = None,
     ) -> DashboardUpdateResponse:
-        """Update dashboard metadata."""
+        """Update dashboard metadata.
+
+        Args:
+            dashboard_id: The dashboard UUID.
+            name: New dashboard name.
+            description: New description.
+
+        Returns:
+            Response with id and updated flag.
+        """
         body: Dict[str, Any] = {}
         if name is not None:
             body["name"] = name
@@ -225,15 +263,35 @@ class AsyncDashboards:
         return DashboardUpdateResponse.model_validate(response.json())
 
     async def delete(self, dashboard_id: str) -> None:
-        """Delete a dashboard."""
+        """Delete a dashboard.
+
+        Args:
+            dashboard_id: The dashboard UUID.
+        """
         await self._http.delete(f"/dashboards/{dashboard_id}")
 
     async def refresh(self, dashboard_id: str) -> DashboardRefreshResponse:
-        """Trigger a refresh of all dashboard widgets."""
+        """Trigger a refresh of all dashboard widgets.
+
+        Re-executes the underlying projects for each widget.
+
+        Args:
+            dashboard_id: The dashboard UUID.
+
+        Returns:
+            Response with id, status ("refreshing"), and project_count.
+        """
         response = await self._http.post(f"/dashboards/{dashboard_id}/refresh")
         return DashboardRefreshResponse.model_validate(response.json())
 
     async def refresh_status(self, dashboard_id: str) -> DashboardRefreshStatus:
-        """Check the refresh status of a dashboard."""
+        """Check the refresh status of a dashboard.
+
+        Args:
+            dashboard_id: The dashboard UUID.
+
+        Returns:
+            Status with id, status, and project_count.
+        """
         response = await self._http.get(f"/dashboards/{dashboard_id}/refresh/status")
         return DashboardRefreshStatus.model_validate(response.json())

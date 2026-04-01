@@ -119,7 +119,8 @@ class ConfigError(QuerriError):
     """Missing API key, invalid configuration, etc."""
 
 
-# Map HTTP status codes to exception classes
+# Maps HTTP status codes to exception subclasses. Codes not listed here
+# fall through to the base ``APIError``. Multiple 5xx codes share ``ServerError``.
 _STATUS_MAP: dict[int, type[APIError]] = {
     400: ValidationError,
     401: AuthenticationError,
@@ -141,6 +142,10 @@ def raise_for_status(
     retry_after: Optional[float] = None,
 ) -> None:
     """Raise the appropriate exception for an error response.
+
+    Parses Stripe-style error response bodies of the form
+    ``{"error": {"type": ..., "code": ..., "message": ...}}``.
+    Falls back to a generic message if the body format doesn't match.
 
     Args:
         status: HTTP status code.

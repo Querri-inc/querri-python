@@ -133,22 +133,26 @@ class TestRaiseForStatus:
             raise_for_status(503, {})
 
     def test_unknown_status_raises_api_error(self):
+        """Verify that unmapped status codes fall back to the generic APIError class."""
         with pytest.raises(APIError) as exc_info:
             raise_for_status(418, {"error": {"message": "teapot"}})
         assert exc_info.value.status == 418
 
     def test_request_id_passed_through(self):
+        """Verify that the request_id kwarg is propagated to the raised exception."""
         body = {"error": {"message": "fail"}}
         with pytest.raises(APIError) as exc_info:
             raise_for_status(500, body, request_id="req_xyz")
         assert exc_info.value.request_id == "req_xyz"
 
     def test_empty_body_uses_fallback_message(self):
+        """Verify that a missing error body produces a fallback message containing the HTTP status."""
         with pytest.raises(APIError) as exc_info:
             raise_for_status(500, {})
         assert "HTTP 500" in exc_info.value.message
 
     def test_non_dict_error_field(self):
+        """Verify that a non-dict error field (e.g., plain string) is handled without crashing."""
         body = {"error": "string error"}
         with pytest.raises(APIError):
             raise_for_status(500, body)

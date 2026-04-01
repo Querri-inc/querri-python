@@ -3,6 +3,7 @@
 Demonstrates:
 - create, get, list, update, delete
 - get_or_create idempotency by external_id
+- remove_external_id (unlink without deleting)
 - Filtering users by external_id
 
 Prerequisites:
@@ -67,6 +68,12 @@ def main():
         )
         assert user_a.id == user_b.id, "get_or_create should return the same user"
         print(f"  Same user returned both times: {user_a.id}")
+
+        # Remove external ID (unlinks the mapping, does NOT delete the user)
+        print("\nRemoving external ID mapping...")
+        remove_resp = client.users.remove_external_id(ext_id)
+        print(f"  Removed: external_id={remove_resp.external_id}, "
+              f"user_id={remove_resp.user_id}, deleted={remove_resp.deleted}")
 
     finally:
         # Cleanup

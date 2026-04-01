@@ -4,15 +4,14 @@ Runs against a live Querri instance at http://localhost.
 Requires the Docker development stack to be running.
 
 Execute with:
-    cd /Users/davidingram/Q/querri-python-sdk
+    QUERRI_API_KEY=qk_... QUERRI_ORG_ID=org_... QUERRI_RLS_CSV_PATH=/path/to/csv \
     python -m pytest tests/test_rls_integration.py -v -s
-    # Or run directly:
-    python tests/test_rls_integration.py
 """
 
 from __future__ import annotations
 
 import csv
+import os
 import time
 import uuid
 
@@ -28,14 +27,14 @@ from querri._exceptions import (
 pytestmark = pytest.mark.integration
 
 # ---------------------------------------------------------------------------
-# Configuration
+# Configuration — all from environment variables
 # ---------------------------------------------------------------------------
 
-API_KEY = "qk_EwCqd9DCIUHR6WgbhCme3X92NvKVJ7FUrVoMIb4Ur6-IxbuWgliXtHeGDmG-eFb7"
-ORG_ID = "org_01JBETJ7PYNGXVMXV0BD3CFNA8"
-HOST = "http://localhost"
+API_KEY = os.environ.get("QUERRI_API_KEY", "")
+ORG_ID = os.environ.get("QUERRI_ORG_ID", "")
+HOST = os.environ.get("QUERRI_HOST", "http://localhost")
 
-CSV_PATH = "/Users/davidingram/Q/Querri/documentation/rls/test_data/rls_test_py_employees.csv"
+CSV_PATH = os.environ.get("QUERRI_RLS_CSV_PATH", "")
 
 # Unique test run suffix to avoid collisions
 RUN_ID = uuid.uuid4().hex[:8]

@@ -6,12 +6,14 @@ from typing import Any, Dict, List, Optional
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from .._convenience import async_setup_policy, sync_setup_policy
+from .._pagination import AsyncCursorPage, SyncCursorPage
 from ..types.policy import (
     ColumnInfo,
     Policy,
     PolicyAssignResponse,
     PolicyDeleteResponse,
     PolicyRemoveUserResponse,
+    PolicyReplaceResponse,
     PolicyUpdateResponse,
     ResolvedAccess,
     RowFilter,
@@ -69,21 +71,26 @@ class Policies:
         resp = self._http.get(f"/access/policies/{policy_id}")
         return Policy.model_validate(resp.json())
 
-    def list(self, *, name: Optional[str] = None) -> List[Policy]:
-        """List access policies for the organization.
-
-        Note: This endpoint returns all policies (not cursor-paginated).
-        The response is wrapped in ``{"data": [...]}``.
+    def list(
+        self,
+        *,
+        name: Optional[str] = None,
+        limit: int = 25,
+        after: Optional[str] = None,
+    ) -> SyncCursorPage[Policy]:
+        """List access policies for the organization with cursor pagination.
 
         Args:
             name: Filter by exact policy name.
+            limit: Maximum number of policies per page (1-200).
+            after: Cursor for the next page.
         """
-        params: dict[str, Any] = {}
+        params: dict[str, Any] = {"limit": limit}
         if name is not None:
             params["name"] = name
-        resp = self._http.get("/access/policies", params=params)
-        body = resp.json()
-        return [Policy.model_validate(p) for p in body.get("data", [])]
+        if after is not None:
+            params["after"] = after
+        return SyncCursorPage(self._http, "/access/policies", Policy, params=params)
 
     def update(
         self,
@@ -202,6 +209,26 @@ class Policies:
         return [SourceColumns.model_validate(s) for s in body.get("data", [])]
 
 
+    def replace_user_policies(
+        self, user_id: str, *, policy_ids: List[str]
+    ) -> PolicyReplaceResponse:
+        """Atomically replace all policy assignments for a user.
+
+        Removes any existing policy assignments and replaces them with the
+        provided set. This prevents policy accumulation from repeated
+        ``get_session()`` calls.
+
+        Args:
+            user_id: The user ID whose policies to replace.
+            policy_ids: Complete set of policy IDs to assign. Pass ``[]`` to
+                remove all policies.
+        """
+        resp = self._http.put(
+            f"/access/users/{user_id}/policies",
+            json={"policy_ids": policy_ids},
+        )
+        return PolicyReplaceResponse.model_validate(resp.json())
+
     def setup(
         self,
         *,
@@ -225,7 +252,7 @@ class Policies:
         """
         return sync_setup_policy(
             self._http, name=name, sources=sources,
-            row_filters=row_filters, users=users,
+            row_filters=row_filters, users=users, description=description,
         )
 
 
@@ -252,7 +279,14 @@ class AsyncPolicies:
         source_ids: Optional[List[str]] = None,
         row_filters: Optional[List[Dict[str, Any]]] = None,
     ) -> Policy:
-        """Create an access policy."""
+        """Create an access policy.
+
+        Args:
+            name: Policy name.
+            description: Optional description.
+            source_ids: List of source IDs this policy applies to.
+            row_filters: List of row filter dicts with ``column`` and ``values`` keys.
+        """
         body: dict[str, Any] = {"name": name}
         if description is not None:
             body["description"] = description
@@ -264,18 +298,34 @@ class AsyncPolicies:
         return Policy.model_validate(resp.json())
 
     async def get(self, policy_id: str) -> Policy:
-        """Get policy details including assigned user IDs."""
+        """Get policy details including assigned user IDs.
+
+        Args:
+            policy_id: The policy UUID.
+        """
         resp = await self._http.get(f"/access/policies/{policy_id}")
         return Policy.model_validate(resp.json())
 
-    async def list(self, *, name: Optional[str] = None) -> List[Policy]:
-        """List access policies for the organization."""
-        params: dict[str, Any] = {}
+    def list(
+        self,
+        *,
+        name: Optional[str] = None,
+        limit: int = 25,
+        after: Optional[str] = None,
+    ) -> AsyncCursorPage[Policy]:
+        """List access policies for the organization with cursor pagination.
+
+        Args:
+            name: Filter by exact policy name.
+            limit: Maximum number of policies per page (1-200).
+            after: Cursor for the next page.
+        """
+        params: dict[str, Any] = {"limit": limit}
         if name is not None:
             params["name"] = name
-        resp = await self._http.get("/access/policies", params=params)
-        body = resp.json()
-        return [Policy.model_validate(p) for p in body.get("data", [])]
+        if after is not None:
+            params["after"] = after
+        return AsyncCursorPage(self._http, "/access/policies", Policy, params=params)
 
     async def update(
         self,
@@ -286,7 +336,15 @@ class AsyncPolicies:
         source_ids: Optional[List[str]] = None,
         row_filters: Optional[List[Dict[str, Any]]] = None,
     ) -> PolicyUpdateResponse:
-        """Update an access policy."""
+        """Update an access policy.
+
+        Args:
+            policy_id: The policy UUID.
+            name: New name.
+            description: New description.
+            source_ids: New source IDs.
+            row_filters: New row filters.
+        """
         body: dict[str, Any] = {}
         if name is not None:
             body["name"] = name
@@ -300,7 +358,11 @@ class AsyncPolicies:
         return PolicyUpdateResponse.model_validate(resp.json())
 
     async def delete(self, policy_id: str) -> PolicyDeleteResponse:
-        """Delete an access policy and all its user assignments."""
+        """Delete an access policy and all its user assignments.
+
+        Args:
+            policy_id: The policy UUID.
+        """
         resp = await self._http.delete(f"/access/policies/{policy_id}")
         return PolicyDeleteResponse.model_validate(resp.json())
 
@@ -310,7 +372,14 @@ class AsyncPolicies:
         *,
         user_ids: List[str],
     ) -> PolicyAssignResponse:
-        """Assign users to a policy."""
+        """Assign users to a policy.
+
+        Idempotent: already-assigned users are silently skipped.
+
+        Args:
+            policy_id: The policy UUID.
+            user_ids: List of WorkOS user IDs to assign.
+        """
         resp = await self._http.post(
             f"/access/policies/{policy_id}/users",
             json={"user_ids": user_ids},
@@ -322,7 +391,12 @@ class AsyncPolicies:
         policy_id: str,
         user_id: str,
     ) -> PolicyRemoveUserResponse:
-        """Remove a user from a policy."""
+        """Remove a user from a policy.
+
+        Args:
+            policy_id: The policy UUID.
+            user_id: The WorkOS user ID to remove.
+        """
         resp = await self._http.delete(
             f"/access/policies/{policy_id}/users/{user_id}"
         )
@@ -334,7 +408,15 @@ class AsyncPolicies:
         user_id: str,
         source_id: str,
     ) -> ResolvedAccess:
-        """Preview resolved access for a user+source combination."""
+        """Preview resolved access for a user+source combination.
+
+        Returns the effective row filters and SQL WHERE clause that would
+        be applied when querying the given source as the given user.
+
+        Args:
+            user_id: WorkOS user ID.
+            source_id: Source UUID.
+        """
         resp = await self._http.post(
             "/access/resolve",
             json={"user_id": user_id, "source_id": source_id},
@@ -346,13 +428,40 @@ class AsyncPolicies:
         *,
         source_id: Optional[str] = None,
     ) -> List[SourceColumns]:
-        """Discover filterable columns for RLS rule building."""
+        """Discover filterable columns for RLS rule building.
+
+        Returns column names and types from data sources so you can
+        construct valid ``row_filters`` for access policies.
+
+        Args:
+            source_id: Optional source ID to filter to a single source.
+        """
         params: dict[str, Any] = {}
         if source_id is not None:
             params["source_id"] = source_id
         resp = await self._http.get("/access/columns", params=params)
         body = resp.json()
         return [SourceColumns.model_validate(s) for s in body.get("data", [])]
+
+    async def replace_user_policies(
+        self, user_id: str, *, policy_ids: List[str]
+    ) -> PolicyReplaceResponse:
+        """Atomically replace all policy assignments for a user.
+
+        Removes any existing policy assignments and replaces them with the
+        provided set. This prevents policy accumulation from repeated
+        ``get_session()`` calls.
+
+        Args:
+            user_id: The user ID whose policies to replace.
+            policy_ids: Complete set of policy IDs to assign. Pass ``[]`` to
+                remove all policies.
+        """
+        resp = await self._http.put(
+            f"/access/users/{user_id}/policies",
+            json={"policy_ids": policy_ids},
+        )
+        return PolicyReplaceResponse.model_validate(resp.json())
 
     async def setup(
         self,
@@ -363,8 +472,19 @@ class AsyncPolicies:
         users: Optional[List[str]] = None,
         description: Optional[str] = None,
     ) -> Policy:
-        """Create a policy and assign users in one call."""
+        """Create a policy and assign users in one call.
+
+        Args:
+            name: Policy name.
+            sources: Source IDs this policy applies to.
+            row_filters: Dict of column -> values for row filtering.
+            users: User IDs to assign to the policy.
+            description: Optional policy description.
+
+        Returns:
+            Created Policy object.
+        """
         return await async_setup_policy(
             self._http, name=name, sources=sources,
-            row_filters=row_filters, users=users,
+            row_filters=row_filters, users=users, description=description,
         )

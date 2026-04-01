@@ -10,10 +10,10 @@ from pydantic import BaseModel
 class UsageReport(BaseModel):
     """Usage statistics report."""
 
-    period_start: Optional[str] = None
-    period_end: Optional[str] = None
-    total_queries: Optional[int] = None
-    total_tokens: Optional[int] = None
-    total_projects: Optional[int] = None
-    total_users: Optional[int] = None
-    details: Optional[Dict[str, Any]] = None
+    period_start: Optional[str] = None  #: ISO-8601 start of the reporting period.
+    period_end: Optional[str] = None  #: ISO-8601 end of the reporting period.
+    total_queries: Optional[int] = None  #: Number of queries executed in the period.
+    total_tokens: Optional[int] = None  #: Total LLM tokens consumed in the period.
+    total_projects: Optional[int] = None  #: Number of projects used in the period.
+    total_users: Optional[int] = None  #: Number of active users in the period.
+    details: Optional[Dict[str, Any]] = None  #: Breakdown of usage by category.

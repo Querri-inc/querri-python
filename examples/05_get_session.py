@@ -14,6 +14,10 @@ Demonstrates:
 - policy_ids reference
 - Origin locking
 
+Tip: For data source sharing without inline access specs, see also
+client.sharing.share_source() and client.sharing.org_share_source()
+in example 12_data_operations.py.
+
 Prerequisites:
     export QUERRI_API_KEY="qk_..."
     export QUERRI_ORG_ID="org_..."

@@ -78,7 +78,13 @@ class Files:
 
 
 class AsyncFiles:
-    """Asynchronous file management resource."""
+    """Asynchronous file management resource.
+
+    Usage::
+
+        info = await client.files.upload("/path/to/data.csv")
+        files = await client.files.list()
+    """
 
     def __init__(self, http: AsyncHTTPClient) -> None:
         self._http = http
@@ -89,7 +95,15 @@ class AsyncFiles:
         *,
         name: Optional[str] = None,
     ) -> File:
-        """Upload a file."""
+        """Upload a file.
+
+        Args:
+            file_path: Local path to the file to upload.
+            name: Optional display name (defaults to filename).
+
+        Returns:
+            File object with id, name, size, content_type.
+        """
         filename = name or os.path.basename(file_path)
         with open(file_path, "rb") as f:
             files = {"file": (filename, f)}
@@ -101,16 +115,31 @@ class AsyncFiles:
         return File.model_validate(resp.json())
 
     async def get(self, file_id: str) -> File:
-        """Get file metadata."""
+        """Get file metadata.
+
+        Args:
+            file_id: The file UUID.
+
+        Returns:
+            File object with id, name, size, content_type, etc.
+        """
         resp = await self._http.get(f"/files/{file_id}")
         return File.model_validate(resp.json())
 
     async def list(self) -> List[File]:
-        """List files for the organization."""
+        """List files for the organization.
+
+        Returns:
+            List of File objects.
+        """
         resp = await self._http.get("/files")
         body = resp.json()
         return [File.model_validate(f) for f in body.get("data", [])]
 
     async def delete(self, file_id: str) -> None:
-        """Delete a file."""
+        """Delete a file.
+
+        Args:
+            file_id: The file UUID.
+        """
         await self._http.delete(f"/files/{file_id}")

@@ -8,9 +8,9 @@ from typing import Optional
 
 from ._exceptions import ConfigError
 
-DEFAULT_HOST = "https://app.querri.com"
-DEFAULT_TIMEOUT = 30.0
-DEFAULT_MAX_RETRIES = 3
+DEFAULT_HOST = "https://app.querri.com"  #: Production API host.
+DEFAULT_TIMEOUT = 30.0  #: Request timeout in seconds.
+DEFAULT_MAX_RETRIES = 3  #: Max retry attempts for retryable errors.
 
 
 @dataclass
@@ -23,21 +23,24 @@ class ClientConfig:
     3. Defaults
     """
 
-    api_key: Optional[str] = None
-    access_token: Optional[str] = None
-    org_id: Optional[str] = None
-    base_url: str = DEFAULT_HOST + "/api/v1"
-    timeout: float = DEFAULT_TIMEOUT
-    max_retries: int = DEFAULT_MAX_RETRIES
-    _user_agent: str = field(init=False)
+    api_key: Optional[str] = None  #: Querri API key (``qk_`` prefix).
+    access_token: Optional[str] = None  #: JWT access token (from OAuth or env).
+    org_id: Optional[str] = None  #: Organization ID for tenant isolation.
+    base_url: str = DEFAULT_HOST + "/api/v1"  #: Fully resolved API base URL.
+    timeout: float = DEFAULT_TIMEOUT  #: Request timeout in seconds.
+    max_retries: int = DEFAULT_MAX_RETRIES  #: Max retry attempts for retryable errors.
+    session_token: Optional[str] = None  #: Embed session token for user-scoped clients.
+    _user_agent: str = field(init=False)  #: Auto-generated User-Agent header value.
 
     def __post_init__(self) -> None:
+        """Build the User-Agent string from the SDK version."""
         from ._version import __version__
 
         self._user_agent = f"querri-python/{__version__}"
 
     @property
     def user_agent(self) -> str:
+        """The User-Agent header value, e.g. ``querri-python/0.1.0``."""
         return self._user_agent
 
     def __repr__(self) -> str:

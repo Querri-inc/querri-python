@@ -66,8 +66,22 @@ class SyncCursorPage(Generic[T]):
         self._first_page: Optional[SyncPage[T]] = None
 
     def _fetch_page(self, params: dict[str, Any]) -> SyncPage[T]:
+        """Fetch one page from the API and parse the response body.
+
+        Handles three response formats:
+        1. Paginated envelope: ``{"data": [...], "has_more": bool, "next_cursor": str}``
+        2. Offset-based fallback: ``{"data": [...], "page": int, "total_pages": int}``
+        3. Plain list: ``[...]`` (internal API returns raw arrays)
+
+        This lets the same iterator work with both the public and internal APIs.
+        """
         response = self._http.get(self._path, params=params)
         body = response.json()
+
+        # Internal API may return a plain list instead of a paginated envelope
+        if isinstance(body, list):
+            items = [self._model.model_validate(item) for item in body]
+            return SyncPage(data=items, has_more=False)
 
         items_raw = body.get(self._data_key, [])
         items = [self._model.model_validate(item) for item in items_raw]
@@ -94,6 +108,7 @@ class SyncCursorPage(Generic[T]):
         )
 
     def _ensure_first_page(self) -> SyncPage[T]:
+        """Lazy-fetch and cache the first page. Subsequent calls return the cached page."""
         if self._first_page is None:
             self._first_page = self._fetch_page(self._params)
         return self._first_page
@@ -105,10 +120,12 @@ class SyncCursorPage(Generic[T]):
 
     @property
     def has_more(self) -> bool:
+        """Whether more pages exist beyond the current one."""
         return self._ensure_first_page().has_more
 
     @property
     def next_cursor(self) -> Optional[str]:
+        """Opaque cursor for fetching the next page, or None."""
         return self._ensure_first_page().next_cursor
 
     def first(self) -> Optional[T]:
@@ -116,12 +133,17 @@ class SyncCursorPage(Generic[T]):
         data = self.data
         return data[0] if data else None
 
+    def to_list(self) -> List[T]:
+        """Consume all pages and return items as a flat list."""
+        return list(self)
+
     def __iter__(self) -> Iterator[T]:
         """Auto-paginate through all results."""
         page = self._ensure_first_page()
         yield from page.data
 
         while page.has_more and page.next_cursor:
+            # "after" is the standard cursor param name across all Querri list endpoints
             params = {**self._params, "after": page.next_cursor}
             page = self._fetch_page(params)
             yield from page.data
@@ -172,8 +194,22 @@ class AsyncCursorPage(Generic[T]):
         self._first_page: Optional[AsyncPage[T]] = None
 
     async def _fetch_page(self, params: dict[str, Any]) -> AsyncPage[T]:
+        """Fetch one page from the API and parse the response body.
+
+        Handles three response formats:
+        1. Paginated envelope: ``{"data": [...], "has_more": bool, "next_cursor": str}``
+        2. Offset-based fallback: ``{"data": [...], "page": int, "total_pages": int}``
+        3. Plain list: ``[...]`` (internal API returns raw arrays)
+
+        This lets the same iterator work with both the public and internal APIs.
+        """
         response = await self._http.get(self._path, params=params)
         body = response.json()
+
+        # Internal API may return a plain list instead of a paginated envelope
+        if isinstance(body, list):
+            items = [self._model.model_validate(item) for item in body]
+            return AsyncPage(data=items, has_more=False)
 
         items_raw = body.get(self._data_key, [])
         items = [self._model.model_validate(item) for item in items_raw]
@@ -199,6 +235,7 @@ class AsyncCursorPage(Generic[T]):
         )
 
     async def _ensure_first_page(self) -> AsyncPage[T]:
+        """Lazy-fetch and cache the first page. Subsequent calls return the cached page."""
         if self._first_page is None:
             self._first_page = await self._fetch_page(self._params)
         return self._first_page
@@ -217,12 +254,17 @@ class AsyncCursorPage(Generic[T]):
         page = await self._ensure_first_page()
         return page.data[0] if page.data else None
 
+    async def to_list(self) -> List[T]:
+        """Consume all pages and return items as a flat list."""
+        return [item async for item in self]
+
     async def __aiter__(self):  # type: ignore[override]
         page = await self._ensure_first_page()
         for item in page.data:
             yield item
 
         while page.has_more and page.next_cursor:
+            # "after" is the standard cursor param name across all Querri list endpoints
             params = {**self._params, "after": page.next_cursor}
             page = await self._fetch_page(params)
             for item in page.data:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -30,6 +30,7 @@ class TestQuerriInit:
             client.close()
 
     def test_init_explicit_overrides_env(self):
+        """Verify that explicit constructor args take priority over environment variables."""
         env = {"QUERRI_API_KEY": "qk_env", "QUERRI_ORG_ID": "org_env"}
         with patch.dict(os.environ, env, clear=False):
             client = Querri(api_key="qk_explicit", org_id="org_explicit")
@@ -37,9 +38,14 @@ class TestQuerriInit:
             assert client._config.org_id == "org_explicit"
             client.close()
 
-    def test_init_raises_without_api_key(self):
-        env = {k: v for k, v in os.environ.items() if k != "QUERRI_API_KEY"}
-        with patch.dict(os.environ, env, clear=True):
+    def test_init_raises_without_credentials(self):
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("QUERRI_API_KEY", "QUERRI_ACCESS_TOKEN")}
+        # Mock token store to return no active profile (so no stored JWT)
+        mock_ts = MagicMock()
+        mock_ts.load.return_value.get_active_profile.return_value = None
+        with patch.dict(os.environ, env, clear=True), \
+             patch("querri._auth.TokenStore", mock_ts):
             with pytest.raises(ConfigError, match="No credentials found"):
                 Querri(org_id="org_123")
 
@@ -63,6 +69,7 @@ class TestQuerriInit:
         client.close()
 
     def test_context_manager(self):
+        """Verify that the client can be used as a context manager for automatic cleanup."""
         with Querri(api_key="qk_abc", org_id="org_xyz") as client:
             assert client._config.api_key == "qk_abc"
 
@@ -82,12 +89,14 @@ class TestQuerriResources:
         client.close()
 
     def test_resources_are_none_before_access(self):
+        """Verify that resource backing fields are None until the property is first accessed."""
         client = Querri(api_key="qk_abc", org_id="org_xyz")
         for name in self.RESOURCE_NAMES:
             assert client.__dict__.get(f"_{name}") is None
         client.close()
 
     def test_resource_is_cached_after_access(self):
+        """Verify that repeated property access returns the same cached instance."""
         client = Querri(api_key="qk_abc", org_id="org_xyz")
         users1 = client.users
         users2 = client.users
@@ -110,9 +119,13 @@ class TestAsyncQuerriInit:
             assert client._config.api_key == "qk_env"
             assert client._config.org_id == "org_env"
 
-    def test_init_raises_without_api_key(self):
-        env = {k: v for k, v in os.environ.items() if k != "QUERRI_API_KEY"}
-        with patch.dict(os.environ, env, clear=True):
+    def test_init_raises_without_credentials(self):
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("QUERRI_API_KEY", "QUERRI_ACCESS_TOKEN")}
+        mock_ts = MagicMock()
+        mock_ts.load.return_value.get_active_profile.return_value = None
+        with patch.dict(os.environ, env, clear=True), \
+             patch("querri._auth.TokenStore", mock_ts):
             with pytest.raises(ConfigError, match="No credentials found"):
                 AsyncQuerri(org_id="org_123")
 
@@ -122,5 +135,6 @@ class TestAsyncQuerriInit:
             assert hasattr(client, name), f"Missing async resource: {name}"
 
     async def test_async_context_manager(self):
+        """Verify that the async client can be used as an async context manager."""
         async with AsyncQuerri(api_key="qk_abc", org_id="org_xyz") as client:
             assert client._config.api_key == "qk_abc"
