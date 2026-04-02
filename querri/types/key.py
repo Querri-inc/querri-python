@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -20,6 +20,10 @@ class ApiKey(BaseModel):
     last_used_at: Optional[str] = None  #: ISO-8601 timestamp of last use.
     expires_at: Optional[str] = None  #: ISO-8601 expiration timestamp, if set.
     rate_limit_per_minute: int = 60  #: Max requests allowed per minute.
+    bound_user_id: Optional[str] = None  #: User ID this key is bound to (detail only).
+    source_scope: Optional[Dict[str, Any]] = None  #: Source access scope config (detail only).
+    access_policy_ids: Optional[List[str]] = None  #: Bound access policy IDs (detail only).
+    ip_allowlist: Optional[List[str]] = None  #: IP allowlist (detail only).
 
 
 class ApiKeyCreated(ApiKey):

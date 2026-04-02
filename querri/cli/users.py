@@ -1,7 +1,8 @@
-"""querri users — manage organization users."""
+"""querri user — manage organization users."""
 
 from __future__ import annotations
 
+import sys
 from typing import Optional
 
 import typer
@@ -10,6 +11,7 @@ from querri.cli._context import get_client
 from querri.cli._output import (
     handle_api_error,
     print_detail,
+    print_error,
     print_id,
     print_json,
     print_success,
@@ -55,10 +57,19 @@ def list_users(
 @users_app.command("get")
 def get_user(
     ctx: typer.Context,
-    user_id: str = typer.Argument(help="User ID."),
+    user_id: Optional[str] = typer.Argument(None, help="User ID."),
 ) -> None:
     """Get user details."""
     obj = ctx.ensure_object(dict)
+    if not user_id:
+        if sys.stdin.isatty():
+            user_id = input("User ID: ").strip()
+            if not user_id:
+                print_error("User ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument USER_ID. Usage: querri user get USER_ID")
+            raise typer.Exit(code=1)
     client = get_client(ctx)
     try:
         user = client.users.get(user_id)
@@ -87,7 +98,7 @@ def get_user(
 @users_app.command("create")
 def create_user(
     ctx: typer.Context,
-    email: str = typer.Option(..., "--email", "-e", help="User email."),
+    email: Optional[str] = typer.Option(None, "--email", "-e", help="User email."),
     role: str = typer.Option("member", "--role", "-r", help="Role (member, admin)."),
     external_id: Optional[str] = typer.Option(None, "--external-id", help="External ID."),
     first_name: Optional[str] = typer.Option(None, "--first-name", help="First name."),
@@ -95,6 +106,15 @@ def create_user(
 ) -> None:
     """Create a new user."""
     obj = ctx.ensure_object(dict)
+    if not email:
+        if sys.stdin.isatty():
+            email = input("User email: ").strip()
+            if not email:
+                print_error("User email is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required option --email. Usage: querri user create --email EMAIL [--role ROLE]")
+            raise typer.Exit(code=1)
     client = get_client(ctx)
     try:
         user = client.users.create(
@@ -118,10 +138,19 @@ def create_user(
 @users_app.command("delete")
 def delete_user(
     ctx: typer.Context,
-    user_id: str = typer.Argument(help="User ID."),
+    user_id: Optional[str] = typer.Argument(None, help="User ID."),
 ) -> None:
     """Delete a user."""
     obj = ctx.ensure_object(dict)
+    if not user_id:
+        if sys.stdin.isatty():
+            user_id = input("User ID: ").strip()
+            if not user_id:
+                print_error("User ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument USER_ID. Usage: querri user delete USER_ID")
+            raise typer.Exit(code=1)
     client = get_client(ctx)
     try:
         client.users.delete(user_id)

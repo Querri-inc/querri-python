@@ -35,10 +35,10 @@ class TestScaffold:
 
     def test_help_shows_subcommands(self) -> None:
         result = runner.invoke(main_app, ["--help"])
-        assert "projects" in result.output
-        assert "chats" in result.output
+        assert "project" in result.output
+        assert "chat" in result.output
         assert "whoami" in result.output
-        assert "keys" in result.output
+        assert "key" in result.output
 
     def test_version(self) -> None:
         result = runner.invoke(main_app, ["--version"])
@@ -46,7 +46,7 @@ class TestScaffold:
         assert "querri 0.2.0" in result.output
 
     def test_projects_help(self) -> None:
-        result = runner.invoke(main_app, ["projects", "--help"])
+        result = runner.invoke(main_app, ["project", "--help"])
         assert result.exit_code == 0
         assert "list" in result.output
         assert "get" in result.output
@@ -56,10 +56,10 @@ class TestScaffold:
     def test_data_help_cross_reference(self) -> None:
         result = runner.invoke(main_app, ["data", "--help"])
         assert result.exit_code == 0
-        assert "querri sources" in result.output
+        assert "querri source" in result.output
 
     def test_sources_help_cross_reference(self) -> None:
-        result = runner.invoke(main_app, ["sources", "--help"])
+        result = runner.invoke(main_app, ["source", "--help"])
         assert result.exit_code == 0
         # Cross-reference text may wrap across lines in Rich output
         plain = result.output.replace("\n", " ")
@@ -103,14 +103,19 @@ class TestErrorHandling:
 
     def test_auth_error_exit_code_2(self) -> None:
         """Missing credentials → exit code 2."""
-        # Clear env vars to trigger ConfigError
-        with patch.dict("os.environ", {}, clear=True):
+        # Clear env vars AND mock empty token store so disk tokens aren't found
+        with patch.dict("os.environ", {}, clear=True), \
+             patch("querri._auth.TokenStore") as mock_store_cls:
+            mock_store_cls.load.return_value.profiles = {}
             result = runner.invoke(main_app, ["whoami"])
             assert result.exit_code == 2
 
     def test_auth_error_json_mode(self) -> None:
         """--json + auth error → JSON error output."""
-        with patch.dict("os.environ", {}, clear=True):
+        # Clear env vars AND mock empty token store so disk tokens aren't found
+        with patch.dict("os.environ", {}, clear=True), \
+             patch("querri._auth.TokenStore") as mock_store_cls:
+            mock_store_cls.load.return_value.profiles = {}
             result = runner.invoke(main_app, ["--json", "whoami"])
             assert result.exit_code == 2
             # JSON error should be in stderr (from _context.py)
@@ -129,7 +134,7 @@ class TestErrorHandling:
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "projects", "get", "nonexistent"],
+                ["--api-key", "qk_test123456", "--org-id", "org_1", "project", "get", "nonexistent"],
             )
             assert result.exit_code == 3
 
@@ -145,7 +150,7 @@ class TestErrorHandling:
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "projects", "list"],
+                ["--api-key", "qk_test123456", "--org-id", "org_1", "project", "list"],
             )
             assert result.exit_code == 4
 
@@ -161,7 +166,7 @@ class TestErrorHandling:
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "projects", "get", "proj_1"],
+                ["--api-key", "qk_test123456", "--org-id", "org_1", "project", "get", "proj_1"],
             )
             assert result.exit_code == 1
 
@@ -177,7 +182,7 @@ class TestErrorHandling:
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "--json", "projects", "get", "xyz"],
+                ["--api-key", "qk_test123456", "--org-id", "org_1", "--json", "project", "get", "xyz"],
             )
             assert result.exit_code == 3
 
@@ -228,7 +233,7 @@ class TestProjectsCommand:
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "projects", "list"],
+                ["--api-key", "qk_test123456", "--org-id", "org_1", "project", "list"],
             )
             assert result.exit_code == 0
             assert "proj_1" in result.output
@@ -246,7 +251,7 @@ class TestProjectsCommand:
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "--json", "projects", "list"],
+                ["--api-key", "qk_test123456", "--org-id", "org_1", "--json", "project", "list"],
             )
             assert result.exit_code == 0
             data = json.loads(result.output)
@@ -266,7 +271,7 @@ class TestProjectsCommand:
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "--quiet", "projects", "list"],
+                ["--api-key", "qk_test123456", "--org-id", "org_1", "--quiet", "project", "list"],
             )
             assert result.exit_code == 0
             lines = result.output.strip().split("\n")
@@ -284,7 +289,7 @@ class TestProjectsCommand:
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "projects", "get", "proj_1"],
+                ["--api-key", "qk_test123456", "--org-id", "org_1", "project", "get", "proj_1"],
             )
             assert result.exit_code == 0
             assert "proj_1" in result.output
@@ -301,7 +306,7 @@ class TestProjectsCommand:
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "--json", "projects", "get", "proj_1"],
+                ["--api-key", "qk_test123456", "--org-id", "org_1", "--json", "project", "get", "proj_1"],
             )
             assert result.exit_code == 0
             data = json.loads(result.output)
@@ -392,8 +397,8 @@ class TestSubAppRegistration:
     """Verify all 15 sub-apps are registered and reachable."""
 
     EXPECTED_SUBCOMMANDS = [
-        "whoami", "projects", "steps", "chats", "files", "data", "sources",
-        "users", "dashboards", "keys", "policies", "sharing",
+        "whoami", "project", "step", "chat", "file", "data", "source",
+        "user", "dashboard", "key", "policy", "share",
         "embed", "usage", "audit",
     ]
 
@@ -412,13 +417,13 @@ class TestSubAppRegistration:
         assert "Traceback" not in result.output
 
     def test_subcommand_count(self) -> None:
-        """Exactly 16 sub-apps must be registered (including auth)."""
+        """Exactly 17 sub-apps must be registered (including auth and hidden chats)."""
         # Count registered Typer sub-apps (not the main app callback)
         registered = [
             group.name or group.typer_instance.info.name
             for group in main_app.registered_groups
         ]
-        assert len(registered) == 16, f"Expected 16 sub-apps, got {len(registered)}: {registered}"
+        assert len(registered) == 17, f"Expected 17 sub-apps, got {len(registered)}: {registered}"
 
 
 # ---------------------------------------------------------------------------

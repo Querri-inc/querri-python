@@ -185,15 +185,16 @@ main_app.add_typer(files_app, name="file", rich_help_panel="[#f15a24]Projects & 
 main_app.add_typer(data_app, name="data", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
 main_app.add_typer(sources_app, name="source", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
 
+from querri.cli.dashboards import dashboards_app
+main_app.add_typer(dashboards_app, name="dashboard", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
+
 # ── Administration ──────────────────────────────────────────────────────
 from querri.cli.users import users_app
-from querri.cli.dashboards import dashboards_app
 from querri.cli.keys import keys_app
 from querri.cli.policies import policies_app
 from querri.cli.sharing import sharing_app
 
 main_app.add_typer(users_app, name="user", rich_help_panel="[#f15a24]Administration[/#f15a24]")
-main_app.add_typer(dashboards_app, name="dashboard", rich_help_panel="[#f15a24]Administration[/#f15a24]")
 main_app.add_typer(keys_app, name="key", rich_help_panel="[#f15a24]Administration[/#f15a24]")
 main_app.add_typer(policies_app, name="policy", rich_help_panel="[#f15a24]Administration[/#f15a24]")
 main_app.add_typer(sharing_app, name="share", rich_help_panel="[#f15a24]Administration[/#f15a24]")

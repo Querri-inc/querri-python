@@ -68,20 +68,16 @@ def get_client(ctx: typer.Context) -> Querri:
                     profile = refresh_tokens(profile, resolved_host)
                     store.save_profile(profile_name, profile)
                 except RuntimeError:
-                    # Refresh failed — clear stale profile and fall through to error
+                    # Refresh failed — but the token may still be valid
+                    # (needs_refresh fires early as a buffer). Fall through
+                    # to use the existing access token below.
                     pass
-                else:
-                    return Querri(
-                        access_token=profile.access_token,
-                        org_id=profile.org_id or org_id,
-                        host=resolved_host,
-                    )
-            else:
-                return Querri(
-                    access_token=profile.access_token,
-                    org_id=profile.org_id or org_id,
-                    host=resolved_host,
-                )
+
+            return Querri(
+                access_token=profile.access_token,
+                org_id=profile.org_id or org_id,
+                host=resolved_host,
+            )
     except Exception as exc:
         # Token store error — print debug info in verbose mode and fall through
         if obj.get("verbose"):

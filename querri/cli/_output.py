@@ -106,7 +106,11 @@ def _get_field(item: Any, field: str) -> str:
         val = item.get(field, "")
     else:
         val = getattr(item, field, "")
-    return str(val) if val is not None else ""
+    if val is None:
+        return "—"
+    if isinstance(val, list):
+        return ", ".join(str(v) for v in val)
+    return str(val)
 
 
 def _print_rich_table(data: Sequence[Any], columns: list[tuple[str, str]]) -> None:

@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import sys
+from typing import Optional
+
 import typer
 
 from querri.cli._context import get_client
 from querri.cli._output import (
     handle_api_error,
     print_detail,
+    print_error,
     print_json,
+    print_table,
 )
 
 usage_app = typer.Typer(
@@ -37,12 +42,12 @@ def org_usage(
         print_detail(
             report,
             [
+                ("period", "Period"),
                 ("period_start", "Period Start"),
                 ("period_end", "Period End"),
-                ("total_queries", "Queries"),
-                ("total_tokens", "Tokens"),
-                ("total_projects", "Projects"),
-                ("total_users", "Users"),
+                ("total_ai_messages", "AI Messages"),
+                ("active_user_count", "Active Users"),
+                ("project_count", "Projects"),
             ],
         )
 
@@ -50,10 +55,19 @@ def org_usage(
 @usage_app.command("user")
 def user_usage(
     ctx: typer.Context,
-    user_id: str = typer.Argument(help="User ID."),
+    user_id: Optional[str] = typer.Argument(None, help="User ID."),
     period: str = typer.Option("current_month", "--period", "-p", help="Usage period."),
 ) -> None:
     """View usage for a specific user."""
+    if not user_id:
+        if sys.stdin.isatty():
+            user_id = input("User ID: ").strip()
+            if not user_id:
+                print_error("User ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument USER_ID. Usage: querri usage user USER_ID [--period PERIOD]")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -67,10 +81,16 @@ def user_usage(
         print_detail(
             report,
             [
+                ("period", "Period"),
                 ("period_start", "Period Start"),
                 ("period_end", "Period End"),
-                ("total_queries", "Queries"),
-                ("total_tokens", "Tokens"),
-                ("total_projects", "Projects"),
+                ("ai_messages", "AI Messages"),
             ],
         )
+        # Show daily breakdown if available
+        if hasattr(report, "daily_breakdown") and report.daily_breakdown:
+            print()
+            print_table(
+                report.daily_breakdown,
+                [("date", "Date"), ("count", "Messages")],
+            )

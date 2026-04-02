@@ -1,8 +1,9 @@
-"""querri files — manage file uploads."""
+"""querri file — manage file uploads."""
 
 from __future__ import annotations
 
 import glob as globmod
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -12,6 +13,7 @@ from querri.cli._context import get_client
 from querri.cli._output import (
     handle_api_error,
     print_detail,
+    print_error,
     print_id,
     print_json,
     print_success,
@@ -53,9 +55,18 @@ def list_files(
 @files_app.command("get")
 def get_file(
     ctx: typer.Context,
-    file_id: str = typer.Argument(help="File ID."),
+    file_id: Optional[str] = typer.Argument(default=None, help="File ID."),
 ) -> None:
     """Get file details."""
+    if file_id is None:
+        if sys.stdin.isatty():
+            file_id = input("File ID: ").strip()
+            if not file_id:
+                print_error("File ID cannot be empty.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument <FILE_ID>. Usage: querri file get <FILE_ID>")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -75,6 +86,8 @@ def get_file(
                 ("name", "Name"),
                 ("size", "Size"),
                 ("content_type", "Content Type"),
+                ("row_count", "Rows"),
+                ("columns", "Columns"),
                 ("created_by", "Created By"),
                 ("created_at", "Created"),
             ],
@@ -84,7 +97,7 @@ def get_file(
 @files_app.command("upload")
 def upload_file(
     ctx: typer.Context,
-    path: str = typer.Argument(help="File path or glob pattern (e.g. '*.csv')."),
+    path: Optional[str] = typer.Argument(default=None, help="File path or glob pattern (e.g. '*.csv')."),
     name: Optional[str] = typer.Option(None, "--name", "-n", help="Override file name."),
 ) -> None:
     """Upload a file (supports glob patterns for batch upload).
@@ -92,6 +105,19 @@ def upload_file(
     After uploading, use ``querri data add-source <id>`` to add the
     file as a data source to your active project.
     """
+    if path is None:
+        if sys.stdin.isatty():
+            path = input("File path: ").strip()
+            if not path:
+                print_error("File path cannot be empty.")
+                raise typer.Exit(code=1)
+            resolved = Path(path).resolve()
+            if not resolved.exists():
+                print_error(f"File not found: {path}")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument <PATH>. Usage: querri file upload <PATH>")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
 
@@ -100,7 +126,6 @@ def upload_file(
     if not matches:
         resolved = Path(path).resolve()
         if not resolved.exists():
-            from querri.cli._output import print_error
             if obj.get("json"):
                 from querri.cli._output import print_json_error
                 print_json_error("validation_error", f"File not found: {path}", 1)
@@ -114,7 +139,6 @@ def upload_file(
         file_path = Path(match).resolve()
 
         if not file_path.is_file():
-            from querri.cli._output import print_error
             print_error(f"Skipping non-regular file: {match}")
             continue
 
@@ -136,22 +160,30 @@ def upload_file(
         for f in results:
             print_id(f.id)
     else:
-        import sys as _sys
         for f in results:
             print_success(f"Uploaded {f.name} → {f.id}")
         if results:
             print(
                 f"\nTo add to your project: querri project add-source {results[0].id}",
-                file=_sys.stderr,
+                file=sys.stderr,
             )
 
 
 @files_app.command("delete")
 def delete_file(
     ctx: typer.Context,
-    file_id: str = typer.Argument(help="File ID."),
+    file_id: Optional[str] = typer.Argument(default=None, help="File ID."),
 ) -> None:
     """Delete a file."""
+    if file_id is None:
+        if sys.stdin.isatty():
+            file_id = input("File ID: ").strip()
+            if not file_id:
+                print_error("File ID cannot be empty.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument <FILE_ID>. Usage: querri file delete <FILE_ID>")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:

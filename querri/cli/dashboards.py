@@ -1,7 +1,8 @@
-"""querri dashboards — manage dashboards and refreshes."""
+"""querri dashboard — manage dashboards and refreshes."""
 
 from __future__ import annotations
 
+import sys
 import time
 from typing import Optional
 
@@ -11,6 +12,7 @@ from querri.cli._context import get_client
 from querri.cli._output import (
     handle_api_error,
     print_detail,
+    print_error,
     print_id,
     print_json,
     print_success,
@@ -54,9 +56,18 @@ def list_dashboards(
 @dashboards_app.command("get")
 def get_dashboard(
     ctx: typer.Context,
-    dashboard_id: str = typer.Argument(help="Dashboard ID."),
+    dashboard_id: Optional[str] = typer.Argument(None, help="Dashboard ID."),
 ) -> None:
     """Get dashboard details."""
+    if not dashboard_id:
+        if sys.stdin.isatty():
+            dashboard_id = input("Dashboard ID: ").strip()
+            if not dashboard_id:
+                print_error("Dashboard ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument DASHBOARD_ID. Usage: querri dashboard get DASHBOARD_ID")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -86,10 +97,19 @@ def get_dashboard(
 @dashboards_app.command("create")
 def create_dashboard(
     ctx: typer.Context,
-    name: str = typer.Option(..., "--name", "-n", help="Dashboard name."),
+    name: Optional[str] = typer.Option(None, "--name", "-n", help="Dashboard name."),
     description: Optional[str] = typer.Option(None, "--description", "-d", help="Description."),
 ) -> None:
     """Create a new dashboard."""
+    if not name:
+        if sys.stdin.isatty():
+            name = input("Dashboard name: ").strip()
+            if not name:
+                print_error("Dashboard name is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required option --name. Usage: querri dashboard create --name NAME [--description DESCRIPTION]")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -108,11 +128,20 @@ def create_dashboard(
 @dashboards_app.command("update")
 def update_dashboard(
     ctx: typer.Context,
-    dashboard_id: str = typer.Argument(help="Dashboard ID."),
+    dashboard_id: Optional[str] = typer.Argument(None, help="Dashboard ID."),
     name: Optional[str] = typer.Option(None, "--name", "-n", help="New name."),
     description: Optional[str] = typer.Option(None, "--description", "-d", help="New description."),
 ) -> None:
     """Update a dashboard."""
+    if not dashboard_id:
+        if sys.stdin.isatty():
+            dashboard_id = input("Dashboard ID: ").strip()
+            if not dashboard_id:
+                print_error("Dashboard ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument DASHBOARD_ID. Usage: querri dashboard update DASHBOARD_ID [--name NAME] [--description DESCRIPTION]")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -129,9 +158,18 @@ def update_dashboard(
 @dashboards_app.command("delete")
 def delete_dashboard(
     ctx: typer.Context,
-    dashboard_id: str = typer.Argument(help="Dashboard ID."),
+    dashboard_id: Optional[str] = typer.Argument(None, help="Dashboard ID."),
 ) -> None:
     """Delete a dashboard."""
+    if not dashboard_id:
+        if sys.stdin.isatty():
+            dashboard_id = input("Dashboard ID: ").strip()
+            if not dashboard_id:
+                print_error("Dashboard ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument DASHBOARD_ID. Usage: querri dashboard delete DASHBOARD_ID")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -148,10 +186,19 @@ def delete_dashboard(
 @dashboards_app.command("refresh")
 def refresh_dashboard(
     ctx: typer.Context,
-    dashboard_id: str = typer.Argument(help="Dashboard ID."),
+    dashboard_id: Optional[str] = typer.Argument(None, help="Dashboard ID."),
     wait: bool = typer.Option(False, "--wait", "-w", help="Block until refresh completes."),
 ) -> None:
     """Trigger a dashboard refresh."""
+    if not dashboard_id:
+        if sys.stdin.isatty():
+            dashboard_id = input("Dashboard ID: ").strip()
+            if not dashboard_id:
+                print_error("Dashboard ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument DASHBOARD_ID. Usage: querri dashboard refresh DASHBOARD_ID [--wait]")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -183,9 +230,18 @@ def refresh_dashboard(
 @dashboards_app.command("refresh-status")
 def refresh_status(
     ctx: typer.Context,
-    dashboard_id: str = typer.Argument(help="Dashboard ID."),
+    dashboard_id: Optional[str] = typer.Argument(None, help="Dashboard ID."),
 ) -> None:
     """Check dashboard refresh status."""
+    if not dashboard_id:
+        if sys.stdin.isatty():
+            dashboard_id = input("Dashboard ID: ").strip()
+            if not dashboard_id:
+                print_error("Dashboard ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument DASHBOARD_ID. Usage: querri dashboard refresh-status DASHBOARD_ID")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:

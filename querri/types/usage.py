@@ -7,13 +7,35 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel
 
 
-class UsageReport(BaseModel):
-    """Usage statistics report."""
+class DailyUsage(BaseModel):
+    """Single day's usage count."""
 
+    date: str  #: Date string (YYYY-MM-DD).
+    count: int = 0  #: Number of AI messages on this date.
+
+
+class OrgUsageReport(BaseModel):
+    """Organization-level usage report."""
+
+    org_id: Optional[str] = None  #: Organization ID.
+    period: Optional[str] = None  #: Period name (current_month, last_month, last_30_days).
     period_start: Optional[str] = None  #: ISO-8601 start of the reporting period.
     period_end: Optional[str] = None  #: ISO-8601 end of the reporting period.
-    total_queries: Optional[int] = None  #: Number of queries executed in the period.
-    total_tokens: Optional[int] = None  #: Total LLM tokens consumed in the period.
-    total_projects: Optional[int] = None  #: Number of projects used in the period.
-    total_users: Optional[int] = None  #: Number of active users in the period.
-    details: Optional[Dict[str, Any]] = None  #: Breakdown of usage by category.
+    total_ai_messages: Optional[int] = None  #: Total AI messages in the period.
+    active_user_count: Optional[int] = None  #: Number of active users in the period.
+    project_count: Optional[int] = None  #: Number of projects in the organization.
+
+
+class UserUsageReport(BaseModel):
+    """Per-user usage report."""
+
+    user_id: Optional[str] = None  #: User ID.
+    period: Optional[str] = None  #: Period name.
+    period_start: Optional[str] = None  #: ISO-8601 start of the reporting period.
+    period_end: Optional[str] = None  #: ISO-8601 end of the reporting period.
+    ai_messages: Optional[int] = None  #: Total AI messages by this user.
+    daily_breakdown: Optional[list[DailyUsage]] = None  #: Daily message counts.
+
+
+# Keep backward compat alias
+UsageReport = OrgUsageReport

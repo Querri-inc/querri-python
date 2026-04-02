@@ -29,11 +29,12 @@ class EmbedSessionList(BaseModel):
     """Response from listing embed sessions."""
 
     data: list[EmbedSessionListItem] = []  #: List of active embed sessions.
-    count: int = 0  #: Total number of active sessions.
+    has_more: bool = False  #: Whether more sessions exist beyond this page.
+    next_cursor: Optional[str] = None  #: Cursor for fetching the next page.
 
 
 class EmbedSessionRevokeResponse(BaseModel):
     """Response from revoking an embed session."""
 
-    session_id: str  #: ID of the revoked session.
+    id: str  #: ID of the revoked session.
     revoked: bool = True  #: Whether the session was successfully revoked.

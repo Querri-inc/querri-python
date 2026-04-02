@@ -1,8 +1,9 @@
-"""querri policies — manage access control policies."""
+"""querri policy — manage access control policies."""
 
 from __future__ import annotations
 
 import json
+import sys
 from typing import Optional
 
 import typer
@@ -11,6 +12,7 @@ from querri.cli._context import get_client
 from querri.cli._output import (
     handle_api_error,
     print_detail,
+    print_error,
     print_id,
     print_json,
     print_success,
@@ -53,9 +55,18 @@ def list_policies(
 @policies_app.command("get")
 def get_policy(
     ctx: typer.Context,
-    policy_id: str = typer.Argument(help="Policy ID."),
+    policy_id: Optional[str] = typer.Argument(default=None, help="Policy ID."),
 ) -> None:
     """Get policy details."""
+    if not policy_id:
+        if sys.stdin.isatty():
+            policy_id = input("Policy ID: ").strip()
+            if not policy_id:
+                print_error("Policy ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument POLICY_ID. Usage: querri policy get POLICY_ID")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -87,12 +98,21 @@ def get_policy(
 @policies_app.command("create")
 def create_policy(
     ctx: typer.Context,
-    name: str = typer.Option(..., "--name", "-n", help="Policy name."),
+    name: Optional[str] = typer.Option(None, "--name", "-n", help="Policy name."),
     description: Optional[str] = typer.Option(None, "--description", "-d", help="Description."),
     source_ids: Optional[str] = typer.Option(None, "--source-ids", help="Comma-separated source IDs."),
     row_filters: Optional[str] = typer.Option(None, "--row-filters", help="JSON array of row filter objects."),
 ) -> None:
     """Create an access policy."""
+    if not name:
+        if sys.stdin.isatty():
+            name = input("Policy name: ").strip()
+            if not name:
+                print_error("Policy name is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required option --name. Usage: querri policy create --name NAME")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
 
@@ -102,7 +122,6 @@ def create_policy(
         try:
             filters = json.loads(row_filters)
         except json.JSONDecodeError as exc:
-            from querri.cli._output import print_error
             print_error(f"Invalid JSON for --row-filters: {exc}")
             raise typer.Exit(code=1)
 
@@ -127,13 +146,22 @@ def create_policy(
 @policies_app.command("update")
 def update_policy(
     ctx: typer.Context,
-    policy_id: str = typer.Argument(help="Policy ID."),
+    policy_id: Optional[str] = typer.Argument(default=None, help="Policy ID."),
     name: Optional[str] = typer.Option(None, "--name", "-n", help="New name."),
     description: Optional[str] = typer.Option(None, "--description", "-d", help="New description."),
     source_ids: Optional[str] = typer.Option(None, "--source-ids", help="Comma-separated source IDs."),
     row_filters: Optional[str] = typer.Option(None, "--row-filters", help="JSON array of row filter objects."),
 ) -> None:
     """Update an access policy."""
+    if not policy_id:
+        if sys.stdin.isatty():
+            policy_id = input("Policy ID: ").strip()
+            if not policy_id:
+                print_error("Policy ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument POLICY_ID. Usage: querri policy update POLICY_ID")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
 
@@ -143,7 +171,6 @@ def update_policy(
         try:
             filters = json.loads(row_filters)
         except json.JSONDecodeError as exc:
-            from querri.cli._output import print_error
             print_error(f"Invalid JSON for --row-filters: {exc}")
             raise typer.Exit(code=1)
 
@@ -167,9 +194,18 @@ def update_policy(
 @policies_app.command("delete")
 def delete_policy(
     ctx: typer.Context,
-    policy_id: str = typer.Argument(help="Policy ID."),
+    policy_id: Optional[str] = typer.Argument(default=None, help="Policy ID."),
 ) -> None:
     """Delete an access policy."""
+    if not policy_id:
+        if sys.stdin.isatty():
+            policy_id = input("Policy ID: ").strip()
+            if not policy_id:
+                print_error("Policy ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument POLICY_ID. Usage: querri policy delete POLICY_ID")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -186,10 +222,28 @@ def delete_policy(
 @policies_app.command("assign")
 def assign_users(
     ctx: typer.Context,
-    policy_id: str = typer.Argument(help="Policy ID."),
-    user_ids: str = typer.Option(..., "--user-ids", help="Comma-separated user IDs."),
+    policy_id: Optional[str] = typer.Argument(default=None, help="Policy ID."),
+    user_ids: Optional[str] = typer.Option(None, "--user-ids", help="Comma-separated user IDs."),
 ) -> None:
     """Assign users to an access policy."""
+    if not policy_id:
+        if sys.stdin.isatty():
+            policy_id = input("Policy ID: ").strip()
+            if not policy_id:
+                print_error("Policy ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument POLICY_ID. Usage: querri policy assign POLICY_ID --user-ids USER_IDS")
+            raise typer.Exit(code=1)
+    if not user_ids:
+        if sys.stdin.isatty():
+            user_ids = input("User IDs (comma-separated): ").strip()
+            if not user_ids:
+                print_error("User IDs are required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required option --user-ids. Usage: querri policy assign POLICY_ID --user-ids USER_IDS")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     user_list = [u.strip() for u in user_ids.split(",")]
@@ -208,10 +262,28 @@ def assign_users(
 @policies_app.command("remove")
 def remove_user(
     ctx: typer.Context,
-    policy_id: str = typer.Argument(help="Policy ID."),
-    user_id: str = typer.Argument(help="User ID to remove."),
+    policy_id: Optional[str] = typer.Argument(default=None, help="Policy ID."),
+    user_id: Optional[str] = typer.Argument(default=None, help="User ID to remove."),
 ) -> None:
     """Remove a user from an access policy."""
+    if not policy_id:
+        if sys.stdin.isatty():
+            policy_id = input("Policy ID: ").strip()
+            if not policy_id:
+                print_error("Policy ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument POLICY_ID. Usage: querri policy remove POLICY_ID USER_ID")
+            raise typer.Exit(code=1)
+    if not user_id:
+        if sys.stdin.isatty():
+            user_id = input("User ID: ").strip()
+            if not user_id:
+                print_error("User ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument USER_ID. Usage: querri policy remove POLICY_ID USER_ID")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -228,10 +300,28 @@ def remove_user(
 @policies_app.command("resolve")
 def resolve_access(
     ctx: typer.Context,
-    user_id: str = typer.Option(..., "--user-id", help="User ID."),
-    source_id: str = typer.Option(..., "--source-id", help="Source ID."),
+    user_id: Optional[str] = typer.Option(None, "--user-id", help="User ID."),
+    source_id: Optional[str] = typer.Option(None, "--source-id", help="Source ID."),
 ) -> None:
     """Resolve effective access for a user on a source."""
+    if not user_id:
+        if sys.stdin.isatty():
+            user_id = input("User ID: ").strip()
+            if not user_id:
+                print_error("User ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required option --user-id. Usage: querri policy resolve --user-id USER_ID --source-id SOURCE_ID")
+            raise typer.Exit(code=1)
+    if not source_id:
+        if sys.stdin.isatty():
+            source_id = input("Source ID: ").strip()
+            if not source_id:
+                print_error("Source ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required option --source-id. Usage: querri policy resolve --user-id USER_ID --source-id SOURCE_ID")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:

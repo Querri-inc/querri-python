@@ -1,7 +1,8 @@
-"""querri steps — view project steps and step data."""
+"""querri step — view project steps and step data."""
 
 from __future__ import annotations
 
+import sys
 from typing import Optional
 
 import typer
@@ -9,6 +10,7 @@ import typer
 from querri.cli._context import get_client
 from querri.cli._output import (
     handle_api_error,
+    print_error,
     print_json,
     print_table,
 )
@@ -23,9 +25,15 @@ steps_app = typer.Typer(
 @steps_app.command("list")
 def list_steps(
     ctx: typer.Context,
-    project_id: str = typer.Argument(help="Project ID."),
+    project_id: Optional[str] = typer.Argument(default=None, help="Project ID."),
 ) -> None:
     """List steps in a project."""
+    if project_id is None:
+        if sys.stdin.isatty():
+            project_id = input("Project ID: ").strip()
+        else:
+            print_error("Missing required argument <PROJECT_ID>. Usage: querri step list <PROJECT_ID>")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -53,12 +61,24 @@ def list_steps(
 @steps_app.command("data")
 def step_data(
     ctx: typer.Context,
-    project_id: str = typer.Argument(help="Project ID."),
-    step_id: str = typer.Argument(help="Step ID."),
+    project_id: Optional[str] = typer.Argument(default=None, help="Project ID."),
+    step_id: Optional[str] = typer.Argument(default=None, help="Step ID."),
     page: int = typer.Option(1, "--page", "-p", help="Page number."),
     page_size: int = typer.Option(100, "--page-size", help="Rows per page."),
 ) -> None:
     """View data output from a project step."""
+    if project_id is None:
+        if sys.stdin.isatty():
+            project_id = input("Project ID: ").strip()
+        else:
+            print_error("Missing required argument <PROJECT_ID>. Usage: querri step data <PROJECT_ID> <STEP_ID>")
+            raise typer.Exit(code=1)
+    if step_id is None:
+        if sys.stdin.isatty():
+            step_id = input("Step ID: ").strip()
+        else:
+            print_error("Missing required argument <STEP_ID>. Usage: querri step data <PROJECT_ID> <STEP_ID>")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -82,7 +102,6 @@ def step_data(
                 ctx=ctx,
             )
             if result.total_rows:
-                import sys
                 print(
                     f"\nShowing page {result.page}/{(result.total_rows + page_size - 1) // page_size} "
                     f"({result.total_rows} total rows)",

@@ -592,7 +592,7 @@ class _OAuthCallbackHandler(BaseHTTPRequestHandler):
       </div>
       <div class="cmd typing">
         <span class="prompt">$</span>
-        <span class="command"> querri files upload</span>
+        <span class="command"> querri file upload</span>
         <span class="string"> sales.csv</span>
       </div>
 
@@ -746,8 +746,13 @@ def start_oauth_flow(
         )
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
+        detail = ""
+        try:
+            detail = exc.response.text[:200]
+        except Exception:
+            pass
         raise RuntimeError(
-            "Token exchange failed. The authorization code may have expired."
+            f"Token exchange failed (HTTP {exc.response.status_code}). {detail}"
         ) from exc
 
     data = response.json()

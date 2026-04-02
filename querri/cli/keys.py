@@ -1,8 +1,8 @@
-"""querri keys — manage API keys."""
+"""querri key — manage API keys."""
 
 from __future__ import annotations
 
-import json
+import sys
 from typing import Optional
 
 import typer
@@ -11,11 +11,81 @@ from querri.cli._context import get_client
 from querri.cli._output import (
     handle_api_error,
     print_detail,
+    print_error,
     print_id,
     print_json,
     print_success,
     print_table,
 )
+
+# All available API key scopes, grouped for the interactive picker.
+_SCOPE_GROUPS: list[tuple[str, list[str]]] = [
+    ("Projects", ["admin:projects:read", "admin:projects:write"]),
+    ("Dashboards", ["admin:dashboards:read", "admin:dashboards:write"]),
+    ("Data", ["data:read", "data:write"]),
+    ("Sources", ["admin:sources:read", "admin:sources:write"]),
+    ("Files", ["admin:files:read", "admin:files:upload", "admin:files:delete"]),
+    ("Users", ["admin:users:read", "admin:users:write"]),
+    ("Keys", ["admin:keys:manage"]),
+    ("Policies", ["admin:policies:read", "admin:policies:write"]),
+    ("Permissions", ["admin:permissions:read", "admin:permissions:write"]),
+    ("Embed", ["embed:session:create"]),
+    ("Usage", ["admin:usage:read"]),
+    ("Audit", ["admin:audit:read"]),
+]
+
+
+def _pick_scopes() -> list[str]:
+    """Interactive scope picker with toggle-style checkboxes."""
+    all_scopes: list[str] = []
+    for _, group_scopes in _SCOPE_GROUPS:
+        all_scopes.extend(group_scopes)
+
+    selected: set[int] = set()
+
+    def _render() -> None:
+        print("\033[2J\033[H", end="", file=sys.stderr)  # clear screen
+        print("Select scopes (enter number to toggle, 'a' for all, 'd' for done):\n", file=sys.stderr)
+        idx = 1
+        for group_name, group_scopes in _SCOPE_GROUPS:
+            print(f"  {group_name}:", file=sys.stderr)
+            for scope in group_scopes:
+                flat_idx = all_scopes.index(scope)
+                mark = "✓" if flat_idx in selected else " "
+                print(f"    [{mark}] {idx:2d}. {scope}", file=sys.stderr)
+                idx += 1
+            print(file=sys.stderr)
+
+    _render()
+    while True:
+        try:
+            raw = input("> ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print(file=sys.stderr)
+            raise typer.Exit(code=0)
+        if raw == "d" or raw == "done":
+            break
+        if raw == "a" or raw == "all":
+            if len(selected) == len(all_scopes):
+                selected.clear()
+            else:
+                selected = set(range(len(all_scopes)))
+            _render()
+            continue
+        try:
+            num = int(raw)
+            if 1 <= num <= len(all_scopes):
+                idx = num - 1
+                if idx in selected:
+                    selected.discard(idx)
+                else:
+                    selected.add(idx)
+            _render()
+        except ValueError:
+            _render()
+
+    return [all_scopes[i] for i in sorted(selected)]
+
 
 keys_app = typer.Typer(
     name="keys",
@@ -59,10 +129,19 @@ def list_keys(
 @keys_app.command("get")
 def get_key(
     ctx: typer.Context,
-    key_id: str = typer.Argument(help="API key ID."),
+    key_id: Optional[str] = typer.Argument(None, help="API key ID."),
 ) -> None:
     """Get API key details."""
     obj = ctx.ensure_object(dict)
+    if not key_id:
+        if sys.stdin.isatty():
+            key_id = input("API key ID: ").strip()
+            if not key_id:
+                print_error("API key ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument KEY_ID. Usage: querri key get KEY_ID")
+            raise typer.Exit(code=1)
     client = get_client(ctx)
     try:
         key = client.keys.get(key_id)
@@ -83,6 +162,9 @@ def get_key(
                 ("scopes", "Scopes"),
                 ("status", "Status"),
                 ("rate_limit_per_minute", "Rate Limit"),
+                ("bound_user_id", "Bound User"),
+                ("ip_allowlist", "IP Allowlist"),
+                ("access_policy_ids", "Policies"),
                 ("created_by", "Created By"),
                 ("created_at", "Created"),
                 ("last_used_at", "Last Used"),
@@ -94,8 +176,8 @@ def get_key(
 @keys_app.command("create")
 def create_key(
     ctx: typer.Context,
-    name: str = typer.Option(..., "--name", "-n", help="Key name."),
-    scopes: str = typer.Option(..., "--scopes", "-s", help="Comma-separated scopes."),
+    name: Optional[str] = typer.Option(None, "--name", "-n", help="Key name."),
+    scopes: Optional[str] = typer.Option(None, "--scopes", "-s", help="Comma-separated scopes."),
     expires_in_days: Optional[int] = typer.Option(None, "--expires-in-days", help="Days until expiry."),
     bound_user_id: Optional[str] = typer.Option(None, "--bound-user-id", help="Bind key to a user ID."),
     rate_limit: Optional[int] = typer.Option(None, "--rate-limit", help="Requests per minute."),
@@ -106,9 +188,32 @@ def create_key(
     The full key value is shown only once — save it immediately.
     """
     obj = ctx.ensure_object(dict)
+    if not name:
+        if sys.stdin.isatty():
+            name = input("Key name: ").strip()
+            if not name:
+                print_error("Key name is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required option --name. Usage: querri key create --name NAME --scopes SCOPES [options]")
+            raise typer.Exit(code=1)
+    if not scopes:
+        if sys.stdin.isatty():
+            scope_list = _pick_scopes()
+            if not scope_list:
+                print_error("At least one scope is required.")
+                raise typer.Exit(code=1)
+        else:
+            all_scopes = [s for _, group in _SCOPE_GROUPS for s in group]
+            print_error(
+                "Missing required option --scopes. "
+                f"Usage: querri key create --name NAME --scopes SCOPES\n"
+                f"Available scopes: {', '.join(all_scopes)}"
+            )
+            raise typer.Exit(code=1)
+    else:
+        scope_list = [s.strip() for s in scopes.split(",")]
     client = get_client(ctx)
-
-    scope_list = [s.strip() for s in scopes.split(",")]
     ip_list = [ip.strip() for ip in ip_allowlist.split(",")] if ip_allowlist else None
 
     try:
@@ -145,7 +250,6 @@ def create_key(
                 padding=(1, 2),
             ))
         else:
-            import sys
             print(f"Secret: {key.secret}", file=sys.stderr)
             print("Save this key now — it cannot be retrieved later.", file=sys.stderr)
 
@@ -153,10 +257,19 @@ def create_key(
 @keys_app.command("delete")
 def delete_key(
     ctx: typer.Context,
-    key_id: str = typer.Argument(help="API key ID."),
+    key_id: Optional[str] = typer.Argument(None, help="API key ID."),
 ) -> None:
     """Delete an API key."""
     obj = ctx.ensure_object(dict)
+    if not key_id:
+        if sys.stdin.isatty():
+            key_id = input("API key ID: ").strip()
+            if not key_id:
+                print_error("API key ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument KEY_ID. Usage: querri key delete KEY_ID")
+            raise typer.Exit(code=1)
     client = get_client(ctx)
     try:
         client.keys.delete(key_id)

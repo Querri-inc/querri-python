@@ -1,6 +1,6 @@
 """querri data — manage file-backed data sources, queries, and AI Q&A.
 
-For connector-based sources, see ``querri sources``.
+For connector-based sources, see ``querri source``.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from querri.cli._context import get_client
 from querri.cli._output import (
     handle_api_error,
     print_detail,
+    print_error,
     print_id,
     print_json,
     print_success,
@@ -24,7 +25,7 @@ from querri.cli._output import (
 
 data_app = typer.Typer(
     name="data",
-    help="Manage file-backed data sources and queries. For connector-based sources, see `querri sources`.",
+    help="Manage file-backed data sources and queries. For connector-based sources, see `querri source`.",
     no_args_is_help=True,
 )
 
@@ -57,9 +58,15 @@ def list_sources(
 @data_app.command("source")
 def get_source(
     ctx: typer.Context,
-    source_id: str = typer.Argument(help="Source ID."),
+    source_id: Optional[str] = typer.Argument(default=None, help="Source ID."),
 ) -> None:
     """Get data source details."""
+    if source_id is None:
+        if sys.stdin.isatty():
+            source_id = input("Source ID: ").strip()
+        else:
+            print_error("Missing required argument <SOURCE_ID>. Usage: querri data source <SOURCE_ID>")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -87,11 +94,17 @@ def get_source(
 @data_app.command("source-data")
 def source_data(
     ctx: typer.Context,
-    source_id: str = typer.Argument(help="Source ID."),
+    source_id: Optional[str] = typer.Argument(default=None, help="Source ID."),
     page: int = typer.Option(1, "--page", "-p", help="Page number."),
     page_size: int = typer.Option(100, "--page-size", help="Rows per page."),
 ) -> None:
     """View data from a source."""
+    if source_id is None:
+        if sys.stdin.isatty():
+            source_id = input("Source ID: ").strip()
+        else:
+            print_error("Missing required argument <SOURCE_ID>. Usage: querri data source-data <SOURCE_ID>")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -118,7 +131,7 @@ def source_data(
 @data_app.command("create-source")
 def create_source(
     ctx: typer.Context,
-    name: str = typer.Option(..., "--name", "-n", help="Source name."),
+    name: Optional[str] = typer.Option(None, "--name", "-n", help="Source name."),
     file: Optional[Path] = typer.Option(
         None, "--file", "-f", help="JSON file with row data.",
         exists=True, file_okay=True, dir_okay=False, resolve_path=True,
@@ -128,6 +141,12 @@ def create_source(
 
     Reads rows from --file or stdin (JSON array of objects).
     """
+    if name is None:
+        if sys.stdin.isatty():
+            name = input("Source name: ").strip()
+        else:
+            print_error("Missing required option --name. Usage: querri data create-source --name <NAME>")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
 
@@ -144,7 +163,6 @@ def create_source(
             print_json({"error": "validation_error", "message": "Expected a JSON array of objects.", "code": 1}) if obj.get("json") else None
             raise typer.Exit(code=1)
     except json.JSONDecodeError as exc:
-        from querri.cli._output import print_error
         if obj.get("json"):
             from querri.cli._output import print_json_error
             print_json_error("validation_error", f"Invalid JSON: {exc}", 1)
@@ -168,9 +186,15 @@ def create_source(
 @data_app.command("delete-source")
 def delete_source(
     ctx: typer.Context,
-    source_id: str = typer.Argument(help="Source ID."),
+    source_id: Optional[str] = typer.Argument(default=None, help="Source ID."),
 ) -> None:
     """Delete a data source."""
+    if source_id is None:
+        if sys.stdin.isatty():
+            source_id = input("Source ID: ").strip()
+        else:
+            print_error("Missing required argument <SOURCE_ID>. Usage: querri data delete-source <SOURCE_ID>")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -187,12 +211,24 @@ def delete_source(
 @data_app.command("query")
 def query_data(
     ctx: typer.Context,
-    sql: str = typer.Option(..., "--sql", "-s", help="SQL query string."),
-    source_id: str = typer.Option(..., "--source-id", help="Source to query."),
+    sql: Optional[str] = typer.Option(None, "--sql", "-s", help="SQL query string."),
+    source_id: Optional[str] = typer.Option(None, "--source-id", help="Source to query."),
     page: int = typer.Option(1, "--page", "-p", help="Page number."),
     page_size: int = typer.Option(100, "--page-size", help="Rows per page."),
 ) -> None:
     """Run a SQL query against a data source."""
+    if source_id is None:
+        if sys.stdin.isatty():
+            source_id = input("Source ID: ").strip()
+        else:
+            print_error("Missing required option --source-id. Usage: querri data query --source-id <ID> --sql <SQL>")
+            raise typer.Exit(code=1)
+    if sql is None:
+        if sys.stdin.isatty():
+            sql = input("SQL query: ").strip()
+        else:
+            print_error("Missing required option --sql. Usage: querri data query --source-id <ID> --sql <SQL>")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -212,10 +248,22 @@ def query_data(
 @data_app.command("ask")
 def ask_data(
     ctx: typer.Context,
-    source_id: str = typer.Argument(help="Source ID."),
-    question: str = typer.Option(..., "--question", "-q", help="Natural language question."),
+    source_id: Optional[str] = typer.Argument(default=None, help="Source ID."),
+    question: Optional[str] = typer.Option(None, "--question", "-q", help="Natural language question."),
 ) -> None:
     """Ask a natural language question about a data source."""
+    if source_id is None:
+        if sys.stdin.isatty():
+            source_id = input("Source ID: ").strip()
+        else:
+            print_error("Missing required argument <SOURCE_ID>. Usage: querri data ask <SOURCE_ID> --question <QUESTION>")
+            raise typer.Exit(code=1)
+    if question is None:
+        if sys.stdin.isatty():
+            question = input("Question: ").strip()
+        else:
+            print_error("Missing required option --question. Usage: querri data ask <SOURCE_ID> --question <QUESTION>")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
 

@@ -28,8 +28,8 @@ def list_events(
     action: Optional[str] = typer.Option(None, "--action", help="Filter by action type."),
     start_date: Optional[str] = typer.Option(None, "--start-date", help="Start date (ISO 8601)."),
     end_date: Optional[str] = typer.Option(None, "--end-date", help="End date (ISO 8601)."),
-    page: int = typer.Option(1, "--page", "-p", help="Page number."),
-    page_size: int = typer.Option(50, "--page-size", help="Results per page."),
+    limit: int = typer.Option(50, "--limit", "-n", help="Max results to return."),
+    after: Optional[str] = typer.Option(None, "--after", help="Cursor for pagination."),
 ) -> None:
     """List audit log events."""
     obj = ctx.ensure_object(dict)
@@ -41,8 +41,8 @@ def list_events(
             action=action,
             start_date=start_date,
             end_date=end_date,
-            page=page,
-            page_size=page_size,
+            limit=limit,
+            after=after,
         )
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))

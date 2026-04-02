@@ -4,8 +4,8 @@ Sends a prompt to the active project's chat, auto-creating the chat
 if one doesn't exist yet. Designed for quick, stateful interaction:
 
     querri project select "Sales Analysis"
-    querri chat "what trends do you see?"
-    querri chat "break it down by region"
+    querri chat -p "what trends do you see?"
+    querri chat -p "break it down by region"
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def _strip_html(text: str) -> str:
 
 chat_app = typer.Typer(
     name="chat",
-    help="Send a prompt to the active project's chat.",
+    help="Send a prompt or manage chats on the active project.",
     invoke_without_command=True,
     rich_markup_mode="rich",
 )
@@ -52,7 +52,7 @@ chat_app = typer.Typer(
 @chat_app.callback(invoke_without_command=True)
 def chat_command(
     ctx: typer.Context,
-    prompt: Optional[str] = typer.Argument(None, help="Message to send."),
+    prompt: Optional[str] = typer.Option(None, "--prompt", "-p", help="Message to send."),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Model selection."),
     new: bool = typer.Option(False, "--new", help="Force a new chat session."),
     reasoning: bool = typer.Option(False, "--reasoning", "-r", help="Show reasoning traces."),
@@ -63,22 +63,14 @@ def chat_command(
     conversation.
 
     Examples:
-        querri chat "summarize the data"
-        querri chat "show me Q4 revenue" --model gpt-4o
-        querri chat "start over with a new analysis" --new
+        querri chat -p "summarize the data"
+        querri chat --prompt "show me Q4 revenue" --model gpt-4o
+        querri chat -p "start over" --new
     """
     if ctx.invoked_subcommand is not None:
         return
     if prompt is None:
-        # No prompt given — show help
         ctx.get_help()
-        return
-    # Typer's invoke_without_command=True grabs subcommand names as the
-    # positional prompt argument. Detect and forward to the subcommand.
-    _subcommand_names = {cmd.name for cmd in chat_app.registered_commands if cmd.callback}
-    if prompt in _subcommand_names:
-        if prompt == "show":
-            chat_show(ctx, chat_id=None)
         return
 
     obj = ctx.ensure_object(dict)
@@ -171,18 +163,14 @@ def _stream_plain(stream: object, *, show_reasoning: bool = False) -> None:
         stream._response.close()
         return
 
-    in_reasoning = False
-
     for event in stream.events():
         if event.event_type == "reasoning-start":
-            in_reasoning = True
             if show_reasoning:
                 print("\n--- Reasoning ---", file=sys.stderr)
         elif event.event_type == "reasoning-delta" and event.reasoning_text:
             if show_reasoning:
                 print(event.reasoning_text, end="", flush=True, file=sys.stderr)
         elif event.event_type == "reasoning-end":
-            in_reasoning = False
             if show_reasoning:
                 print("\n-----------------\n", file=sys.stderr)
         elif event.event_type == "text-delta" and event.text:
@@ -224,7 +212,6 @@ def _print_tool_preview_plain(data: dict) -> None:
     if title:
         print(f"  {title}", file=sys.stderr)
     print(f"  {n_cols} columns, {n_rows} rows", file=sys.stderr)
-    # Show first 3 rows
     preview = rows[:3]
     if cols:
         header = " | ".join(f"{c:>12}" for c in cols[:5])
@@ -255,30 +242,19 @@ def _stream_rich(stream: object, *, show_reasoning: bool = False) -> None:
 
     def _build_display() -> Group:
         parts: list[object] = []
-        # Reasoning panel
         if reasoning_text and show_reasoning:
-            r_text = Text(reasoning_text, style="dim italic")
             parts.append(Panel(
-                r_text,
-                title="[dim]Reasoning[/dim]",
-                title_align="left",
-                border_style="dim",
-                padding=(0, 1),
+                Text(reasoning_text, style="dim italic"),
+                title="[dim]Reasoning[/dim]", title_align="left",
+                border_style="dim", padding=(0, 1),
             ))
         elif reasoning_text and not show_reasoning:
-            # Show a one-line collapsed indicator
             lines = reasoning_text.strip().count("\n") + 1
-            parts.append(Text(
-                f"  Reasoning ({lines} lines) — rerun with --reasoning to expand",
-                style="dim",
-            ))
-        # Tool result previews
+            parts.append(Text(f"  Reasoning ({lines} lines) — rerun with --reasoning to expand", style="dim"))
         for panel in tool_panels:
             parts.append(panel)
-        # File/image links
         for link in file_links:
             parts.append(link)
-        # Response markdown
         if response_text:
             parts.append(Markdown(response_text))
         return Group(*parts) if parts else Group(Text(""))
@@ -286,7 +262,7 @@ def _stream_rich(stream: object, *, show_reasoning: bool = False) -> None:
     with Live(Text(""), console=console, refresh_per_second=10) as live:
         for event in stream.events():
             if event.event_type == "reasoning-start":
-                pass  # Will show when first delta arrives
+                pass
             elif event.event_type == "reasoning-delta" and event.reasoning_text:
                 reasoning_text += event.reasoning_text
                 live.update(_build_display())
@@ -305,21 +281,13 @@ def _stream_rich(stream: object, *, show_reasoning: bool = False) -> None:
                 media = event.media_type or ""
                 if "image" in media:
                     from querri.cli._image import render_image_rich
-                    # Get terminal width for sizing
                     img_width = min(console.width - 4, 70)
-                    renderable = render_image_rich(
-                        url,
-                        caption=event.raw_data or "",
-                        max_width=img_width,
-                        max_height=24,
-                    )
+                    renderable = render_image_rich(url, caption=event.raw_data or "", max_width=img_width, max_height=24)
                     file_links.append(renderable)
                 else:
-                    link = Text.from_markup(
-                        f"  [link={url}][bold #f15a24]📎 Open file[/bold #f15a24][/link]"
-                        f"  [dim]{url}[/dim]"
-                    )
-                    file_links.append(link)
+                    file_links.append(Text.from_markup(
+                        f"  [link={url}][bold #f15a24]📎 Open file[/bold #f15a24][/link]  [dim]{url}[/dim]"
+                    ))
                 live.update(_build_display())
             elif event.event_type == "terminate":
                 reason = event.terminate_reason or "unknown"
@@ -329,81 +297,36 @@ def _stream_rich(stream: object, *, show_reasoning: bool = False) -> None:
                 console.print(f"\n[red]Error: {event.error}[/red]")
 
 
-def _build_tool_panel(
-    tool_name: str | None,
-    tool_data: object | None,
-) -> object | None:
+def _build_tool_panel(tool_name: str | None, tool_data: object | None) -> object | None:
     """Build a Rich Panel with a compact table preview for a tool result."""
     from rich.panel import Panel
     from rich.table import Table
     from rich.text import Text
 
     name = tool_name or "Result"
-
     if not isinstance(tool_data, dict):
-        return Panel(
-            Text(f"Step completed", style="dim"),
-            title=f"[bold #f15a24]{name}[/bold #f15a24]",
-            title_align="left",
-            border_style="#f15a24",
-            padding=(0, 1),
-        )
+        return Panel(Text("Step completed", style="dim"), title=f"[bold #f15a24]{name}[/bold #f15a24]", title_align="left", border_style="dim", padding=(0, 1))
 
     rows = tool_data.get("rows") or tool_data.get("data") or tool_data.get("results")
     title = tool_data.get("title") or tool_data.get("name") or name
-
     if not isinstance(rows, list) or not rows or not isinstance(rows[0], dict):
-        # Non-tabular tool output — show summary
         summary = tool_data.get("summary") or tool_data.get("message") or ""
-        if summary:
-            return Panel(
-                Text(str(summary)),
-                title=f"[bold #f15a24]{title}[/bold #f15a24]",
-                title_align="left",
-                border_style="#f15a24",
-                padding=(0, 1),
-            )
-        return Panel(
-            Text("Step completed", style="dim"),
-            title=f"[bold #f15a24]{title}[/bold #f15a24]",
-            title_align="left",
-            border_style="#f15a24",
-            padding=(0, 1),
-        )
+        return Panel(Text(str(summary)) if summary else Text("Step completed", style="dim"), title=f"[bold #f15a24]{title}[/bold #f15a24]", title_align="left", border_style="dim", padding=(0, 1))
 
-    # Tabular data — build a compact Rich table preview
     cols = list(rows[0].keys())
-    n_rows = len(rows)
-    n_cols = len(cols)
-    show_cols = cols[:6]  # Max 6 columns in preview
-
-    table = Table(
-        title=f"[bold #f15a24]{title}[/bold #f15a24]",
-        caption=f"{n_rows} rows × {n_cols} columns",
-        caption_style="dim",
-        show_header=True,
-        header_style="bold",
-        border_style="#f15a24",
-        padding=(0, 1),
-        expand=False,
-    )
+    show_cols = cols[:6]
+    table = Table(title=f"[bold #f15a24]{title}[/bold #f15a24]", caption=f"{len(rows)} rows × {len(cols)} columns", caption_style="dim", show_header=True, header_style="bold", border_style="dim", padding=(0, 1), expand=False)
     for col in show_cols:
         table.add_column(col)
-    if n_cols > 6:
+    if len(cols) > 6:
         table.add_column("…", style="dim")
-
-    # Show first 5 rows
     for row in rows[:5]:
         vals = [str(row.get(c, ""))[:20] for c in show_cols]
-        if n_cols > 6:
+        if len(cols) > 6:
             vals.append("…")
         table.add_row(*vals)
-    if n_rows > 5:
-        placeholder = ["…"] * len(show_cols)
-        if n_cols > 6:
-            placeholder.append("")
-        table.add_row(*placeholder, style="dim")
-
+    if len(rows) > 5:
+        table.add_row(*["…"] * len(show_cols) + ([""] if len(cols) > 6 else []), style="dim")
     return table
 
 
@@ -446,195 +369,126 @@ def _stream_json(stream: object) -> None:
 
 
 # ---------------------------------------------------------------------------
-# querri chat show
+# querri chat show — renders from message parts[] with inline step results
 # ---------------------------------------------------------------------------
 
 
 @chat_app.command("show")
 def chat_show(
     ctx: typer.Context,
-    chat_id: Optional[str] = typer.Argument(None, help="Chat ID (default: active chat)."),
+    top: Optional[int] = typer.Option(None, "--top", help="Show only the first N messages."),
+    bottom: Optional[int] = typer.Option(None, "--bottom", help="Show only the last N messages."),
 ) -> None:
-    """Show the conversation history for a chat.
+    """Show the conversation with inline step results (tables, charts).
 
-    Displays all messages in the active (or specified) chat with Rich
-    formatting. User messages appear right-aligned, assistant messages
-    left-aligned with markdown rendering.
+    Loads the project's chat and renders each message's parts inline —
+    text, reasoning, and tool results with data previews and ASCII art
+    charts. Use --top or --bottom to slice.
 
-    Example: querri chat show
+    Examples:
+        querri chat show
+        querri chat show --bottom 2
     """
     obj = ctx.ensure_object(dict)
     is_json = obj.get("json", False)
-    is_interactive = obj.get("interactive", False)
-
     project_id = resolve_project_id(ctx)
     client = get_client(ctx)
 
-    # Resolve chat ID
-    cid = chat_id or obj.get("chat")
-    if not cid:
-        profile = _get_profile(ctx)
-        if profile and profile.active_chat_id and profile.active_project_id == project_id:
-            cid = profile.active_chat_id
-
-    if not cid:
-        print_error("No active chat. Send a message first with: querri chat \"hello\"")
-        raise typer.Exit(code=1)
-
-    # Fetch chat messages from internal API
-    chat_raw = _fetch_chat_internal(client, project_id, cid)
-
-    # Fetch full project for step figures
+    # Fetch full project (stepStore) and chat (messages with parts[])
     from querri.cli.projects import _get_full_project
     full_project = _get_full_project(client, project_id)
+    if full_project is None:
+        print_error("Could not load project data.")
+        raise typer.Exit(code=1)
 
-    # Fallback to v1 API for chat if internal failed
-    chat = None
-    if chat_raw is None:
-        try:
-            chat = client.projects.chats.get(project_id, cid)
-        except Exception as exc:
-            raise typer.Exit(code=handle_api_error(exc, is_json=is_json))
-
-    if is_json:
-        print_json(chat_raw or chat)
-        return
-
-    # Build messages list
-    messages: list = []
-    if chat_raw and "messages" in chat_raw:
-        from querri.types.chat import Message
-        for m in chat_raw["messages"]:
-            if isinstance(m, dict):
-                try:
-                    messages.append(Message.model_validate(m))
-                except Exception:
-                    pass
-    elif chat:
-        messages = getattr(chat, "messages", None) or []
-
-    steps = getattr(full_project, "steps", None) or [] if full_project else []
-
-    if not messages and not steps:
-        print_error("Chat has no messages.")
+    chat_data = _fetch_project_chat(client, project_id)
+    if not chat_data:
+        print_error("No conversation history. Send a message with: querri chat -p \"hello\"")
         raise typer.Exit(code=EXIT_SUCCESS)
 
-    # Build a lightweight chat object for rendering
-    if chat is None:
-        from types import SimpleNamespace
-        chat = SimpleNamespace(
-            id=cid,
-            name=chat_raw.get("name", "") if chat_raw else "",
-        )
+    messages = chat_data.get("messages", [])
 
-    if is_interactive:
-        _render_chat_rich(chat, messages, steps, client, project_id=project_id)
-    else:
-        _render_chat_plain(chat, messages, steps, client)
+    if is_json:
+        print_json(chat_data)
+        return
+
+    total = len(messages)
+    if top is not None:
+        messages = messages[:top]
+    elif bottom is not None:
+        messages = messages[-bottom:]
+
+    step_store = _build_step_store(full_project)
+    base_url, auth_headers = _resolve_internal_url(client)
+
+    _render_messages_with_parts(messages, step_store, project_id, base_url, auth_headers, total=total)
 
 
-def _fetch_chat_internal(client: object, project_id: str, chat_id: str) -> dict | None:
-    """Fetch chat with messages from the internal ``/api/`` endpoint."""
+# ---------------------------------------------------------------------------
+# Helpers for chat show
+# ---------------------------------------------------------------------------
+
+
+def _fetch_project_chat(client: object, project_id: str) -> dict | None:
+    """Fetch the project's chat via ``GET /api/projects/{pid}/chat``."""
     try:
         import httpx as _httpx
-        http = client._http  # type: ignore[attr-defined]
-        base_url = str(http._client.base_url)
-        internal_base = base_url.replace("/api/v1", "/api")
+        base_url, auth_headers = _resolve_internal_url(client)
         resp = _httpx.get(
-            f"{internal_base}/projects/{project_id}/chat/{chat_id}",
-            headers=dict(http._client.headers),
+            f"{base_url}/api/projects/{project_id}/chat",
+            headers=auth_headers,
             follow_redirects=True,
             timeout=30.0,
         )
         if resp.status_code == 200:
-            return resp.json()
+            data = resp.json()
+            if isinstance(data, list) and data:
+                return data[0]
+            elif isinstance(data, dict):
+                return data
     except Exception:
         pass
     return None
 
 
-def _render_chat_rich(
-    chat: object,
-    messages: list,
-    steps: list | None = None,
-    client: object | None = None,
-    project_id: str = "",
-) -> None:
-    """Render chat history with Rich panels and ASCII art charts."""
-    from rich.console import Console
-    from rich.markdown import Markdown
-    from rich.panel import Panel
-    from rich.text import Text
+def _resolve_internal_url(client: object) -> tuple[str, dict[str, str]]:
+    """Extract internal API base URL and auth headers from the SDK client."""
+    try:
+        http = client._http  # type: ignore[attr-defined]
+        base_url = str(http._client.base_url).replace("/api/v1", "").rstrip("/")
+        auth_headers = {k: v for k, v in http._client.headers.items() if k.lower() == "authorization"}
+        return base_url, auth_headers
+    except Exception:
+        return "", {}
 
-    from querri.cli._output import QUERRI_ORANGE
 
-    console = Console()
-
-    # Chat header
-    name = getattr(chat, "name", "") or "Untitled Chat"
-    msg_count = len(messages)
-    console.print(Panel(
-        Text.from_markup(
-            f"[bold {QUERRI_ORANGE}]{name}[/bold {QUERRI_ORANGE}]"
-            f"  [dim]{chat.id}[/dim]"
-            f"\n[dim]{msg_count} messages[/dim]"
-        ),
-        border_style=QUERRI_ORANGE,
-        padding=(0, 2),
-    ))
-
-    for msg in messages:
-        role = msg.role
-        content = msg.content or ""
-        ts = msg.created_at or ""
-
-        if role == "user":
-            console.print(Panel(
-                Text(content),
-                title="[bold]You[/bold]",
-                title_align="right",
-                subtitle=f"[dim]{ts}[/dim]" if ts else None,
-                subtitle_align="right",
-                border_style="blue",
-                padding=(0, 1),
-                width=min(console.width - 10, 80),
-            ), justify="right")
-        else:
-            # Assistant messages render as markdown
-            console.print(Panel(
-                Markdown(content) if content.strip() else Text("[dim]Empty response[/dim]"),
-                title=f"[bold {QUERRI_ORANGE}]Querri[/bold {QUERRI_ORANGE}]",
-                title_align="left",
-                subtitle=f"[dim]{ts}[/dim]" if ts else None,
-                subtitle_align="left",
-                border_style=QUERRI_ORANGE,
-                padding=(0, 1),
-            ))
-
-    # Render step results with ASCII art charts
-    if steps:
-        _render_step_figures(console, steps, client, project_id=project_id)
-
-    console.print()
+def _build_step_store(project: object) -> dict[str, dict]:
+    """Build a step UUID -> step data lookup from the project's steps list."""
+    steps = getattr(project, "steps", None) or []
+    store: dict[str, dict] = {}
+    for s in steps:
+        store[s.id] = {
+            "name": s.name, "type": s.type, "status": s.status,
+            "has_data": s.has_data, "has_figure": s.has_figure,
+            "figure_url": getattr(s, "figure_url", None),
+            "message": getattr(s, "message", None),
+            "num_rows": getattr(s, "num_rows", None),
+            "num_cols": getattr(s, "num_cols", None),
+            "headers": getattr(s, "headers", None),
+        }
+    return store
 
 
 def _fetch_step_data_preview(
-    step_id: str,
-    project_id: str,
-    base_url: str,
-    auth_headers: dict[str, str],
-    limit: int = 5,
+    step_id: str, project_id: str, base_url: str, auth_headers: dict[str, str], limit: int = 5,
 ) -> list[dict] | None:
     """Fetch the first few rows of step data from the internal API."""
     try:
         import httpx as _httpx
-        url = f"{base_url}/api/projects/{project_id}/steps/{step_id}/data"
         resp = _httpx.get(
-            url,
+            f"{base_url}/api/projects/{project_id}/steps/{step_id}/data",
             params={"page": 1, "page_size": limit},
-            headers=auth_headers,
-            follow_redirects=True,
-            timeout=10.0,
+            headers=auth_headers, follow_redirects=True, timeout=10.0,
         )
         if resp.status_code == 200:
             return resp.json().get("data", [])
@@ -643,84 +497,18 @@ def _fetch_step_data_preview(
     return None
 
 
-def _build_data_step_content(
-    step: object,
+def _render_messages_with_parts(
+    messages: list[dict],
+    step_store: dict[str, dict],
     project_id: str,
     base_url: str,
     auth_headers: dict[str, str],
-) -> object:
-    """Build Rich content for a data step: message + table preview + view command."""
-    from rich.console import Group
-    from rich.table import Table
-    from rich.text import Text
-
-    parts: list[object] = []
-
-    # Step message
-    msg = _strip_html(getattr(step, "message", None) or "")
-    if msg:
-        parts.append(Text(msg, style="italic"))
-
-    # Metadata line
-    num_rows = getattr(step, "num_rows", None)
-    num_cols = getattr(step, "num_cols", None)
-    headers = getattr(step, "headers", None) or []
-    if num_rows is not None:
-        meta = f"{num_rows} rows × {num_cols or len(headers)} columns"
-        parts.append(Text(meta, style="dim"))
-
-    rows = _fetch_step_data_preview(
-        step.id,
-        project_id,
-        base_url,
-        auth_headers,
-    )
-
-    if rows and isinstance(rows, list) and rows:
-        cols = list(rows[0].keys()) if isinstance(rows[0], dict) else []
-        show_cols = cols[:6]
-
-        table = Table(
-            show_header=True,
-            header_style="bold",
-            border_style="dim",
-            padding=(0, 1),
-            expand=False,
-        )
-        for col in show_cols:
-            table.add_column(col)
-        if len(cols) > 6:
-            table.add_column("…", style="dim")
-
-        for row in rows[:5]:
-            vals = [str(row.get(c, ""))[:20] for c in show_cols]
-            if len(cols) > 6:
-                vals.append("…")
-            table.add_row(*vals)
-
-        if num_rows and num_rows > 5:
-            placeholder = ["…"] * len(show_cols)
-            if len(cols) > 6:
-                placeholder.append("")
-            table.add_row(*placeholder, style="dim")
-
-        parts.append(table)
-
-    # Command hint to view full data
-    parts.append(Text.from_markup(
-        f"\n[dim]querri step data {step.id}[/dim]"
-    ))
-
-    return Group(*parts) if parts else Text("[dim]No data[/dim]")
-
-
-def _render_step_figures(
-    console: object,
-    steps: list,
-    client: object | None = None,
-    project_id: str = "",
+    *,
+    total: int | None = None,
 ) -> None:
-    """Render step results — data tables and ASCII art charts."""
+    """Render messages with inline step results from parts[]."""
+    from rich.console import Console, Group
+    from rich.markdown import Markdown
     from rich.panel import Panel
     from rich.table import Table
     from rich.text import Text
@@ -728,107 +516,182 @@ def _render_step_figures(
     from querri.cli._image import render_image_rich
     from querri.cli._output import QUERRI_ORANGE
 
-    # Resolve the base URL and auth headers for figure downloads
-    base_url = ""
-    auth_headers: dict[str, str] = {}
-    if client:
-        try:
-            http = client._http
-            base_url = str(http._client.base_url).replace("/api/v1", "").rstrip("/")
-            auth_headers = {
-                k: v for k, v in http._client.headers.items()
-                if k.lower() in ("authorization",)
-            }
-        except Exception:
-            pass
+    console = Console()
+    shown = len(messages)
+    total_n = total if total is not None else shown
+    count = f"{shown} of {total_n} messages" if shown != total_n else f"{total_n} messages"
+    console.print(Text.from_markup(f"[bold {QUERRI_ORANGE}]Conversation[/bold {QUERRI_ORANGE}]  [dim]{count}[/dim]\n"))
 
-    figure_steps = [s for s in steps if s.has_figure and getattr(s, "figure_url", None)]
-    data_steps = [s for s in steps if s.has_data and not s.has_figure]
-
-    if not figure_steps and not data_steps:
-        return
-
-    console.print()
-    console.print(Text("Step Results", style=f"bold {QUERRI_ORANGE}"))
-
-    # Show data steps with table preview
-    for step in data_steps:
-        content = _build_data_step_content(step, project_id, base_url, auth_headers)
-        console.print(Panel(
-            content,
-            title=f"[bold {QUERRI_ORANGE}]🔍 {step.name}[/bold {QUERRI_ORANGE}]",
-            title_align="left",
-            border_style="dim",
-            padding=(0, 1),
-        ))
-
-    # Show figure steps with ASCII art
-    for step in figure_steps:
-        fig_url = step.figure_url
-        # Resolve relative figure paths via /api/files/stream/ endpoint
-        if fig_url and not fig_url.startswith("http"):
-            fig_url = f"{base_url}/api/files/stream/{fig_url.lstrip('/')}"
-
-        msg = _strip_html(getattr(step, "message", None) or "")
-        img_width = min(console.width - 4, 70)
-        renderable = render_image_rich(
-            fig_url,
-            caption=msg,
-            max_width=img_width,
-            max_height=24,
-            headers=auth_headers,
-        )
-
-        console.print(Panel(
-            renderable,
-            title=f"[bold {QUERRI_ORANGE}]📊 {step.name}[/bold {QUERRI_ORANGE}]",
-            title_align="left",
-            border_style="dim",
-            padding=(0, 1),
-        ))
-
-
-def _render_chat_plain(
-    chat: object,
-    messages: list,
-    steps: list | None = None,
-    client: object | None = None,
-) -> None:
-    """Render chat history as plain text."""
-    name = getattr(chat, "name", "") or "Untitled Chat"
-    print(f"Chat: {name} ({chat.id})")
-    print(f"Messages: {len(messages)}")
-    print("-" * 40)
+    _ICONS = {
+        "duckdb_query": "🔍", "draw_figure": "📊", "source": "📂",
+        "add_source": "📂", "load": "📂", "python": "🐍", "coder": "🐍",
+    }
 
     for msg in messages:
-        role = msg.role.upper()
-        content = msg.content or ""
-        ts = msg.created_at or ""
-        print(f"\n[{role}] {ts}")
-        print(content)
+        role = msg.get("role", "")
+        parts = msg.get("parts") or []
 
-    # Show figures
-    if steps:
-        base_url = ""
-        if client:
-            try:
-                base_url = str(client._http._client.base_url).replace("/api/v1", "")
-            except Exception:
-                pass
-        figure_steps = [s for s in steps if s.has_figure and getattr(s, "figure_url", None)]
-        if figure_steps:
-            print("\n--- Charts ---")
-            for step in figure_steps:
-                fig_url = step.figure_url
-                if fig_url and not fig_url.startswith("http"):
-                    fig_url = f"{base_url}/api/files/stream/{fig_url.lstrip('/')}"
-                msg = _strip_html(getattr(step, "message", None) or "")
-                print(f"\n  {step.name}")
-                if msg:
-                    print(f"  {msg}")
-                from querri.cli._image import download_image
-                path = download_image(fig_url)
-                if path:
-                    print(f"  Saved: {path}")
-                print(f"  Open: {fig_url}")
-    print()
+        if role == "user":
+            user_text = ""
+            for p in parts:
+                if p.get("type") == "text":
+                    user_text += p.get("text", "")
+            if not user_text:
+                user_text = msg.get("content", "")
+            if user_text:
+                console.print(Panel(
+                    Text(user_text),
+                    title="[bold]You[/bold]", title_align="right",
+                    border_style="blue", padding=(0, 1),
+                    width=min(console.width - 10, 80),
+                ), justify="right")
+
+        elif role == "assistant":
+            for part in parts:
+                ptype = part.get("type", "")
+
+                if ptype == "text":
+                    text = part.get("text", "").strip()
+                    if text:
+                        console.print(Panel(
+                            Markdown(text),
+                            title=f"[bold {QUERRI_ORANGE}]Querri[/bold {QUERRI_ORANGE}]",
+                            title_align="left", border_style=QUERRI_ORANGE,
+                            padding=(0, 1),
+                        ))
+
+                elif ptype == "reasoning":
+                    reasoning = part.get("reasoning", "").strip()
+                    if reasoning:
+                        console.print(Panel(
+                            Text(reasoning, style="dim italic"),
+                            title="[dim]Reasoning[/dim]", title_align="left",
+                            border_style="dim", padding=(0, 1),
+                        ))
+
+                elif ptype.startswith("tool-") and ptype != "tool-usage":
+                    output = part.get("output", {}) or {}
+                    raw_steps = output.get("steps", {})
+
+                    # steps can be a dict {uuid: {step_data}} or a list
+                    step_items: list[tuple[str, dict]] = []
+                    if isinstance(raw_steps, dict):
+                        for sid, sdata in raw_steps.items():
+                            if isinstance(sdata, dict):
+                                step_items.append((sid, sdata))
+                    elif isinstance(raw_steps, list):
+                        for sref in raw_steps:
+                            if isinstance(sref, str):
+                                step_items.append((sref, step_store.get(sref, {})))
+                            elif isinstance(sref, dict):
+                                sid = sref.get("uuid", "")
+                                if sid:
+                                    step_items.append((sid, sref))
+
+                    for sid, embedded in step_items:
+                        if not sid:
+                            continue
+                        # Merge embedded step data with stepStore (embedded takes priority)
+                        step = _merge_step_data(embedded, step_store.get(sid, {}))
+                        if not step:
+                            continue
+                        _render_inline_step(console, sid, step, project_id, base_url, auth_headers, _ICONS)
+
+    console.print()
+
+
+def _merge_step_data(embedded: dict, from_store: dict) -> dict:
+    """Merge embedded step data (from chat parts) with stepStore data.
+
+    The embedded data from ``output.steps`` contains the full step object
+    including a nested ``result`` dict.  The stepStore-derived data has
+    already been flattened by ``_build_step_store``.  Prefer embedded data.
+    """
+    result = embedded.get("result") or {}
+    has_data = bool(result.get("qdf") or result.get("qdf_uuid"))
+    has_figure = bool(result.get("figure_url") or result.get("svg_url"))
+    qdf = result.get("qdf") or {}
+
+    merged: dict = {
+        "name": embedded.get("name") or from_store.get("name", ""),
+        "type": embedded.get("tool") or embedded.get("type") or from_store.get("type", ""),
+        "status": embedded.get("status") or from_store.get("status", ""),
+        "has_data": has_data or from_store.get("has_data", False),
+        "has_figure": has_figure or from_store.get("has_figure", False),
+        "figure_url": result.get("figure_url") or from_store.get("figure_url"),
+        "message": result.get("message") or from_store.get("message"),
+        "num_rows": qdf.get("num_rows") or from_store.get("num_rows"),
+        "num_cols": qdf.get("num_cols") or from_store.get("num_cols"),
+        "headers": qdf.get("headers") or from_store.get("headers"),
+    }
+    return merged
+
+
+def _render_inline_step(
+    console: object,
+    step_id: str,
+    step: dict,
+    project_id: str,
+    base_url: str,
+    auth_headers: dict[str, str],
+    icons: dict[str, str],
+) -> None:
+    """Render a single step result inline in the conversation."""
+    from rich.console import Group
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
+
+    from querri.cli._image import render_image_rich
+    from querri.cli._output import QUERRI_ORANGE
+
+    name = step.get("name", step_id[:12])
+    stype = step.get("type", "")
+    icon = icons.get(stype, "⚙")
+    msg = _strip_html(step.get("message") or "")
+    fig_url = step.get("figure_url")
+    has_data = step.get("has_data", False)
+
+    content_parts: list[object] = []
+
+    if msg:
+        content_parts.append(Text(msg, style="italic"))
+
+    # Table preview
+    if has_data:
+        num_rows = step.get("num_rows")
+        num_cols = step.get("num_cols")
+        if num_rows is not None:
+            content_parts.append(Text(f"{num_rows} rows × {num_cols} columns", style="dim"))
+        rows = _fetch_step_data_preview(step_id, project_id, base_url, auth_headers)
+        if rows and isinstance(rows, list) and rows and isinstance(rows[0], dict):
+            all_cols = list(rows[0].keys())
+            cols = all_cols[:6]
+            table = Table(show_header=True, header_style="bold", border_style="dim", padding=(0, 1), expand=False)
+            for col in cols:
+                table.add_column(col)
+            if len(all_cols) > 6:
+                table.add_column("…", style="dim")
+            for row in rows[:5]:
+                vals = [str(row.get(c, ""))[:20] for c in cols]
+                if len(all_cols) > 6:
+                    vals.append("…")
+                table.add_row(*vals)
+            if num_rows and num_rows > 5:
+                filler = ["…"] * len(cols) + ([""] if len(all_cols) > 6 else [])
+                table.add_row(*filler, style="dim")
+            content_parts.append(table)
+        content_parts.append(Text.from_markup(f"[dim]querri step data {step_id}[/dim]"))
+
+    # Chart
+    if fig_url:
+        resolved = fig_url if fig_url.startswith("http") else f"{base_url}/api/files/stream/{fig_url.lstrip('/')}"
+        img_width = min(console.width - 6, 70)
+        content_parts.append(render_image_rich(resolved, max_width=img_width, max_height=24, headers=auth_headers))
+
+    content = Group(*content_parts) if content_parts else Text("[dim]Step completed[/dim]")
+    console.print(Panel(
+        content,
+        title=f"[bold {QUERRI_ORANGE}]{icon} {name}[/bold {QUERRI_ORANGE}]",
+        title_align="left", border_style="dim", padding=(0, 1),
+    ))

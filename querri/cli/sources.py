@@ -1,10 +1,11 @@
-"""querri sources — manage connector-based data sources.
+"""querri source — manage connector-based data sources.
 
 For file-backed datasets, see ``querri data``.
 """
 
 from __future__ import annotations
 
+import sys
 from typing import Optional
 
 import typer
@@ -13,6 +14,7 @@ from querri.cli._context import get_client
 from querri.cli._output import (
     handle_api_error,
     print_detail,
+    print_error,
     print_id,
     print_json,
     print_success,
@@ -76,9 +78,15 @@ def list_sources(
 @sources_app.command("get")
 def get_source(
     ctx: typer.Context,
-    source_id: str = typer.Argument(help="Source ID."),
+    source_id: Optional[str] = typer.Argument(default=None, help="Source ID."),
 ) -> None:
     """Get source details."""
+    if source_id is None:
+        if sys.stdin.isatty():
+            source_id = input("Source ID: ").strip()
+        else:
+            print_error("Missing required argument <SOURCE_ID>. Usage: querri source get <SOURCE_ID>")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -100,11 +108,17 @@ def get_source(
 @sources_app.command("update")
 def update_source(
     ctx: typer.Context,
-    source_id: str = typer.Argument(help="Source ID."),
+    source_id: Optional[str] = typer.Argument(default=None, help="Source ID."),
     name: Optional[str] = typer.Option(None, "--name", "-n", help="New name."),
     config: Optional[str] = typer.Option(None, "--config", help="JSON config string."),
 ) -> None:
     """Update source configuration."""
+    if source_id is None:
+        if sys.stdin.isatty():
+            source_id = input("Source ID: ").strip()
+        else:
+            print_error("Missing required argument <SOURCE_ID>. Usage: querri source update <SOURCE_ID>")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
 
@@ -114,7 +128,6 @@ def update_source(
         try:
             config_dict = json.loads(config)
         except json.JSONDecodeError as exc:
-            from querri.cli._output import print_error
             print_error(f"Invalid JSON config: {exc}")
             raise typer.Exit(code=1)
 
@@ -132,9 +145,15 @@ def update_source(
 @sources_app.command("delete")
 def delete_source(
     ctx: typer.Context,
-    source_id: str = typer.Argument(help="Source ID."),
+    source_id: Optional[str] = typer.Argument(default=None, help="Source ID."),
 ) -> None:
     """Delete a data source."""
+    if source_id is None:
+        if sys.stdin.isatty():
+            source_id = input("Source ID: ").strip()
+        else:
+            print_error("Missing required argument <SOURCE_ID>. Usage: querri source delete <SOURCE_ID>")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
@@ -151,9 +170,15 @@ def delete_source(
 @sources_app.command("sync")
 def sync_source(
     ctx: typer.Context,
-    source_id: str = typer.Argument(help="Source ID."),
+    source_id: Optional[str] = typer.Argument(default=None, help="Source ID."),
 ) -> None:
     """Trigger a source sync."""
+    if source_id is None:
+        if sys.stdin.isatty():
+            source_id = input("Source ID: ").strip()
+        else:
+            print_error("Missing required argument <SOURCE_ID>. Usage: querri source sync <SOURCE_ID>")
+            raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:

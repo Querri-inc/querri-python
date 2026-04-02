@@ -194,10 +194,10 @@ def select_project(
             if obj.get("json"):
                 print_json([{"id": p.id, "name": p.name} for p in matches])
                 return
-            print(f"\nMultiple projects match '{name_or_id}':\n", file=__import__("sys").stderr)
+            print(f"\nMultiple projects match '{name_or_id}':\n", file=sys.stderr)
             for i, p in enumerate(matches, 1):
-                print(f"  [{i}] {p.name} ({p.id})", file=__import__("sys").stderr)
-            print(file=__import__("sys").stderr)
+                print(f"  [{i}] {p.name} ({p.id})", file=sys.stderr)
+            print(file=sys.stderr)
             while True:
                 try:
                     raw = input("Select [1]: ").strip() or "1"
@@ -210,14 +210,24 @@ def select_project(
                         break
                 except ValueError:
                     pass
-                print(f"  Enter 1-{len(matches)}.", file=__import__("sys").stderr)
+                print(f"  Enter 1-{len(matches)}.", file=sys.stderr)
 
-    # Save selection
+    # Save selection and auto-select the project's most recent chat
     profile = _get_profile(ctx)
     if profile:
         profile.active_project_id = project.id
         profile.active_project_name = project.name
-        profile.active_chat_id = ""  # reset chat when switching projects
+        profile.active_chat_id = ""
+
+        # Try to auto-select the first chat
+        try:
+            chats = client.projects.chats.list(project.id, limit=1)
+            chat_list = list(chats)
+            if chat_list:
+                profile.active_chat_id = chat_list[0].id
+        except Exception:
+            pass
+
         _save_profile(ctx, profile)
 
     if obj.get("json"):
@@ -278,8 +288,7 @@ def list_projects(
             ctx=ctx,
         )
         if active_id:
-            import sys
-            print(f"\n  * = active project", file=sys.stderr)
+            print("\n  * = active project", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -454,8 +463,6 @@ def run_project(
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
 
     if wait:
-        import sys as _sys
-
         elapsed = 0
         try:
             while True:
@@ -470,8 +477,8 @@ def run_project(
                         print_error(f"Run did not complete within {timeout}s")
                     raise typer.Exit(code=1)
                 if is_interactive:
-                    _sys.stderr.write(f"\r⏳ Waiting... {elapsed}s elapsed (status: {status.status})")
-                    _sys.stderr.flush()
+                    sys.stderr.write(f"\r⏳ Waiting... {elapsed}s elapsed (status: {status.status})")
+                    sys.stderr.flush()
                 time.sleep(2)
                 elapsed += 2
         except Exception as exc:
@@ -480,7 +487,7 @@ def run_project(
             raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
 
         if is_interactive:
-            _sys.stderr.write("\r" + " " * 60 + "\r")
+            sys.stderr.write("\r" + " " * 60 + "\r")
 
         if obj.get("json"):
             print_json(status)
@@ -628,13 +635,17 @@ def add_source(
 def show_project(
     ctx: typer.Context,
     project_id: Optional[str] = typer.Argument(None, help="Project ID (default: active project)."),
+    top: Optional[int] = typer.Option(None, "--top", help="Show only the first N steps."),
+    bottom: Optional[int] = typer.Option(None, "--bottom", help="Show only the last N steps."),
 ) -> None:
     """Show a visual overview of the project and its step pipeline.
 
-    Displays project details and a visual pipeline of all steps, showing
-    each step's name, type, status, and whether it produced data or figures.
+    Displays project details and a visual DAG of all steps. Use --top
+    or --bottom to show a slice.
 
-    Example: querri project show
+    Examples:
+        querri project show
+        querri project show --top 5
     """
     obj = ctx.ensure_object(dict)
     is_json = obj.get("json", False)
@@ -658,7 +669,7 @@ def show_project(
         print_id(project.id)
         return
 
-    _render_project_show(project)
+    _render_project_show(project, top=top, bottom=bottom)
 
 
 def _get_full_project(client: object, project_id: str) -> object | None:
@@ -714,7 +725,12 @@ _TYPE_ICONS = {
 }
 
 
-def _render_project_show(project: object) -> None:
+def _render_project_show(
+    project: object,
+    *,
+    top: int | None = None,
+    bottom: int | None = None,
+) -> None:
     """Render a visual project overview with step DAG."""
     from rich.console import Console
     from rich.panel import Panel
@@ -744,22 +760,40 @@ def _render_project_show(project: object) -> None:
     console.print(Panel(header, border_style=QUERRI_ORANGE, padding=(1, 2)))
 
     # Step DAG
-    steps = getattr(project, "steps", None) or []
-    if not steps:
+    all_steps = getattr(project, "steps", None) or []
+    if not all_steps:
         console.print("\n  [dim]No steps yet. Send a chat message to create steps.[/dim]")
         return
 
-    # Build lookup
-    by_id: dict[str, object] = {s.id: s for s in steps}
+    # Slice steps by order
+    sorted_steps = sorted(all_steps, key=lambda s: s.order)
+    total = len(sorted_steps)
+    if top is not None:
+        steps = sorted_steps[:top]
+    elif bottom is not None:
+        steps = sorted_steps[-bottom:]
+    else:
+        steps = sorted_steps
+
+    # Full lookup (so parent refs outside the slice still resolve for labels)
+    by_id: dict[str, object] = {s.id: s for s in all_steps}
+    # Set of IDs in the visible slice
+    visible_ids: set[str] = {s.id for s in steps}
 
     # Find root nodes (no parent) and build DAG tree
     roots = [s for s in steps if not getattr(s, "parent", None)]
     # If no roots found (parent field not populated), fall back to order-based
     if not roots:
-        roots = sorted(steps, key=lambda s: s.order)
+        roots = steps
+
+    slice_label = ""
+    if top is not None:
+        slice_label = f"  [dim](first {len(steps)} of {total})[/dim]"
+    elif bottom is not None:
+        slice_label = f"  [dim](last {len(steps)} of {total})[/dim]"
 
     tree = Tree(
-        Text("Data Flow", style=f"bold {QUERRI_ORANGE}"),
+        Text.from_markup(f"[bold {QUERRI_ORANGE}]Data Flow[/bold {QUERRI_ORANGE}]{slice_label}"),
         guide_style=QUERRI_ORANGE,
     )
 
@@ -777,12 +811,13 @@ def _render_project_show(project: object) -> None:
         label = _step_label(step, by_id)
         branch = parent_branch.add(label)
 
-        # Add children
+        # Add children (only those in the visible slice)
         children_ids = getattr(step, "children", None) or []
         for cid in children_ids:
-            child = by_id.get(cid)
-            if child:
-                _add_step(branch, child)
+            if cid in visible_ids:
+                child = by_id.get(cid)
+                if child:
+                    _add_step(branch, child)
 
     for root in roots:
         if root.id not in visited:
