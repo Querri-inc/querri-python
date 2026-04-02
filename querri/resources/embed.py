@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from .._convenience import async_get_session, sync_get_session
@@ -31,6 +31,7 @@ class Embed:
         user_id: str,
         origin: Optional[str] = None,
         ttl: int = 3600,
+        source_scope: Optional[list[str]] = None,
     ) -> EmbedSession:
         """Create an embed session for a user.
 
@@ -38,10 +39,13 @@ class Embed:
             user_id: WorkOS user ID or external ID. Required.
             origin: Origin domain for validation.
             ttl: Session TTL in seconds (900-86400, default 3600).
+            source_scope: Optional list of source IDs to restrict session access.
         """
         body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
         if origin is not None:
             body["origin"] = origin
+        if source_scope is not None:
+            body["source_scope"] = source_scope
         resp = self._http.post("/embed/sessions", json=body)
         return EmbedSession.model_validate(resp.json())
 
@@ -151,6 +155,7 @@ class AsyncEmbed:
         user_id: str,
         origin: Optional[str] = None,
         ttl: int = 3600,
+        source_scope: Optional[List[str]] = None,
     ) -> EmbedSession:
         """Create an embed session for a user.
 
@@ -162,6 +167,8 @@ class AsyncEmbed:
         body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
         if origin is not None:
             body["origin"] = origin
+        if source_scope is not None:
+            body["source_scope"] = source_scope
         resp = await self._http.post("/embed/sessions", json=body)
         return EmbedSession.model_validate(resp.json())
 

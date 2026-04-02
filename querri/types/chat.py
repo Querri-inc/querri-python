@@ -2,18 +2,25 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 class Message(BaseModel):
     """A single chat message."""
 
-    id: str  #: Unique message identifier.
-    role: str  #: Sender role, e.g. ``"user"`` or ``"assistant"``.
+    id: str = ""  #: Unique message identifier.
+    role: str = ""  #: Sender role, e.g. ``"user"`` or ``"assistant"``.
     content: Optional[str] = None  #: Message text content.
     created_at: Optional[str] = None  #: ISO-8601 timestamp of the message.
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_id(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "uuid" in data and "id" not in data:
+            data["id"] = data["uuid"]
+        return data
 
 
 class Chat(BaseModel):

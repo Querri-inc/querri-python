@@ -24,6 +24,8 @@ from querri._exceptions import (
     NotFoundError,
 )
 
+pytestmark = pytest.mark.integration
+
 # ---------------------------------------------------------------------------
 # Configuration — all from environment variables
 # ---------------------------------------------------------------------------

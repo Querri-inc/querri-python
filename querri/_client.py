@@ -28,22 +28,28 @@ class Querri:
         self,
         *,
         api_key: Optional[str] = None,
+        access_token: Optional[str] = None,
         org_id: Optional[str] = None,
         host: Optional[str] = None,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
+        profile: Optional[str] = None,
     ) -> None:
         """Initialize the synchronous Querri client.
 
         Args:
             api_key: API key (``qk_`` prefix). Falls back to ``QUERRI_API_KEY`` env var.
+            access_token: JWT access token. Falls back to ``QUERRI_ACCESS_TOKEN`` env var.
             org_id: Organization ID. Falls back to ``QUERRI_ORG_ID`` env var.
             host: API host URL. Falls back to ``QUERRI_HOST`` (default: ``https://app.querri.com``).
             timeout: Request timeout in seconds (default: 30.0).
             max_retries: Max retry attempts for failed requests (default: 3).
+            profile: Named auth profile for token store selection.
         """
+        self._profile = profile
         self._config = resolve_config(
             api_key=api_key,
+            access_token=access_token,
             org_id=org_id,
             host=host,
             timeout=timeout,
@@ -193,22 +199,28 @@ class AsyncQuerri:
         self,
         *,
         api_key: Optional[str] = None,
+        access_token: Optional[str] = None,
         org_id: Optional[str] = None,
         host: Optional[str] = None,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
+        profile: Optional[str] = None,
     ) -> None:
         """Initialize the asynchronous Querri client.
 
         Args:
             api_key: API key (``qk_`` prefix). Falls back to ``QUERRI_API_KEY`` env var.
+            access_token: JWT access token. Falls back to ``QUERRI_ACCESS_TOKEN`` env var.
             org_id: Organization ID. Falls back to ``QUERRI_ORG_ID`` env var.
             host: API host URL. Falls back to ``QUERRI_HOST`` (default: ``https://app.querri.com``).
             timeout: Request timeout in seconds (default: 30.0).
             max_retries: Max retry attempts for failed requests (default: 3).
+            profile: Named auth profile for token store selection.
         """
+        self._profile = profile
         self._config = resolve_config(
             api_key=api_key,
+            access_token=access_token,
             org_id=org_id,
             host=host,
             timeout=timeout,

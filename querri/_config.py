@@ -23,8 +23,9 @@ class ClientConfig:
     3. Defaults
     """
 
-    api_key: str  #: Querri API key (``qk_`` prefix).
-    org_id: str  #: Organization ID for tenant isolation.
+    api_key: Optional[str] = None  #: Querri API key (``qk_`` prefix).
+    access_token: Optional[str] = None  #: JWT access token (from OAuth or env).
+    org_id: Optional[str] = None  #: Organization ID for tenant isolation.
     base_url: str = DEFAULT_HOST + "/api/v1"  #: Fully resolved API base URL.
     timeout: float = DEFAULT_TIMEOUT  #: Request timeout in seconds.
     max_retries: int = DEFAULT_MAX_RETRIES  #: Max retry attempts for retryable errors.
@@ -42,10 +43,23 @@ class ClientConfig:
         """The User-Agent header value, e.g. ``querri-python/0.1.0``."""
         return self._user_agent
 
+    def __repr__(self) -> str:
+        """Redact secrets to prevent accidental exposure in logs/tracebacks."""
+        key_repr = f"qk_***...{self.api_key[-4:]}" if self.api_key else None
+        token_repr = "ey***" if self.access_token else None
+        return (
+            f"ClientConfig(base_url={self.base_url!r}, api_key={key_repr!r}, "
+            f"access_token={token_repr!r}, org_id={self.org_id!r})"
+        )
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
 
 def resolve_config(
     *,
     api_key: Optional[str] = None,
+    access_token: Optional[str] = None,
     org_id: Optional[str] = None,
     host: Optional[str] = None,
     timeout: Optional[float] = None,
@@ -55,7 +69,10 @@ def resolve_config(
 
     Args:
         api_key: API key (or set QUERRI_API_KEY env var).
+        access_token: JWT access token (or set QUERRI_ACCESS_TOKEN env var).
+            When provided, org_id is derived from JWT claims.
         org_id: Organization ID (or set QUERRI_ORG_ID env var).
+            Required for API key auth; optional for JWT auth.
         host: Server host (or set QUERRI_HOST env var).
             ``/api/v1`` is appended automatically.
             Example: ``host="http://localhost"`` becomes
@@ -65,17 +82,37 @@ def resolve_config(
         max_retries: Max retry attempts for retryable errors.
 
     Raises:
-        ConfigError: If required values (api_key, org_id) are missing.
+        ConfigError: If no credentials are provided.
     """
     resolved_key = api_key or os.environ.get("QUERRI_API_KEY")
-    if not resolved_key:
+    resolved_token = access_token or os.environ.get("QUERRI_ACCESS_TOKEN")
+
+    # 3rd priority: token store (~/.querri/tokens.json)
+    if not resolved_key and not resolved_token:
+        try:
+            from ._auth import TokenStore, needs_refresh
+
+            store = TokenStore.load()
+            profile = store.get_active_profile()
+            if profile and profile.access_token:
+                resolved_token = profile.access_token
+                if not org_id and profile.org_id:
+                    org_id = profile.org_id
+        except Exception:
+            # Token store unavailable — continue to error
+            pass
+
+    if not resolved_key and not resolved_token:
         raise ConfigError(
-            "No API key provided. Pass api_key= to the constructor "
-            "or set the QUERRI_API_KEY environment variable."
+            "No credentials found. Pass api_key= to the constructor, "
+            "set the QUERRI_API_KEY environment variable, or run "
+            "'querri auth login'."
         )
 
     resolved_org = org_id or os.environ.get("QUERRI_ORG_ID")
-    if not resolved_org:
+
+    # org_id is required for API key auth, optional for JWT auth
+    if resolved_key and not resolved_token and not resolved_org:
         raise ConfigError(
             "No organization ID provided. Pass org_id= to the constructor "
             "or set the QUERRI_ORG_ID environment variable."
@@ -96,6 +133,7 @@ def resolve_config(
 
     return ClientConfig(
         api_key=resolved_key,
+        access_token=resolved_token,
         org_id=resolved_org,
         base_url=resolved_url,
         timeout=resolved_timeout,

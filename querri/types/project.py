@@ -2,25 +2,36 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class StepSummary(BaseModel):
     """Summary of a step in a project."""
 
     id: str  #: Unique step identifier.
-    name: str  #: Display name of the step.
-    type: str  #: Step type, e.g. ``"sql"`` or ``"python"``.
-    status: str  #: Execution status, e.g. ``"completed"`` or ``"error"``.
-    order: int  #: Zero-based position of the step in the project.
+    name: str = ""  #: Display name of the step.
+    type: str = ""  #: Step type, e.g. ``"duckdb_query"`` or ``"draw_figure"``.
+    status: str = ""  #: Execution status, e.g. ``"complete"`` or ``"error"``.
+    order: int = 0  #: Zero-based position of the step in the project.
     has_data: bool = False  #: ``True`` if the step produced tabular data.
     has_figure: bool = False  #: ``True`` if the step produced a figure.
+    parent: Optional[str] = None  #: Parent step UUID in the DAG.
+    children: Optional[List[str]] = None  #: Child step UUIDs.
+    dependencies: Optional[List[str]] = None  #: Dependency step UUIDs (data inputs).
+    dependents: Optional[List[str]] = None  #: Dependent step UUIDs (who uses this step's output).
+    figure_url: Optional[str] = None  #: URL of the step's figure, if any.
+    message: Optional[str] = None  #: Result message from step execution.
+    num_rows: Optional[int] = None  #: Number of rows in the step's data.
+    num_cols: Optional[int] = None  #: Number of columns in the step's data.
+    headers: Optional[List[str]] = None  #: Column headers for the step's data.
 
 
 class Project(BaseModel):
     """A Querri project."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: str  #: Unique project identifier.
     name: str  #: Project display name.
@@ -32,6 +43,80 @@ class Project(BaseModel):
     created_at: Optional[str] = None  #: ISO-8601 creation timestamp.
     updated_at: Optional[str] = None  #: ISO-8601 last-update timestamp.
     steps: Optional[List[StepSummary]] = None  #: Only on detail responses.
+    chats_store: Optional[Dict[str, Any]] = None  #: Raw chatsStore stashed from internal API.
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_step_store(cls, data: Any) -> Any:
+        """Map the server's ``stepStore`` dict + ``stepOrder`` list into a ``steps`` list.
+
+        The API returns ``stepStore: {uuid: {...}}`` and ``stepOrder: [uuid, ...]``.
+        This validator transforms them into a flat ordered list of ``StepSummary``.
+        """
+        if not isinstance(data, dict):
+            return data
+
+        # Handle "uuid" → "id" mapping (server uses "uuid", SDK uses "id")
+        if "uuid" in data and "id" not in data:
+            data["id"] = data["uuid"]
+
+        step_store: Dict[str, Any] | None = data.get("stepStore")
+        if step_store is None or not isinstance(step_store, dict):
+            # Also populate step_count from num_steps if available
+            if "num_steps" in data and "step_count" not in data:
+                data["step_count"] = data["num_steps"]
+            return data
+
+        step_order: List[str] = data.get("stepOrder", list(step_store.keys()))
+
+        steps: List[Dict[str, Any]] = []
+        for idx, uid in enumerate(step_order):
+            raw = step_store.get(uid)
+            if raw is None or not isinstance(raw, dict):
+                continue
+            # Skip deleted steps
+            if raw.get("deleted_at"):
+                continue
+
+            result = raw.get("result") or {}
+            has_data = bool(result.get("qdf") or result.get("qdf_uuid"))
+            has_figure = bool(result.get("figure_url") or result.get("svg_url"))
+
+            steps.append({
+                "id": raw.get("uuid", uid),
+                "name": raw.get("name", ""),
+                "type": raw.get("tool", raw.get("type", "")),
+                "status": raw.get("status", ""),
+                "order": idx,
+                "has_data": has_data,
+                "has_figure": has_figure,
+                "parent": raw.get("parent"),
+                "children": raw.get("children", []),
+                "dependencies": raw.get("dependencies", []),
+                "dependents": raw.get("dependents", []),
+                "figure_url": result.get("figure_url"),
+                "message": result.get("message"),
+                "num_rows": qdf.get("num_rows") if (qdf := result.get("qdf") or {}) else None,
+                "num_cols": qdf.get("num_cols") if qdf else None,
+                "headers": qdf.get("headers") if qdf else None,
+            })
+
+        data["steps"] = steps
+        data["step_count"] = len(steps)
+
+        # Stash chatsStore for chat show to extract messages from
+        if "chatsStore" in data and isinstance(data["chatsStore"], dict):
+            data["chats_store"] = data["chatsStore"]
+
+        return data
+
+
+class AddSourceResponse(BaseModel):
+    """Response from adding a source to a project."""
+
+    step_id: str
+    project_id: str
+    status: str = "running"
 
 
 class ProjectDeleteResponse(BaseModel):

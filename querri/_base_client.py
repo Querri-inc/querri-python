@@ -32,8 +32,10 @@ _RETRYABLE_STATUSES = {429, 500, 502, 503}
 def _default_headers(config: ClientConfig) -> dict[str, str]:
     """Build default HTTP headers including auth, tenant ID, user agent, and Accept.
 
-    In session mode (``config.session_token`` set), uses ``X-Embed-Session``
-    instead of Bearer auth. This is used by the user-scoped client (``as_user()``).
+    Auth priority:
+    1. Session token (``X-Embed-Session``) — user-scoped client via ``as_user()``.
+    2. JWT access token (``Bearer ey*``) — OAuth login, no X-Tenant-ID needed.
+    3. API key (``Bearer qk_*``) — API key auth with X-Tenant-ID for tenant isolation.
     """
     headers: dict[str, str] = {
         "User-Agent": config.user_agent,
@@ -41,9 +43,12 @@ def _default_headers(config: ClientConfig) -> dict[str, str]:
     }
     if config.session_token:
         headers["X-Embed-Session"] = config.session_token
-    else:
+    elif config.access_token:
+        headers["Authorization"] = f"Bearer {config.access_token}"
+    elif config.api_key:
         headers["Authorization"] = f"Bearer {config.api_key}"
-        headers["X-Tenant-ID"] = config.org_id
+        if config.org_id:
+            headers["X-Tenant-ID"] = config.org_id
     return headers
 
 
@@ -102,7 +107,12 @@ class SyncHTTPClient:
         self._client = httpx.Client(
             base_url=config.base_url,
             headers=_default_headers(config),
-            timeout=httpx.Timeout(config.timeout),
+            timeout=httpx.Timeout(
+                connect=config.timeout,
+                read=600.0,  # Long read timeout for streaming
+                write=config.timeout,
+                pool=config.timeout,
+            ),
         )
 
     def request(
@@ -217,7 +227,12 @@ class AsyncHTTPClient:
         self._client = httpx.AsyncClient(
             base_url=config.base_url,
             headers=_default_headers(config),
-            timeout=httpx.Timeout(config.timeout),
+            timeout=httpx.Timeout(
+                connect=config.timeout,
+                read=600.0,
+                write=config.timeout,
+                pool=config.timeout,
+            ),
         )
 
     async def request(

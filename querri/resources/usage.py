@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
-from ..types.usage import UsageReport
+from ..types.usage import OrgUsageReport, UserUsageReport
 
 
 class Usage:
@@ -24,24 +24,24 @@ class Usage:
         self,
         *,
         period: str = "current_month",
-    ) -> UsageReport:
+    ) -> OrgUsageReport:
         """Get organization-level usage summary.
 
         Args:
             period: One of "current_month", "last_month", "last_30_days".
 
         Returns:
-            UsageReport with period, totals, and details.
+            OrgUsageReport with period, totals, and counts.
         """
         resp = self._http.get("/usage", params={"period": period})
-        return UsageReport.model_validate(resp.json())
+        return OrgUsageReport.model_validate(resp.json())
 
     def user_usage(
         self,
         user_id: str,
         *,
         period: str = "current_month",
-    ) -> UsageReport:
+    ) -> UserUsageReport:
         """Get per-user usage breakdown.
 
         Args:
@@ -49,13 +49,13 @@ class Usage:
             period: One of "current_month", "last_month", "last_30_days".
 
         Returns:
-            UsageReport with period, totals, and details.
+            UserUsageReport with period, ai_messages, and daily_breakdown.
         """
         resp = self._http.get(
             f"/usage/users/{user_id}",
             params={"period": period},
         )
-        return UsageReport.model_validate(resp.json())
+        return UserUsageReport.model_validate(resp.json())
 
 
 class AsyncUsage:
@@ -84,14 +84,14 @@ class AsyncUsage:
             UsageReport with period, totals, and details.
         """
         resp = await self._http.get("/usage", params={"period": period})
-        return UsageReport.model_validate(resp.json())
+        return UserUsageReport.model_validate(resp.json())
 
     async def user_usage(
         self,
         user_id: str,
         *,
         period: str = "current_month",
-    ) -> UsageReport:
+    ) -> UserUsageReport:
         """Get per-user usage breakdown.
 
         Args:
@@ -99,10 +99,10 @@ class AsyncUsage:
             period: One of "current_month", "last_month", "last_30_days".
 
         Returns:
-            UsageReport with period, totals, and details.
+            UserUsageReport with period, ai_messages, and daily_breakdown.
         """
         resp = await self._http.get(
             f"/usage/users/{user_id}",
             params={"period": period},
         )
-        return UsageReport.model_validate(resp.json())
+        return UserUsageReport.model_validate(resp.json())

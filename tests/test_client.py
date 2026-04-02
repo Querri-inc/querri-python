@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -38,10 +38,15 @@ class TestQuerriInit:
             assert client._config.org_id == "org_explicit"
             client.close()
 
-    def test_init_raises_without_api_key(self):
-        env = {k: v for k, v in os.environ.items() if k != "QUERRI_API_KEY"}
-        with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(ConfigError, match="No API key"):
+    def test_init_raises_without_credentials(self):
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("QUERRI_API_KEY", "QUERRI_ACCESS_TOKEN")}
+        # Mock token store to return no active profile (so no stored JWT)
+        mock_ts = MagicMock()
+        mock_ts.load.return_value.get_active_profile.return_value = None
+        with patch.dict(os.environ, env, clear=True), \
+             patch("querri._auth.TokenStore", mock_ts):
+            with pytest.raises(ConfigError, match="No credentials found"):
                 Querri(org_id="org_123")
 
     def test_init_raises_without_org_id(self):
@@ -114,10 +119,14 @@ class TestAsyncQuerriInit:
             assert client._config.api_key == "qk_env"
             assert client._config.org_id == "org_env"
 
-    def test_init_raises_without_api_key(self):
-        env = {k: v for k, v in os.environ.items() if k != "QUERRI_API_KEY"}
-        with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(ConfigError, match="No API key"):
+    def test_init_raises_without_credentials(self):
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("QUERRI_API_KEY", "QUERRI_ACCESS_TOKEN")}
+        mock_ts = MagicMock()
+        mock_ts.load.return_value.get_active_profile.return_value = None
+        with patch.dict(os.environ, env, clear=True), \
+             patch("querri._auth.TokenStore", mock_ts):
+            with pytest.raises(ConfigError, match="No credentials found"):
                 AsyncQuerri(org_id="org_123")
 
     def test_async_resource_properties_exist(self):

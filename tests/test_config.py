@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -40,10 +40,14 @@ class TestResolveConfig:
             assert cfg.api_key == "qk_explicit"
             assert cfg.org_id == "org_explicit"
 
-    def test_missing_api_key_raises(self):
-        env = {k: v for k, v in os.environ.items() if k != "QUERRI_API_KEY"}
-        with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(ConfigError, match="No API key"):
+    def test_missing_credentials_raises(self):
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("QUERRI_API_KEY", "QUERRI_ACCESS_TOKEN")}
+        mock_ts = MagicMock()
+        mock_ts.load.return_value.get_active_profile.return_value = None
+        with patch.dict(os.environ, env, clear=True), \
+             patch("querri._auth.TokenStore", mock_ts):
+            with pytest.raises(ConfigError, match="No credentials found"):
                 resolve_config(org_id="org_123")
 
     def test_missing_org_id_raises(self):
@@ -120,4 +124,4 @@ class TestClientConfig:
     def test_user_agent(self):
         cfg = ClientConfig(api_key="qk_abc", org_id="org_123")
         assert cfg.user_agent.startswith("querri-python/")
-        assert "0.1.0" in cfg.user_agent
+        assert "0.2.0" in cfg.user_agent

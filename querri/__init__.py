@@ -17,6 +17,8 @@ from ._exceptions import (
     StreamTimeoutError,
     ValidationError,
 )
+from ._pagination import AsyncCursorPage, SyncCursorPage
+from ._streaming import AsyncChatStream, ChatStream, ChatStreamEvent
 from ._version import __version__
 
 __all__ = [
@@ -39,4 +41,11 @@ __all__ = [
     "StreamTimeoutError",
     "StreamCancelledError",
     "ConfigError",
+    # Streaming
+    "ChatStream",
+    "AsyncChatStream",
+    "ChatStreamEvent",
+    # Pagination
+    "SyncCursorPage",
+    "AsyncCursorPage",
 ]

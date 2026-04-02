@@ -40,7 +40,7 @@ class Files:
         with open(file_path, "rb") as f:
             files = {"file": (filename, f)}
             resp = self._http.post(
-                "/files",
+                "/files/upload",
                 files=files,
                 headers={"filename": filename},
             )
@@ -108,7 +108,7 @@ class AsyncFiles:
         with open(file_path, "rb") as f:
             files = {"file": (filename, f)}
             resp = await self._http.post(
-                "/files",
+                "/files/upload",
                 files=files,
                 headers={"filename": filename},
             )

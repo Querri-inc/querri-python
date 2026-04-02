@@ -28,8 +28,8 @@ class Audit:
         action: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        page: int = 1,
-        page_size: int = 50,
+        limit: int = 50,
+        after: Optional[str] = None,
     ) -> List[AuditEvent]:
         """Query audit events for the organization.
 
@@ -39,13 +39,15 @@ class Audit:
             action: Filter by action type (e.g. "data.query", "file.upload").
             start_date: ISO date string for range start.
             end_date: ISO date string for range end.
-            page: Page number (1-based).
-            page_size: Results per page (1-200, default 50).
+            limit: Max results to return (1-200, default 50).
+            after: Cursor for pagination.
 
         Returns:
             List of AuditEvent objects.
         """
-        params: Dict[str, Any] = {"page": page, "page_size": page_size}
+        params: Dict[str, Any] = {"limit": limit}
+        if after is not None:
+            params["after"] = after
         if actor_id is not None:
             params["actor_id"] = actor_id
         if target_id is not None:
@@ -81,8 +83,8 @@ class AsyncAudit:
         action: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        page: int = 1,
-        page_size: int = 50,
+        limit: int = 50,
+        after: Optional[str] = None,
     ) -> List[AuditEvent]:
         """Query audit events for the organization.
 
@@ -92,13 +94,15 @@ class AsyncAudit:
             action: Filter by action type (e.g. "data.query", "file.upload").
             start_date: ISO date string for range start.
             end_date: ISO date string for range end.
-            page: Page number (1-based).
-            page_size: Results per page (1-200, default 50).
+            limit: Max results to return (1-200, default 50).
+            after: Cursor for pagination.
 
         Returns:
             List of AuditEvent objects.
         """
-        params: Dict[str, Any] = {"page": page, "page_size": page_size}
+        params: Dict[str, Any] = {"limit": limit}
+        if after is not None:
+            params["after"] = after
         if actor_id is not None:
             params["actor_id"] = actor_id
         if target_id is not None:

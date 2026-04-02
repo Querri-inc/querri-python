@@ -14,6 +14,7 @@ from .._streaming import AsyncChatStream, ChatStream
 from ..types.chat import Chat, ChatCancelResponse, ChatDeleteResponse
 from ..types.data import DataPage
 from ..types.project import (
+    AddSourceResponse,
     Project,
     ProjectCancelResponse,
     ProjectDeleteResponse,
@@ -461,6 +462,29 @@ class Projects:
         """
         self._http.delete(f"/projects/{project_id}")
 
+    # -- Sources ------------------------------------------------------------
+
+    def add_source(
+        self,
+        project_id: str,
+        file_id: str,
+        *,
+        run: bool = True,
+    ) -> AddSourceResponse:
+        """Add a file as a data source to a project.
+
+        Args:
+            project_id: The project UUID.
+            file_id: The file UUID to add as a source.
+            run: Whether to trigger project execution after adding (default True).
+
+        Returns:
+            Response with step_id, project_id, and status.
+        """
+        body: Dict[str, Any] = {"file_id": file_id, "run": run}
+        response = self._http.post(f"/projects/{project_id}/sources", json=body)
+        return AddSourceResponse.model_validate(response.json())
+
     # -- Execution ----------------------------------------------------------
 
     def run(
@@ -676,6 +700,20 @@ class AsyncProjects:
             project_id: The project UUID.
         """
         await self._http.delete(f"/projects/{project_id}")
+
+    # -- Sources ------------------------------------------------------------
+
+    async def add_source(
+        self,
+        project_id: str,
+        file_id: str,
+        *,
+        run: bool = True,
+    ) -> AddSourceResponse:
+        """Add a file as a data source to a project."""
+        body: Dict[str, Any] = {"file_id": file_id, "run": run}
+        response = await self._http.post(f"/projects/{project_id}/sources", json=body)
+        return AddSourceResponse.model_validate(response.json())
 
     # -- Execution ----------------------------------------------------------
 

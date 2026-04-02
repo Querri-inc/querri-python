@@ -33,6 +33,7 @@ from .policy import (
     SourceColumns,
 )
 from .project import (
+    AddSourceResponse,
     Project,
     ProjectCancelResponse,
     ProjectDeleteResponse,
@@ -66,6 +67,7 @@ __all__ = [
     "ColumnInfo",
     "SourceColumns",
     # Project
+    "AddSourceResponse",
     "Project",
     "ProjectCancelResponse",
     "ProjectDeleteResponse",
