@@ -34,6 +34,7 @@ def querri_session():
             "sources": ["src_sales_data"],
             "filters": {"tenant_id": auth_user.tenant_id},
         },
+        origin=request.headers.get("Origin"),
         ttl=3600,
     )
 
@@ -67,6 +68,7 @@ def querri_session(request):
             "sources": ["src_sales_data"],
             "filters": {"tenant_id": user.tenant_id},
         },
+        origin=request.headers.get("Origin"),
     )
 
     return JsonResponse(session)
@@ -76,14 +78,14 @@ def querri_session(request):
 
 ```python
 # main.py
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from querri import Querri
 
 app = FastAPI()
 client = Querri()
 
 @app.post("/api/querri-session")
-async def querri_session(user = Depends(get_current_user)):
+async def querri_session(request: Request, user = Depends(get_current_user)):
     # Use the async client for FastAPI
     async with AsyncQuerri() as async_client:
         session = await async_client.embed.get_session(
@@ -95,6 +97,7 @@ async def querri_session(user = Depends(get_current_user)):
                 "sources": ["src_sales_data"],
                 "filters": {"tenant_id": user.tenant_id},
             },
+            origin=request.headers.get("origin"),
         )
 
     return session
@@ -1633,6 +1636,7 @@ def querri_session():
                 "sources": ["src_sales"],
                 "filters": {"tenant_id": auth_user.tenant_id},
             },
+            origin=request.headers.get("Origin"),
         )
         return jsonify(session)
     except APIError as e:
@@ -1682,6 +1686,7 @@ def querri_session(request):
                 "sources": ["src_sales"],
                 "filters": {"tenant_id": user.profile.tenant_id},
             },
+            origin=request.headers.get("Origin"),
         )
         return JsonResponse(session)
     except APIError as e:
@@ -1693,14 +1698,14 @@ def querri_session(request):
 #### `main.py`
 
 ```python
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from querri import AsyncQuerri
 from querri._exceptions import APIError
 
 app = FastAPI()
 
 @app.post("/api/querri-session")
-async def querri_session(user=Depends(get_current_user)):
+async def querri_session(request: Request, user=Depends(get_current_user)):
     async with AsyncQuerri() as client:
         try:
             session = await client.embed.get_session(
@@ -1712,6 +1717,7 @@ async def querri_session(user=Depends(get_current_user)):
                     "sources": ["src_sales"],
                     "filters": {"tenant_id": user.tenant_id},
                 },
+                origin=request.headers.get("origin"),
             )
             return session
         except APIError as e:

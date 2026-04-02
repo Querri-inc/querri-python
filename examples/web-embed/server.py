@@ -94,7 +94,7 @@ def config():
 def querri_session():
     """Create embed session — mirrors PHP querri-session.php."""
     try:
-        kwargs = dict(user=DEMO_USER, ttl=3600)
+        kwargs = dict(user=DEMO_USER, origin=request.headers.get("Origin"), ttl=3600)
         if DEMO_ACCESS:
             kwargs["access"] = DEMO_ACCESS
         session = client.embed.get_session(**kwargs)

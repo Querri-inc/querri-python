@@ -46,7 +46,7 @@ import { QuerriEmbed } from '@querri-inc/embed/react';
 **Flask:**
 
 ```python
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from querri import Querri
 
 app = Flask(__name__)
@@ -63,6 +63,7 @@ def querri_session():
             "sources": ["src_sales_data"],
             "filters": {"tenant_id": auth_user.tenant_id},
         },
+        origin=request.headers.get("Origin"),
         ttl=3600,
     )
     return jsonify(session)
@@ -88,6 +89,7 @@ def querri_session(request):
             "sources": ["src_sales_data"],
             "filters": {"tenant_id": user.tenant_id},
         },
+        origin=request.headers.get("Origin"),
     )
     return JsonResponse(session)
 ```
@@ -95,13 +97,13 @@ def querri_session(request):
 **FastAPI:**
 
 ```python
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from querri import AsyncQuerri
 
 app = FastAPI()
 
 @app.post("/api/querri-session")
-async def querri_session(user=Depends(get_current_user)):
+async def querri_session(request: Request, user=Depends(get_current_user)):
     async with AsyncQuerri() as client:
         session = await client.embed.get_session(
             user={"external_id": user.id, "email": user.email},
@@ -109,6 +111,7 @@ async def querri_session(user=Depends(get_current_user)):
                 "sources": ["src_sales_data"],
                 "filters": {"tenant_id": user.tenant_id},
             },
+            origin=request.headers.get("origin"),
         )
     return session
 ```
