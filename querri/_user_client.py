@@ -64,7 +64,6 @@ class UserQuerri:
         self._projects: Optional[object] = None
         self._dashboards: Optional[object] = None
         self._sources: Optional[object] = None
-        self._data: Optional[object] = None
         self._chats: Optional[object] = None
 
     @property
@@ -87,13 +86,6 @@ class UserQuerri:
             from .resources.sources import Sources
             self._sources = Sources(self._http)
         return self._sources  # type: ignore[return-value]
-
-    @property
-    def data(self) -> "Data":
-        if self._data is None:
-            from .resources.data import Data
-            self._data = Data(self._http)
-        return self._data  # type: ignore[return-value]
 
     @property
     def chats(self) -> "Chats":
@@ -145,7 +137,6 @@ class AsyncUserQuerri:
         self._projects: Optional[object] = None
         self._dashboards: Optional[object] = None
         self._sources: Optional[object] = None
-        self._data: Optional[object] = None
         self._chats: Optional[object] = None
 
     @property
@@ -168,13 +159,6 @@ class AsyncUserQuerri:
             from .resources.sources import AsyncSources
             self._sources = AsyncSources(self._http)
         return self._sources  # type: ignore[return-value]
-
-    @property
-    def data(self) -> "AsyncData":
-        if self._data is None:
-            from .resources.data import AsyncData
-            self._data = AsyncData(self._http)
-        return self._data  # type: ignore[return-value]
 
     @property
     def chats(self) -> "AsyncChats":

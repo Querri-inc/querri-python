@@ -855,118 +855,6 @@ delete(project_id: str, chat_id: str) -> None
 
 ---
 
-### Data
-
-Query and manage data sources.
-
-#### `client.data.sources()`
-
-List data sources. Returns a paginated iterator.
-
-```python
-sources(*, limit: int = 25, after: str | None = None) -> SyncCursorPage[Source]
-```
-
-```python
-for source in client.data.sources():
-    print(f"{source.name} — {source.row_count} rows")
-```
-
-#### `client.data.source()`
-
-Get a single data source by ID.
-
-```python
-source(source_id: str) -> Source
-```
-
-#### `client.data.create_source()`
-
-Create a new data source with initial rows.
-
-```python
-create_source(name: str, *, rows: list[dict]) -> Source
-```
-
-```python
-source = client.data.create_source(
-    name="Sales Data",
-    rows=[
-        {"region": "US", "revenue": 1000},
-        {"region": "EU", "revenue": 2000},
-    ],
-)
-```
-
-#### `client.data.append_rows()`
-
-Append rows to an existing data source.
-
-```python
-append_rows(source_id: str, *, rows: list[dict]) -> DataWriteResult
-```
-
-```python
-result = client.data.append_rows("src_abc123", rows=[
-    {"region": "APAC", "revenue": 1500},
-])
-print(result.rows_affected)
-```
-
-#### `client.data.replace_data()`
-
-Replace all data in a source.
-
-```python
-replace_data(source_id: str, *, rows: list[dict]) -> DataWriteResult
-```
-
-```python
-result = client.data.replace_data("src_abc123", rows=[
-    {"region": "US", "revenue": 1200},
-    {"region": "EU", "revenue": 2100},
-])
-```
-
-#### `client.data.delete_source()`
-
-Delete a data source.
-
-```python
-delete_source(source_id: str) -> dict
-```
-
-#### `client.data.query()`
-
-Run a SQL query against a data source with RLS enforcement.
-
-```python
-query(sql: str, source_id: str, *, page: int = 1,
-      page_size: int = 100) -> QueryResult
-```
-
-```python
-result = client.data.query(
-    sql="SELECT region, SUM(revenue) FROM sales GROUP BY region",
-    source_id="src_abc123",
-)
-```
-
-#### `client.data.source_data()`
-
-Get raw data from a source with pagination.
-
-```python
-source_data(source_id: str, *, page: int = 1,
-            page_size: int = 100) -> DataPage
-```
-
-```python
-data = client.data.source_data("src_abc123", page=1, page_size=100)
-```
-
----
-
 ### Sources
 
 Manage data source connectors and syncing.
@@ -1037,6 +925,95 @@ sync(source_id: str) -> dict
 
 ```python
 client.sources.sync("src_abc123")
+```
+
+#### `client.sources.create_data_source()`
+
+Create a new data source with initial rows.
+
+```python
+create_data_source(*, name: str, rows: list[dict]) -> Source
+```
+
+```python
+source = client.sources.create_data_source(
+    name="Sales Data",
+    rows=[
+        {"region": "US", "revenue": 1000},
+        {"region": "EU", "revenue": 2000},
+    ],
+)
+```
+
+#### `client.sources.query()`
+
+Run a SQL query against a data source with RLS enforcement.
+
+```python
+query(*, sql: str, source_id: str, page: int = 1,
+      page_size: int = 100) -> QueryResult
+```
+
+```python
+result = client.sources.query(
+    sql="SELECT region, SUM(revenue) FROM sales GROUP BY region",
+    source_id="src_abc123",
+)
+```
+
+#### `client.sources.source_data()`
+
+Get raw data from a source with pagination.
+
+```python
+source_data(source_id: str, *, page: int = 1,
+            page_size: int = 100) -> DataPage
+```
+
+```python
+data = client.sources.source_data("src_abc123", page=1, page_size=100)
+```
+
+#### `client.sources.append_rows()`
+
+Append rows to an existing data source.
+
+```python
+append_rows(source_id: str, *, rows: list[dict]) -> DataWriteResult
+```
+
+```python
+result = client.sources.append_rows("src_abc123", rows=[
+    {"region": "APAC", "revenue": 1500},
+])
+```
+
+#### `client.sources.replace_data()`
+
+Replace all data in a source.
+
+```python
+replace_data(source_id: str, *, rows: list[dict]) -> DataWriteResult
+```
+
+```python
+result = client.sources.replace_data("src_abc123", rows=[
+    {"region": "US", "revenue": 1200},
+    {"region": "EU", "revenue": 2100},
+])
+```
+
+#### `client.sources.ask()`
+
+Ask a natural language question about a data source.
+
+```python
+ask(source_id: str, *, question: str) -> dict
+```
+
+```python
+result = client.sources.ask("src_abc123", question="What are the top regions by revenue?")
+print(result["answer"])
 ```
 
 ---
@@ -1303,7 +1280,7 @@ This is different from the admin `Querri` client, which calls the public API (`/
 | `user_client.projects` | `.list()`, `.get(id)`, `.run(id, user_id)` | Projects the user can access |
 | `user_client.dashboards` | `.list()`, `.get(id)`, `.refresh(id)` | Dashboards the user can access |
 | `user_client.sources` | `.list()`, `.list_connectors()` | Data sources and connectors |
-| `user_client.data` | `.query(...)`, `.source_data(id)` | Query data with RLS enforcement |
+| `user_client.sources` | `.list()`, `.query(...)`, `.source_data(id)` | Data sources, connectors, and queries with RLS |
 | `user_client.chats` | `.create(proj_id)`, `.list(proj_id)` | Chats within accessible projects |
 
 These are the same resource classes used by the admin client — only the authentication and base URL differ.

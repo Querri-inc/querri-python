@@ -118,27 +118,20 @@ querri chat cancel                                          # cancel active stre
 
 Chat responses include `message_id`, `text` (the AI response), `tool_calls` (analysis steps run), `files` (any generated files), and `reasoning`.
 
-## Data Sources (File-backed)
+## Sources
 
 ```bash
-querri data sources                               # list all file-backed sources
-querri data source <source_id>                    # source details
-querri data source-data <source_id>               # preview the data
-querri data query <source_id> "SELECT ..."        # run SQL against source
-querri data ask <source_id> "question"            # NL question on source
-querri data create-source --name "X" --data '[]' # create from inline JSON
-querri data delete-source <source_id>             # delete
-```
-
-## Connector Sources
-
-```bash
-querri source connectors                          # list available connector types
-querri source list                                # list connector-based sources
+querri source list [--search TEXT]                 # list all sources
 querri source get <source_id>                     # source detail
+querri source describe <source_id>                # schema: columns, types, row count
+querri source data <source_id>                    # preview row data
+querri source query --source-id ID --sql SQL      # run SQL against source
+querri source ask <source_id> "question"          # NL question on source
+querri source create-data --name "X" --file f.json # create from JSON
 querri source update <source_id> --name "..."     # update config
 querri source sync <source_id>                    # trigger sync
 querri source delete <source_id>                  # delete
+querri source connectors                          # list available connector types
 ```
 
 ## Dashboards

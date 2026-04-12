@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Source(BaseModel):
@@ -29,13 +29,15 @@ class QueryResult(BaseModel):
 
 
 class DataPage(BaseModel):
-    """Paginated data from a step result."""
+    """Paginated data from a source."""
 
-    data: List[Dict[str, Any]] = []  #: Rows of step output data.
-    total_rows: Optional[int] = None  #: Total rows available.
+    data: List[Dict[str, Any]] = []  #: Rows of source data.
+    total_rows: Optional[int] = Field(default=None, alias="total_count")  #: Total rows available (API returns as total_count).
     page: Optional[int] = None  #: Current page number (1-based).
     page_size: Optional[int] = None  #: Maximum rows per page.
     columns: Optional[List[str]] = None  #: Column names for the data.
+
+    model_config = {"populate_by_name": True}  # Accept both total_rows and total_count
 
 
 class DataWriteResult(BaseModel):

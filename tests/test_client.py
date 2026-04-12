@@ -79,7 +79,7 @@ class TestQuerriResources:
 
     RESOURCE_NAMES = [
         "users", "embed", "policies", "projects", "dashboards",
-        "data", "files", "sources", "keys", "sharing", "usage", "audit",
+        "files", "sources", "views", "keys", "sharing", "usage", "audit",
     ]
 
     def test_all_resource_properties_exist(self):

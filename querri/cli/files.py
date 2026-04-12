@@ -102,8 +102,8 @@ def upload_file(
 ) -> None:
     """Upload a file (supports glob patterns for batch upload).
 
-    After uploading, use ``querri data add-source <id>`` to add the
-    file as a data source to your active project.
+    After uploading, use ``querri source create-data`` to create a
+    data source from the file.
     """
     if path is None:
         if sys.stdin.isatty():

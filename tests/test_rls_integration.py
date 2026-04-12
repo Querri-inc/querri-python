@@ -54,10 +54,9 @@ def client():
 
 @pytest.fixture(scope="module")
 def source_id(client: Querri):
-    """Create a data source from CSV test data via the V1 Data API.
+    """Create a data source from CSV test data via the Sources API.
 
-    Uses POST /data/sources with inline JSON rows since the V1 file upload
-    endpoint is not yet implemented (returns 501).
+    Uses POST /sources with inline JSON rows.
     """
     # Read CSV into row dicts
     rows = []
@@ -66,7 +65,7 @@ def source_id(client: Querri):
         for row in reader:
             rows.append(row)
 
-    source = client.data.create_source(
+    source = client.sources.create_data_source(
         name=f"rls_test_py_employees_{RUN_ID}",
         rows=rows,
     )
@@ -74,7 +73,7 @@ def source_id(client: Querri):
 
     # Cleanup: delete the source after all tests
     try:
-        client.data.delete_source(source.id)
+        client.sources.delete(source.id)
     except Exception:
         pass
 
@@ -411,7 +410,7 @@ class TestSessionScopedDataAccess:
         appear in list endpoints that filter by service type. The individual
         source metadata endpoint works regardless.
         """
-        source = client.data.source(source_id)
+        source = client.sources.get(source_id)
         assert source.id == source_id
         assert "office" in source.columns
         assert "team" in source.columns
@@ -419,7 +418,7 @@ class TestSessionScopedDataAccess:
 
     def test_25_get_source_data_all_rows(self, client: Querri, source_id):
         """Get all source data through admin client."""
-        result = client.data.source_data(source_id, page_size=100)
+        result = client.sources.source_data(source_id, page_size=100)
         assert len(result.data) > 0, "Source should have data"
         # Admin should see all 20 rows
         assert len(result.data) >= 20, f"Expected >= 20 rows, got {len(result.data)}"
@@ -427,7 +426,7 @@ class TestSessionScopedDataAccess:
 
     def test_26_verify_ny_data_exists(self, client: Querri, source_id):
         """Verify source data includes New York office entries."""
-        result = client.data.source_data(source_id, page_size=100)
+        result = client.sources.source_data(source_id, page_size=100)
         ny_rows = [r for r in result.data if r.get("office") == "New York"]
         assert len(ny_rows) > 0, "Should have New York rows"
         # CSV has 5 New York rows
@@ -482,7 +481,7 @@ class TestAccessControlToggle:
 
     def test_29_admin_query_returns_all_rows(self, client: Querri, source_id):
         """Admin source_data with no RLS enforcement should return all rows."""
-        result = client.data.source_data(source_id, page_size=100)
+        result = client.sources.source_data(source_id, page_size=100)
         assert len(result.data) >= 20, (
             f"Expected >= 20 rows for admin, got {len(result.data)}"
         )

@@ -67,10 +67,10 @@ def get_client(ctx: typer.Context) -> Querri:
                 try:
                     profile = refresh_tokens(profile, resolved_host)
                     store.save_profile(profile_name, profile)
-                except RuntimeError:
-                    # Refresh failed — but the token may still be valid
-                    # (needs_refresh fires early as a buffer). Fall through
-                    # to use the existing access token below.
+                except Exception:
+                    # Refresh failed (RuntimeError, timeout, network error, etc.)
+                    # but the token may still be valid — needs_refresh fires
+                    # early as a buffer. Fall through to use it anyway.
                     pass
 
             return Querri(

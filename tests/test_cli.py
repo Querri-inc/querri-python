@@ -53,17 +53,20 @@ class TestScaffold:
         assert "create" in result.output
         assert "run" in result.output
 
-    def test_data_help_cross_reference(self) -> None:
-        result = runner.invoke(main_app, ["data", "--help"])
-        assert result.exit_code == 0
-        assert "querri source" in result.output
-
-    def test_sources_help_cross_reference(self) -> None:
+    def test_sources_help(self) -> None:
         result = runner.invoke(main_app, ["source", "--help"])
         assert result.exit_code == 0
-        # Cross-reference text may wrap across lines in Rich output
+        # Should list key commands
         plain = result.output.replace("\n", " ")
-        assert "file-backed datasets" in plain
+        assert "list" in plain
+        assert "query" in plain
+
+    def test_view_help(self) -> None:
+        result = runner.invoke(main_app, ["view", "--help"])
+        assert result.exit_code == 0
+        plain = result.output.replace("\n", " ")
+        assert "create" in plain
+        assert "preview" in plain
 
 
 # ---------------------------------------------------------------------------
@@ -397,7 +400,7 @@ class TestSubAppRegistration:
     """Verify all 15 sub-apps are registered and reachable."""
 
     EXPECTED_SUBCOMMANDS = [
-        "whoami", "project", "step", "chat", "file", "data", "source",
+        "whoami", "project", "step", "chat", "file", "source", "view",
         "user", "dashboard", "key", "policy", "share",
         "embed", "usage", "audit",
     ]

@@ -174,16 +174,16 @@ from querri.cli.chat import chat_app
 from querri.cli.steps import steps_app
 from querri.cli.chats import chats_app
 from querri.cli.files import files_app
-from querri.cli.data import data_app
 from querri.cli.sources import sources_app
+from querri.cli.views import view_app
 
 main_app.add_typer(projects_app, name="project", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
 main_app.add_typer(chat_app, name="chat", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
 main_app.add_typer(steps_app, name="step", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
 main_app.add_typer(chats_app, name="chats", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]", hidden=True)
 main_app.add_typer(files_app, name="file", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
-main_app.add_typer(data_app, name="data", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
 main_app.add_typer(sources_app, name="source", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
+main_app.add_typer(view_app, name="view", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
 
 from querri.cli.dashboards import dashboards_app
 main_app.add_typer(dashboards_app, name="dashboard", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")

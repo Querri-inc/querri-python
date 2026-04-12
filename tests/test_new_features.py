@@ -70,40 +70,40 @@ class TestReplaceUserPolicies:
 
 
 class TestDataWriteOperations:
-    """Test data.append_rows() and data.replace_data()."""
+    """Test sources.append_rows() and sources.replace_data()."""
 
     @respx.mock
     def test_append_rows(self):
-        """Verify POST /data/sources/{id}/rows sends rows and returns DataWriteResult."""
-        respx.post("https://test.querri.com/api/v1/data/sources/src_1/rows").mock(
+        """Verify POST /sources/{id}/rows sends rows and returns DataWriteResult."""
+        respx.post("https://test.querri.com/api/v1/sources/src_1/rows").mock(
             return_value=httpx.Response(
                 200,
                 json={"id": "src_1", "name": "test", "columns": ["a"], "row_count": 3, "updated_at": "2026-01-01T00:00:00Z"},
             )
         )
         http = SyncHTTPClient(_make_config())
-        from querri.resources.data import Data
+        from querri.resources.sources import Sources
 
-        data = Data(http)
-        result = data.append_rows("src_1", rows=[{"a": 1}, {"a": 2}, {"a": 3}])
+        sources = Sources(http)
+        result = sources.append_rows("src_1", rows=[{"a": 1}, {"a": 2}, {"a": 3}])
         assert result.id == "src_1"
         assert result.row_count == 3
         http.close()
 
     @respx.mock
     def test_replace_data(self):
-        """Verify PUT /data/sources/{id}/data sends rows and returns DataWriteResult."""
-        respx.put("https://test.querri.com/api/v1/data/sources/src_1/data").mock(
+        """Verify PUT /sources/{id}/data sends rows and returns DataWriteResult."""
+        respx.put("https://test.querri.com/api/v1/sources/src_1/data").mock(
             return_value=httpx.Response(
                 200,
                 json={"id": "src_1", "name": "test", "columns": ["x"], "row_count": 5, "updated_at": "2026-01-01T00:00:00Z"},
             )
         )
         http = SyncHTTPClient(_make_config())
-        from querri.resources.data import Data
+        from querri.resources.sources import Sources
 
-        data = Data(http)
-        result = data.replace_data("src_1", rows=[{"x": i} for i in range(5)])
+        sources = Sources(http)
+        result = sources.replace_data("src_1", rows=[{"x": i} for i in range(5)])
         assert result.id == "src_1"
         assert result.row_count == 5
         http.close()
@@ -166,7 +166,6 @@ class TestAsUser:
         assert hasattr(user_client, "projects")
         assert hasattr(user_client, "dashboards")
         assert hasattr(user_client, "sources")
-        assert hasattr(user_client, "data")
         assert hasattr(user_client, "chats")
         # Should NOT have admin resources
         assert not hasattr(user_client, "users")

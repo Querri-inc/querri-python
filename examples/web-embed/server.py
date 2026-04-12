@@ -330,32 +330,6 @@ def _dispatch(action: str, p: dict):
     if action == "chats.cancel":
         return client.projects.chats.cancel(p["project_id"], p["chat_id"])
 
-    # ─── Data ──────────────────────────────────────────────
-    if action == "data.sources":
-        return client.data.sources(limit=p.get("limit", 50))
-    if action == "data.source":
-        return client.data.source(p["source_id"])
-    if action == "data.createSource":
-        return client.data.create_source(name=p["name"], rows=p["rows"])
-    if action == "data.appendRows":
-        return client.data.append_rows(p["source_id"], rows=p["rows"])
-    if action == "data.replaceData":
-        return client.data.replace_data(p["source_id"], rows=p["rows"])
-    if action == "data.deleteSource":
-        return client.data.delete_source(p["source_id"])
-    if action == "data.query":
-        return client.data.query(
-            sql=p["sql"], source_id=p["source_id"],
-            page=p.get("page", 1),
-            page_size=p.get("page_size", 100),
-        )
-    if action == "data.sourceData":
-        return client.data.source_data(
-            p["source_id"],
-            page=p.get("page", 1),
-            page_size=p.get("page_size", 100),
-        )
-
     # ─── Sources & Connectors ──────────────────────────────
     if action == "sources.listConnectors":
         return client.sources.list_connectors()
@@ -366,6 +340,8 @@ def _dispatch(action: str, p: dict):
             name=p["name"], connector_id=p["connector_id"],
             config=p.get("config"),
         )
+    if action == "sources.createDataSource":
+        return client.sources.create_data_source(name=p["name"], rows=p["rows"])
     if action == "sources.update":
         return client.sources.update(
             p["source_id"],
@@ -376,6 +352,24 @@ def _dispatch(action: str, p: dict):
         return client.sources.delete(p["source_id"])
     if action == "sources.sync":
         return client.sources.sync(p["source_id"])
+    if action == "sources.query":
+        return client.sources.query(
+            sql=p["sql"], source_id=p["source_id"],
+            page=p.get("page", 1),
+            page_size=p.get("page_size", 100),
+        )
+    if action == "sources.sourceData":
+        return client.sources.source_data(
+            p["source_id"],
+            page=p.get("page", 1),
+            page_size=p.get("page_size", 100),
+        )
+    if action == "sources.appendRows":
+        return client.sources.append_rows(p["source_id"], rows=p["rows"])
+    if action == "sources.replaceData":
+        return client.sources.replace_data(p["source_id"], rows=p["rows"])
+    if action == "sources.ask":
+        return client.sources.ask(p["source_id"], question=p["question"])
 
     # ─── Files ─────────────────────────────────────────────
     if action == "files.list":

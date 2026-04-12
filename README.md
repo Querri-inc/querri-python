@@ -316,8 +316,8 @@ Beyond the core embed resources above, the SDK provides full access to the Querr
 | `client.dashboards` | Dashboard management | `list`, `create`, `get`, `update`, `delete`, `refresh` |
 | `client.projects` | Analysis projects | `list`, `create`, `get`, `run`, `run_status`, `list_steps` |
 | `client.projects.chats` | Chats within projects | `create`, `list`, `stream`, `cancel`, `delete` |
-| `client.data` | Data sources & queries | `sources`, `create_source`, `query`, `append_rows`, `replace_data` |
-| `client.sources` | Connectors & sync | `list_connectors`, `list`, `create`, `sync` |
+| `client.sources` | Sources, connectors & data | `list`, `create`, `create_data_source`, `query`, `source_data`, `append_rows`, `replace_data`, `ask`, `sync`, `list_connectors` |
+| `client.views` | SQL-defined views | `list`, `create`, `get`, `update`, `delete`, `run`, `preview` |
 | `client.files` | File management | `upload`, `list`, `get`, `delete` |
 | `client.keys` | API key management | `create`, `list`, `get`, `delete` |
 | `client.audit` | Audit log | `list` |

@@ -30,7 +30,7 @@ def main():
         # 1. Create a data source with initial rows
         # ---------------------------------------------------------------
         print("Creating data source with initial rows...")
-        source = client.data.create_source(
+        source = client.sources.create_data_source(
             name="SDK Example - Sales",
             rows=[
                 {"region": "APAC", "product": "Widget A", "revenue": 1200},
@@ -47,7 +47,7 @@ def main():
         # 2. Append rows to the source
         # ---------------------------------------------------------------
         print("\nAppending rows...")
-        append_result = client.data.append_rows(
+        append_result = client.sources.append_rows(
             source_id,
             rows=[
                 {"region": "AMER", "product": "Widget D", "revenue": 2000},
@@ -60,7 +60,7 @@ def main():
         # 3. Query the source with SQL
         # ---------------------------------------------------------------
         print("\nQuerying source...")
-        result = client.data.query(
+        result = client.sources.query(
             sql=f"SELECT region, SUM(revenue) as total FROM src WHERE 1=1 GROUP BY region",
             source_id=source_id,
         )
@@ -72,7 +72,7 @@ def main():
         # 4. Fetch paginated source data
         # ---------------------------------------------------------------
         print("\nFetching source data (page 1)...")
-        page = client.data.source_data(source_id, page=1, page_size=3)
+        page = client.sources.source_data(source_id, page=1, page_size=3)
         print(f"  Page rows: {len(page.data)}")
         print(f"  Total rows: {page.total_rows}")
 
@@ -80,7 +80,7 @@ def main():
         # 5. Replace all data
         # ---------------------------------------------------------------
         print("\nReplacing all data...")
-        replace_result = client.data.replace_data(
+        replace_result = client.sources.replace_data(
             source_id,
             rows=[
                 {"region": "APAC", "product": "New Widget", "revenue": 5000},
@@ -89,8 +89,8 @@ def main():
         print(f"  Replaced with {replace_result.rows_affected} rows")
 
         # Verify replacement
-        updated = client.data.source(source_id)
-        print(f"  New row count: {updated.row_count}")
+        updated = client.sources.get(source_id)
+        print(f"  New row count: {updated.get('row_count')}")
 
         # ---------------------------------------------------------------
         # 6. Source sharing (optional — requires another user)
@@ -103,7 +103,7 @@ def main():
 
     finally:
         if source_id:
-            client.data.delete_source(source_id)
+            client.sources.delete(source_id)
             print(f"\nDeleted source {source_id}")
         client.close()
 

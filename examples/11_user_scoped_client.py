@@ -73,8 +73,8 @@ def main():
             # 5. Data access is also filtered by row-level policies
             # ---------------------------------------------------------------
             print("\n=== Data sources (FGA-filtered) ===")
-            for source in user_client.data.sources(limit=10):
-                print(f"  {source.name} ({source.id})")
+            for source in user_client.sources.list():
+                print(f"  {source.get('name')} ({source.get('id')})")
 
         print("\nUser-scoped client closed (via context manager).")
 

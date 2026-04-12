@@ -64,9 +64,9 @@ class Querri:
         self._policies: Optional[object] = None
         self._projects: Optional[object] = None
         self._dashboards: Optional[object] = None
-        self._data: Optional[object] = None
         self._files: Optional[object] = None
         self._sources: Optional[object] = None
+        self._views: Optional[object] = None
         self._keys: Optional[object] = None
         self._sharing: Optional[object] = None
         self._usage: Optional[object] = None
@@ -108,13 +108,6 @@ class Querri:
         return self._dashboards  # type: ignore[return-value]
 
     @property
-    def data(self) -> "Data":
-        if self._data is None:
-            from .resources.data import Data
-            self._data = Data(self._http)
-        return self._data  # type: ignore[return-value]
-
-    @property
     def files(self) -> "Files":
         if self._files is None:
             from .resources.files import Files
@@ -127,6 +120,13 @@ class Querri:
             from .resources.sources import Sources
             self._sources = Sources(self._http)
         return self._sources  # type: ignore[return-value]
+
+    @property
+    def views(self) -> "Views":
+        if self._views is None:
+            from .resources.views import Views
+            self._views = Views(self._http)
+        return self._views  # type: ignore[return-value]
 
     @property
     def keys(self) -> "Keys":
@@ -161,7 +161,7 @@ class Querri:
 
         The returned client uses the embed session token for auth and
         only exposes resources visible to the user (projects, dashboards,
-        sources, data, chats). All queries are automatically filtered
+        sources, chats). All queries are automatically filtered
         by the user's access policies.
 
         Args:
@@ -233,9 +233,9 @@ class AsyncQuerri:
         self._policies: Optional[object] = None
         self._projects: Optional[object] = None
         self._dashboards: Optional[object] = None
-        self._data: Optional[object] = None
         self._files: Optional[object] = None
         self._sources: Optional[object] = None
+        self._views: Optional[object] = None
         self._keys: Optional[object] = None
         self._sharing: Optional[object] = None
         self._usage: Optional[object] = None
@@ -277,13 +277,6 @@ class AsyncQuerri:
         return self._dashboards  # type: ignore[return-value]
 
     @property
-    def data(self) -> "AsyncData":
-        if self._data is None:
-            from .resources.data import AsyncData
-            self._data = AsyncData(self._http)
-        return self._data  # type: ignore[return-value]
-
-    @property
     def files(self) -> "AsyncFiles":
         if self._files is None:
             from .resources.files import AsyncFiles
@@ -296,6 +289,13 @@ class AsyncQuerri:
             from .resources.sources import AsyncSources
             self._sources = AsyncSources(self._http)
         return self._sources  # type: ignore[return-value]
+
+    @property
+    def views(self) -> "AsyncViews":
+        if self._views is None:
+            from .resources.views import AsyncViews
+            self._views = AsyncViews(self._http)
+        return self._views  # type: ignore[return-value]
 
     @property
     def keys(self) -> "AsyncKeys":
@@ -330,7 +330,7 @@ class AsyncQuerri:
 
         The returned client uses the embed session token for auth and
         only exposes resources visible to the user (projects, dashboards,
-        sources, data, chats). All queries are automatically filtered
+        sources, chats). All queries are automatically filtered
         by the user's access policies.
 
         Args:
