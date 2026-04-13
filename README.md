@@ -248,7 +248,7 @@ See **[docs/server-sdk.md](docs/server-sdk.md)** for complete method signatures,
 
 ## Requirements
 
-- Python 3.9+
+- Python 3.10+
 - [`httpx`](https://www.python-httpx.org/) >= 0.27
 - [`pydantic`](https://docs.pydantic.dev/) >= 2.0
 
