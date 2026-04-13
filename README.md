@@ -1,4 +1,4 @@
-# querri — Python SDK
+# Querri — Python SDK and CLI
 
 > Embed Querri analytics in your Python application. One method call, zero config.
 
