@@ -63,6 +63,7 @@ packages = ["querri"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+addopts = "--ignore=tests/test_integration.py --ignore=tests/test_rls_integration.py"
 markers = [
     "integration: tests that require a running Querri instance",
 ]
