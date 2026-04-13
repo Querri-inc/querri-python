@@ -135,6 +135,48 @@ def new_user(
         print_success(f"Created user {user.id} ({user.email})")
 
 
+@users_app.command("update")
+def update_user(
+    ctx: typer.Context,
+    user_id: Optional[str] = typer.Argument(None, help="User ID."),
+    email: Optional[str] = typer.Option(None, "--email", "-e", help="New email."),
+    role: Optional[str] = typer.Option(None, "--role", "-r", help="New role (member, admin)."),
+    first_name: Optional[str] = typer.Option(None, "--first-name", help="New first name."),
+    last_name: Optional[str] = typer.Option(None, "--last-name", help="New last name."),
+    external_id: Optional[str] = typer.Option(None, "--external-id", help="New external ID."),
+) -> None:
+    """Update a user."""
+    obj = ctx.ensure_object(dict)
+    if not user_id:
+        if sys.stdin.isatty():
+            user_id = input("User ID: ").strip()
+            if not user_id:
+                print_error("User ID is required.")
+                raise typer.Exit(code=1)
+        else:
+            print_error("Missing required argument USER_ID. Usage: querri user update USER_ID [options]")
+            raise typer.Exit(code=1)
+    client = get_client(ctx)
+    try:
+        user = client.users.update(
+            user_id,
+            email=email,
+            role=role,
+            first_name=first_name,
+            last_name=last_name,
+            external_id=external_id,
+        )
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+
+    if obj.get("json"):
+        print_json(user)
+    elif obj.get("quiet"):
+        print_id(user.id)
+    else:
+        print_success(f"Updated user {user_id}")
+
+
 @users_app.command("delete")
 def delete_user(
     ctx: typer.Context,

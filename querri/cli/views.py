@@ -171,9 +171,9 @@ def get_view(
     """Get view details."""
     if view_id is None:
         if sys.stdin.isatty():
-            view_id = input("View UUID: ").strip()
+            view_id = input("View ID: ").strip()
         else:
-            print_error("Missing required argument <VIEW_UUID>. Usage: querri view get <VIEW_UUID>")
+            print_error("Missing required argument <VIEW_ID>. Usage: querri view get <VIEW_ID>")
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -203,9 +203,9 @@ def update_view(
     """Update a view's SQL definition or description."""
     if view_id is None:
         if sys.stdin.isatty():
-            view_id = input("View UUID: ").strip()
+            view_id = input("View ID: ").strip()
         else:
-            print_error("Missing required argument <VIEW_UUID>. Usage: querri view update <VIEW_UUID>")
+            print_error("Missing required argument <VIEW_ID>. Usage: querri view update <VIEW_ID>")
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -229,9 +229,9 @@ def delete_view(
     """Delete a view."""
     if view_id is None:
         if sys.stdin.isatty():
-            view_id = input("View UUID: ").strip()
+            view_id = input("View ID: ").strip()
         else:
-            print_error("Missing required argument <VIEW_UUID>. Usage: querri view delete <VIEW_UUID>")
+            print_error("Missing required argument <VIEW_ID>. Usage: querri view delete <VIEW_ID>")
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -241,7 +241,7 @@ def delete_view(
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
 
     if obj.get("json"):
-        print_json({"uuid": view_id, "deleted": True})
+        print_json({"id": view_id, "deleted": True})
     else:
         print_success(f"Deleted view {view_id}")
 
@@ -284,9 +284,9 @@ def preview_view(
     """Preview view results without materializing."""
     if view_id is None:
         if sys.stdin.isatty():
-            view_id = input("View UUID: ").strip()
+            view_id = input("View ID: ").strip()
         else:
-            print_error("Missing required argument <VIEW_UUID>. Usage: querri view preview <VIEW_UUID>")
+            print_error("Missing required argument <VIEW_ID>. Usage: querri view preview <VIEW_ID>")
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -366,15 +366,15 @@ def chat_with_view(
     """
     if view_id is None:
         if sys.stdin.isatty():
-            view_id = input("View UUID: ").strip()
+            view_id = input("View ID: ").strip()
         else:
-            print_error("Missing required argument <VIEW_UUID>. Usage: querri view chat <VIEW_UUID> -m <MESSAGE>")
+            print_error("Missing required argument <VIEW_ID>. Usage: querri view chat <VIEW_ID> -m <MESSAGE>")
             raise typer.Exit(code=1)
     if message is None:
         if sys.stdin.isatty():
             message = input("Message: ").strip()
         else:
-            print_error("Missing required option --message. Usage: querri view chat <VIEW_UUID> -m <MESSAGE>")
+            print_error("Missing required option --message. Usage: querri view chat <VIEW_ID> -m <MESSAGE>")
             raise typer.Exit(code=1)
 
     obj = ctx.ensure_object(dict)

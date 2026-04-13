@@ -1,11 +1,11 @@
-"""querri chat — top-level conversational command.
+"""querri project chat — conversational command.
 
-Sends a prompt to the active project's chat, auto-creating the chat
+Sends a message to the active project's chat, auto-creating the chat
 if one doesn't exist yet. Designed for quick, stateful interaction:
 
     querri project select "Sales Analysis"
-    querri chat -p "what trends do you see?"
-    querri chat -p "break it down by region"
+    querri project chat -m "what trends do you see?"
+    querri project chat -m "break it down by region"
 """
 
 from __future__ import annotations

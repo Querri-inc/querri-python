@@ -295,8 +295,8 @@ def ask_data(
             print("No results returned.", file=sys.stderr)
 
 
-@sources_app.command("create-data")
-def create_data_source(
+@sources_app.command("new")
+def new_data_source(
     ctx: typer.Context,
     name: Optional[str] = typer.Option(None, "--name", "-n", help="Source name."),
     file: Optional[Path] = typer.Option(
@@ -312,7 +312,7 @@ def create_data_source(
         if sys.stdin.isatty():
             name = input("Source name: ").strip()
         else:
-            print_error("Missing required option --name. Usage: querri source create-data --name <NAME>")
+            print_error("Missing required option --name. Usage: querri source new --name <NAME>")
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)

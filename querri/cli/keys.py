@@ -207,7 +207,7 @@ def new_key(
             all_scopes = [s for _, group in _SCOPE_GROUPS for s in group]
             print_error(
                 "Missing required option --scopes. "
-                f"Usage: querri key create --name NAME --scopes SCOPES\n"
+                f"Usage: querri key new --name NAME --scopes SCOPES\n"
                 f"Available scopes: {', '.join(all_scopes)}"
             )
             raise typer.Exit(code=1)

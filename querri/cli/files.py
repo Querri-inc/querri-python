@@ -102,7 +102,7 @@ def upload_file(
 ) -> None:
     """Upload a file (supports glob patterns for batch upload).
 
-    After uploading, use ``querri source create-data`` to create a
+    After uploading, use ``querri source new`` to create a
     data source from the file.
     """
     if path is None:

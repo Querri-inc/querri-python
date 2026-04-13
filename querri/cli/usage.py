@@ -26,7 +26,7 @@ usage_app = typer.Typer(
 @usage_app.command("org")
 def org_usage(
     ctx: typer.Context,
-    period: str = typer.Option("current_month", "--period", "-p", help="Usage period."),
+    period: str = typer.Option("current_month", "--period", help="Usage period."),
 ) -> None:
     """View organization-wide usage."""
     obj = ctx.ensure_object(dict)
@@ -56,7 +56,7 @@ def org_usage(
 def user_usage(
     ctx: typer.Context,
     user_id: Optional[str] = typer.Argument(None, help="User ID."),
-    period: str = typer.Option("current_month", "--period", "-p", help="Usage period."),
+    period: str = typer.Option("current_month", "--period", help="Usage period."),
 ) -> None:
     """View usage for a specific user."""
     if not user_id:
