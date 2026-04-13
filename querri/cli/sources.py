@@ -29,7 +29,9 @@ sources_app = typer.Typer(
 @sources_app.command("list")
 def list_sources(
     ctx: typer.Context,
-    search: str | None = typer.Option(None, "--search", "-s", help="Filter by name (substring match)."),
+    search: str | None = typer.Option(
+        None, "--search", "-s", help="Filter by name (substring match)."
+    ),
 ) -> None:
     """List data sources."""
     obj = ctx.ensure_object(dict)
@@ -37,7 +39,7 @@ def list_sources(
     try:
         items = client.sources.list(search=search)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(items)
@@ -47,7 +49,12 @@ def list_sources(
     else:
         print_table(
             items,
-            [("id", "ID"), ("name", "Name"), ("service", "Service"), ("connector_id", "Connector")],
+            [
+                ("id", "ID"),
+                ("name", "Name"),
+                ("service", "Service"),
+                ("connector_id", "Connector"),
+            ],
             ctx=ctx,
         )
 
@@ -62,14 +69,17 @@ def get_source(
         if sys.stdin.isatty():
             source_id = input("Source ID: ").strip()
         else:
-            print_error("Missing required argument <SOURCE_ID>. Usage: querri source get <SOURCE_ID>")
+            print_error(
+                "Missing required argument <SOURCE_ID>."
+                " Usage: querri source get <SOURCE_ID>"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         source = client.sources.get(source_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(source)
@@ -78,7 +88,7 @@ def get_source(
     else:
         print_detail(
             source,
-            [(k, k) for k in source.keys()],
+            [(k, k) for k in source],
         )
 
 
@@ -92,14 +102,18 @@ def describe_source(
         if sys.stdin.isatty():
             source_id = input("Source ID: ").strip()
         else:
-            print_error("Missing required argument <SOURCE_ID>. Usage: querri source describe <SOURCE_ID>")
+            print_error(
+                "Missing required argument <SOURCE_ID>."
+                " Usage: querri source describe"
+                " <SOURCE_ID>"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         source = client.sources.get(source_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(source)
@@ -177,14 +191,17 @@ def source_data(
         if sys.stdin.isatty():
             source_id = input("Source ID: ").strip()
         else:
-            print_error("Missing required argument <SOURCE_ID>. Usage: querri source data <SOURCE_ID>")
+            print_error(
+                "Missing required argument <SOURCE_ID>."
+                " Usage: querri source data <SOURCE_ID>"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         result = client.sources.source_data(source_id, page=page, page_size=page_size)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)
@@ -197,7 +214,8 @@ def source_data(
             if result.total_rows:
                 total_pages = (result.total_rows + page_size - 1) // page_size
                 print(
-                    f"\nPage {result.page}/{total_pages} ({result.total_rows} total rows)",
+                    f"\nPage {result.page}/{total_pages}"
+                    f" ({result.total_rows} total rows)",
                     file=sys.stderr,
                 )
 
@@ -215,20 +233,30 @@ def query_data(
         if sys.stdin.isatty():
             source_id = input("Source ID: ").strip()
         else:
-            print_error("Missing required option --source-id. Usage: querri source query --source-id <ID> --sql <SQL>")
+            print_error(
+                "Missing required option --source-id."
+                " Usage: querri source query"
+                " --source-id <ID> --sql <SQL>"
+            )
             raise typer.Exit(code=1)
     if sql is None:
         if sys.stdin.isatty():
             sql = input("SQL query: ").strip()
         else:
-            print_error("Missing required option --sql. Usage: querri source query --source-id <ID> --sql <SQL>")
+            print_error(
+                "Missing required option --sql."
+                " Usage: querri source query"
+                " --source-id <ID> --sql <SQL>"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
-        result = client.sources.query(sql=sql, source_id=source_id, page=page, page_size=page_size)
+        result = client.sources.query(
+            sql=sql, source_id=source_id, page=page, page_size=page_size
+        )
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)
@@ -243,8 +271,12 @@ def query_data(
 def ask_data(
     ctx: typer.Context,
     source_id: str | None = typer.Argument(default=None, help="Source ID."),
-    question_arg: str | None = typer.Argument(default=None, help="Natural language question."),
-    question_opt: str | None = typer.Option(None, "--question", "-q", help="Natural language question."),
+    question_arg: str | None = typer.Argument(
+        default=None, help="Natural language question."
+    ),
+    question_opt: str | None = typer.Option(
+        None, "--question", "-q", help="Natural language question."
+    ),
 ) -> None:
     """Ask a natural language question about a data source.
 
@@ -259,13 +291,19 @@ def ask_data(
         if sys.stdin.isatty():
             source_id = input("Source ID: ").strip()
         else:
-            print_error("Missing required argument <SOURCE_ID>. Usage: querri source ask <SOURCE_ID> \"<QUESTION>\"")
+            print_error(
+                'Missing required argument <SOURCE_ID>.'
+                ' Usage: querri source ask'
+                ' <SOURCE_ID> "<QUESTION>"'
+            )
             raise typer.Exit(code=1)
     if question is None:
         if sys.stdin.isatty():
             question = input("Question: ").strip()
         else:
-            print_error("Missing question. Usage: querri source ask <SOURCE_ID> \"<QUESTION>\"")
+            print_error(
+                'Missing question. Usage: querri source ask <SOURCE_ID> "<QUESTION>"'
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -273,7 +311,7 @@ def ask_data(
     try:
         result = client.sources.ask(source_id, question=question)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)
@@ -299,8 +337,14 @@ def new_data_source(
     ctx: typer.Context,
     name: str | None = typer.Option(None, "--name", "-n", help="Source name."),
     file: Path | None = typer.Option(
-        None, "--file", "-f", help="JSON file with row data.",
-        exists=True, file_okay=True, dir_okay=False, resolve_path=True,
+        None,
+        "--file",
+        "-f",
+        help="JSON file with row data.",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        resolve_path=True,
     ),
 ) -> None:
     """Create a new data source from JSON data.
@@ -311,7 +355,9 @@ def new_data_source(
         if sys.stdin.isatty():
             name = input("Source name: ").strip()
         else:
-            print_error("Missing required option --name. Usage: querri source new --name <NAME>")
+            print_error(
+                "Missing required option --name. Usage: querri source new --name <NAME>"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -327,20 +373,27 @@ def new_data_source(
         rows = json.loads(raw)
         if not isinstance(rows, list):
             if obj.get("json"):
-                print_json({"error": "validation_error", "message": "Expected a JSON array of objects.", "code": 1})
+                print_json(
+                    {
+                        "error": "validation_error",
+                        "message": "Expected a JSON array of objects.",
+                        "code": 1,
+                    }
+                )
             raise typer.Exit(code=1)
     except json.JSONDecodeError as exc:
         if obj.get("json"):
             from querri.cli._output import print_json_error
+
             print_json_error("validation_error", f"Invalid JSON: {exc}", 1)
         else:
             print_error(f"Invalid JSON: {exc}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     try:
         source = client.sources.create_data_source(name=name, rows=rows)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(source)
@@ -355,7 +408,9 @@ def update_source(
     ctx: typer.Context,
     source_id: str | None = typer.Argument(default=None, help="Source ID."),
     name: str | None = typer.Option(None, "--name", "-n", help="New name."),
-    description: str | None = typer.Option(None, "--description", "-d", help="User notes about the source."),
+    description: str | None = typer.Option(
+        None, "--description", "-d", help="User notes about the source."
+    ),
     config: str | None = typer.Option(None, "--config", help="JSON config string."),
 ) -> None:
     """Update source configuration."""
@@ -363,7 +418,11 @@ def update_source(
         if sys.stdin.isatty():
             source_id = input("Source ID: ").strip()
         else:
-            print_error("Missing required argument <SOURCE_ID>. Usage: querri source update <SOURCE_ID>")
+            print_error(
+                "Missing required argument <SOURCE_ID>."
+                " Usage: querri source update"
+                " <SOURCE_ID>"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -374,12 +433,14 @@ def update_source(
             config_dict = json.loads(config)
         except json.JSONDecodeError as exc:
             print_error(f"Invalid JSON config: {exc}")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
 
     try:
-        result = client.sources.update(source_id, name=name, description=description, config=config_dict)
+        result = client.sources.update(
+            source_id, name=name, description=description, config=config_dict
+        )
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)
@@ -397,14 +458,18 @@ def delete_source(
         if sys.stdin.isatty():
             source_id = input("Source ID: ").strip()
         else:
-            print_error("Missing required argument <SOURCE_ID>. Usage: querri source delete <SOURCE_ID>")
+            print_error(
+                "Missing required argument <SOURCE_ID>."
+                " Usage: querri source delete"
+                " <SOURCE_ID>"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         client.sources.delete(source_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json({"id": source_id, "deleted": True})
@@ -422,14 +487,17 @@ def sync_source(
         if sys.stdin.isatty():
             source_id = input("Source ID: ").strip()
         else:
-            print_error("Missing required argument <SOURCE_ID>. Usage: querri source sync <SOURCE_ID>")
+            print_error(
+                "Missing required argument <SOURCE_ID>."
+                " Usage: querri source sync <SOURCE_ID>"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         result = client.sources.sync(source_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)
@@ -447,13 +515,18 @@ def list_connectors(
     try:
         items = client.sources.list_connectors()
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(items)
     else:
         print_table(
             items,
-            [("id", "ID"), ("name", "Name"), ("service", "Service"), ("status", "Status")],
+            [
+                ("id", "ID"),
+                ("name", "Name"),
+                ("service", "Service"),
+                ("status", "Status"),
+            ],
             ctx=ctx,
         )

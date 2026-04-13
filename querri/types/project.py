@@ -20,7 +20,9 @@ class StepSummary(BaseModel):
     parent: str | None = None  #: Parent step UUID in the DAG.
     children: list[str] | None = None  #: Child step UUIDs.
     dependencies: list[str] | None = None  #: Dependency step UUIDs (data inputs).
-    dependents: list[str] | None = None  #: Dependent step UUIDs (who uses this step's output).
+    dependents: list[str] | None = (
+        None  #: Dependent step UUIDs (who uses this step's output).
+    )
     figure_url: str | None = None  #: URL of the step's figure, if any.
     message: str | None = None  #: Result message from step execution.
     num_rows: int | None = None  #: Number of rows in the step's data.
@@ -43,12 +45,15 @@ class Project(BaseModel):
     created_at: str | None = None  #: ISO-8601 creation timestamp.
     updated_at: str | None = None  #: ISO-8601 last-update timestamp.
     steps: list[StepSummary] | None = None  #: Only on detail responses.
-    chats_store: dict[str, Any] | None = None  #: Raw chatsStore stashed from internal API.
+    chats_store: dict[str, Any] | None = (
+        None  #: Raw chatsStore stashed from internal API.
+    )
 
     @model_validator(mode="before")
     @classmethod
     def _parse_step_store(cls, data: Any) -> Any:
-        """Map the server's ``stepStore`` dict + ``stepOrder`` list into a ``steps`` list.
+        """Map the server's ``stepStore`` dict +
+        ``stepOrder`` list into a ``steps`` list.
 
         The API returns ``stepStore: {uuid: {...}}`` and ``stepOrder: [uuid, ...]``.
         This validator transforms them into a flat ordered list of ``StepSummary``.
@@ -82,24 +87,28 @@ class Project(BaseModel):
             has_data = bool(result.get("qdf") or result.get("qdf_uuid"))
             has_figure = bool(result.get("figure_url") or result.get("svg_url"))
 
-            steps.append({
-                "id": raw.get("uuid", uid),
-                "name": raw.get("name", ""),
-                "type": raw.get("tool", raw.get("type", "")),
-                "status": raw.get("status", ""),
-                "order": idx,
-                "has_data": has_data,
-                "has_figure": has_figure,
-                "parent": raw.get("parent"),
-                "children": raw.get("children", []),
-                "dependencies": raw.get("dependencies", []),
-                "dependents": raw.get("dependents", []),
-                "figure_url": result.get("figure_url"),
-                "message": result.get("message"),
-                "num_rows": qdf.get("num_rows") if (qdf := result.get("qdf") or {}) else None,
-                "num_cols": qdf.get("num_cols") if qdf else None,
-                "headers": qdf.get("headers") if qdf else None,
-            })
+            steps.append(
+                {
+                    "id": raw.get("uuid", uid),
+                    "name": raw.get("name", ""),
+                    "type": raw.get("tool", raw.get("type", "")),
+                    "status": raw.get("status", ""),
+                    "order": idx,
+                    "has_data": has_data,
+                    "has_figure": has_figure,
+                    "parent": raw.get("parent"),
+                    "children": raw.get("children", []),
+                    "dependencies": raw.get("dependencies", []),
+                    "dependents": raw.get("dependents", []),
+                    "figure_url": result.get("figure_url"),
+                    "message": result.get("message"),
+                    "num_rows": qdf.get("num_rows")
+                    if (qdf := result.get("qdf") or {})
+                    else None,
+                    "num_cols": qdf.get("num_cols") if qdf else None,
+                    "headers": qdf.get("headers") if qdf else None,
+                }
+            )
 
         data["steps"] = steps
         data["step_count"] = len(steps)

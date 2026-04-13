@@ -43,9 +43,14 @@ class TestUsers:
     @respx.mock
     def test_create(self):
         route = respx.post(f"{BASE}/users").mock(
-            return_value=httpx.Response(200, json={
-                "id": "usr_1", "email": "a@b.com", "role": "member",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "usr_1",
+                    "email": "a@b.com",
+                    "role": "member",
+                },
+            )
         )
         from querri.resources.users import Users
         from querri.types.user import User
@@ -57,23 +62,34 @@ class TestUsers:
         assert result.email == "a@b.com"
         assert result.role == "member"
         req = route.calls[0].request
-        body = httpx.Request("POST", "/", json={"email": "a@b.com", "role": "member"})
-        assert b'"email": "a@b.com"' in req.content or b'"email":"a@b.com"' in req.content
+        assert (
+            b'"email": "a@b.com"' in req.content or b'"email":"a@b.com"' in req.content
+        )
 
     @respx.mock
     def test_create_with_all_fields(self):
         respx.post(f"{BASE}/users").mock(
-            return_value=httpx.Response(200, json={
-                "id": "usr_2", "email": "b@c.com", "role": "admin",
-                "external_id": "ext_1", "first_name": "Alice", "last_name": "Smith",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "usr_2",
+                    "email": "b@c.com",
+                    "role": "admin",
+                    "external_id": "ext_1",
+                    "first_name": "Alice",
+                    "last_name": "Smith",
+                },
+            )
         )
         from querri.resources.users import Users
 
         users = Users(_http())
         result = users.create(
-            email="b@c.com", role="admin", external_id="ext_1",
-            first_name="Alice", last_name="Smith",
+            email="b@c.com",
+            role="admin",
+            external_id="ext_1",
+            first_name="Alice",
+            last_name="Smith",
         )
         assert result.id == "usr_2"
         assert result.external_id == "ext_1"
@@ -82,9 +98,14 @@ class TestUsers:
     @respx.mock
     def test_get(self):
         respx.get(f"{BASE}/users/usr_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "usr_1", "email": "a@b.com", "role": "member",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "usr_1",
+                    "email": "a@b.com",
+                    "role": "member",
+                },
+            )
         )
         from querri.resources.users import Users
 
@@ -95,13 +116,16 @@ class TestUsers:
     @respx.mock
     def test_list(self):
         respx.get(f"{BASE}/users").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {"id": "usr_1", "email": "a@b.com", "role": "member"},
-                    {"id": "usr_2", "email": "c@d.com", "role": "admin"},
-                ],
-                "has_more": False,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {"id": "usr_1", "email": "a@b.com", "role": "member"},
+                        {"id": "usr_2", "email": "c@d.com", "role": "admin"},
+                    ],
+                    "has_more": False,
+                },
+            )
         )
         from querri.resources.users import Users
 
@@ -115,10 +139,13 @@ class TestUsers:
     @respx.mock
     def test_list_with_external_id_filter(self):
         route = respx.get(f"{BASE}/users").mock(
-            return_value=httpx.Response(200, json={
-                "data": [{"id": "usr_1", "email": "a@b.com", "role": "member"}],
-                "has_more": False,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [{"id": "usr_1", "email": "a@b.com", "role": "member"}],
+                    "has_more": False,
+                },
+            )
         )
         from querri.resources.users import Users
 
@@ -131,11 +158,16 @@ class TestUsers:
 
     @respx.mock
     def test_update(self):
-        route = respx.patch(f"{BASE}/users/usr_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "usr_1", "email": "a@b.com", "role": "admin",
-                "first_name": "Updated",
-            })
+        respx.patch(f"{BASE}/users/usr_1").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "usr_1",
+                    "email": "a@b.com",
+                    "role": "admin",
+                    "first_name": "Updated",
+                },
+            )
         )
         from querri.resources.users import Users
 
@@ -147,9 +179,13 @@ class TestUsers:
     @respx.mock
     def test_delete(self):
         respx.delete(f"{BASE}/users/usr_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "usr_1", "deleted": True,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "usr_1",
+                    "deleted": True,
+                },
+            )
         )
         from querri.resources.users import Users
         from querri.types.user import UserDeleteResponse
@@ -162,17 +198,24 @@ class TestUsers:
 
     @respx.mock
     def test_get_or_create(self):
-        route = respx.put(f"{BASE}/users/external/ext_99").mock(
-            return_value=httpx.Response(200, json={
-                "id": "usr_new", "email": "new@test.com", "role": "member",
-                "external_id": "ext_99", "created": True,
-            })
+        respx.put(f"{BASE}/users/external/ext_99").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "usr_new",
+                    "email": "new@test.com",
+                    "role": "member",
+                    "external_id": "ext_99",
+                    "created": True,
+                },
+            )
         )
         from querri.resources.users import Users
 
         users = Users(_http())
         result = users.get_or_create(
-            external_id="ext_99", email="new@test.com",
+            external_id="ext_99",
+            email="new@test.com",
         )
         assert result.id == "usr_new"
         assert result.created is True
@@ -181,9 +224,14 @@ class TestUsers:
     @respx.mock
     def test_remove_external_id(self):
         respx.delete(f"{BASE}/users/external/ext_1").mock(
-            return_value=httpx.Response(200, json={
-                "external_id": "ext_1", "user_id": "usr_1", "deleted": True,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "external_id": "ext_1",
+                    "user_id": "usr_1",
+                    "deleted": True,
+                },
+            )
         )
         from querri.resources.users import Users
         from querri.types.user import ExternalIdDeleteResponse
@@ -206,9 +254,14 @@ class TestDashboards:
     @respx.mock
     def test_create(self):
         respx.post(f"{BASE}/dashboards").mock(
-            return_value=httpx.Response(200, json={
-                "id": "dash_1", "name": "Sales", "widget_count": 0,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "dash_1",
+                    "name": "Sales",
+                    "widget_count": 0,
+                },
+            )
         )
         from querri.resources.dashboards import Dashboards
         from querri.types.dashboard import Dashboard
@@ -222,10 +275,15 @@ class TestDashboards:
     @respx.mock
     def test_create_with_description(self):
         route = respx.post(f"{BASE}/dashboards").mock(
-            return_value=httpx.Response(200, json={
-                "id": "dash_2", "name": "Ops", "description": "Ops dash",
-                "widget_count": 0,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "dash_2",
+                    "name": "Ops",
+                    "description": "Ops dash",
+                    "widget_count": 0,
+                },
+            )
         )
         from querri.resources.dashboards import Dashboards
 
@@ -237,10 +295,16 @@ class TestDashboards:
     @respx.mock
     def test_get(self):
         respx.get(f"{BASE}/dashboards/dash_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "dash_1", "name": "Sales", "widget_count": 3,
-                "widgets": [{"id": "w1"}], "filters": [],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "dash_1",
+                    "name": "Sales",
+                    "widget_count": 3,
+                    "widgets": [{"id": "w1"}],
+                    "filters": [],
+                },
+            )
         )
         from querri.resources.dashboards import Dashboards
 
@@ -252,13 +316,16 @@ class TestDashboards:
     @respx.mock
     def test_list(self):
         respx.get(f"{BASE}/dashboards").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {"id": "dash_1", "name": "A", "widget_count": 0},
-                    {"id": "dash_2", "name": "B", "widget_count": 2},
-                ],
-                "has_more": False,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {"id": "dash_1", "name": "A", "widget_count": 0},
+                        {"id": "dash_2", "name": "B", "widget_count": 2},
+                    ],
+                    "has_more": False,
+                },
+            )
         )
         from querri.resources.dashboards import Dashboards
 
@@ -269,10 +336,14 @@ class TestDashboards:
 
     @respx.mock
     def test_update(self):
-        route = respx.patch(f"{BASE}/dashboards/dash_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "dash_1", "updated": True,
-            })
+        respx.patch(f"{BASE}/dashboards/dash_1").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "dash_1",
+                    "updated": True,
+                },
+            )
         )
         from querri.resources.dashboards import Dashboards
         from querri.types.dashboard import DashboardUpdateResponse
@@ -296,9 +367,14 @@ class TestDashboards:
     @respx.mock
     def test_refresh(self):
         respx.post(f"{BASE}/dashboards/dash_1/refresh").mock(
-            return_value=httpx.Response(200, json={
-                "id": "dash_1", "status": "refreshing", "project_count": 5,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "dash_1",
+                    "status": "refreshing",
+                    "project_count": 5,
+                },
+            )
         )
         from querri.resources.dashboards import Dashboards
         from querri.types.dashboard import DashboardRefreshResponse
@@ -312,9 +388,14 @@ class TestDashboards:
     @respx.mock
     def test_refresh_status(self):
         respx.get(f"{BASE}/dashboards/dash_1/refresh/status").mock(
-            return_value=httpx.Response(200, json={
-                "id": "dash_1", "status": "idle", "project_count": 5,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "dash_1",
+                    "status": "idle",
+                    "project_count": 5,
+                },
+            )
         )
         from querri.resources.dashboards import Dashboards
         from querri.types.dashboard import DashboardRefreshStatus
@@ -336,11 +417,17 @@ class TestKeys:
     @respx.mock
     def test_create(self):
         route = respx.post(f"{BASE}/keys").mock(
-            return_value=httpx.Response(200, json={
-                "id": "key_1", "name": "CI", "key_prefix": "qk_abc",
-                "scopes": ["data:read"], "status": "active",
-                "secret": "qk_abc_full_secret",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "key_1",
+                    "name": "CI",
+                    "key_prefix": "qk_abc",
+                    "scopes": ["data:read"],
+                    "status": "active",
+                    "secret": "qk_abc_full_secret",
+                },
+            )
         )
         from querri.resources.keys import Keys
         from querri.types.key import ApiKeyCreated
@@ -358,23 +445,32 @@ class TestKeys:
     @respx.mock
     def test_create_with_all_options(self):
         respx.post(f"{BASE}/keys").mock(
-            return_value=httpx.Response(200, json={
-                "id": "key_2", "name": "Full", "key_prefix": "qk_xyz",
-                "scopes": ["data:read", "data:write"], "status": "active",
-                "secret": "qk_xyz_secret",
-                "expires_at": "2025-12-31T00:00:00Z",
-                "rate_limit_per_minute": 120,
-                "bound_user_id": "usr_1",
-                "ip_allowlist": ["1.2.3.4"],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "key_2",
+                    "name": "Full",
+                    "key_prefix": "qk_xyz",
+                    "scopes": ["data:read", "data:write"],
+                    "status": "active",
+                    "secret": "qk_xyz_secret",
+                    "expires_at": "2025-12-31T00:00:00Z",
+                    "rate_limit_per_minute": 120,
+                    "bound_user_id": "usr_1",
+                    "ip_allowlist": ["1.2.3.4"],
+                },
+            )
         )
         from querri.resources.keys import Keys
 
         keys = Keys(_http())
         result = keys.create(
-            name="Full", scopes=["data:read", "data:write"],
-            expires_in_days=30, bound_user_id="usr_1",
-            rate_limit_per_minute=120, ip_allowlist=["1.2.3.4"],
+            name="Full",
+            scopes=["data:read", "data:write"],
+            expires_in_days=30,
+            bound_user_id="usr_1",
+            rate_limit_per_minute=120,
+            ip_allowlist=["1.2.3.4"],
         )
         assert result.rate_limit_per_minute == 120
         assert result.bound_user_id == "usr_1"
@@ -383,10 +479,16 @@ class TestKeys:
     @respx.mock
     def test_get(self):
         respx.get(f"{BASE}/keys/key_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "key_1", "name": "CI", "key_prefix": "qk_abc",
-                "scopes": ["data:read"], "status": "active",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "key_1",
+                    "name": "CI",
+                    "key_prefix": "qk_abc",
+                    "scopes": ["data:read"],
+                    "status": "active",
+                },
+            )
         )
         from querri.resources.keys import Keys
         from querri.types.key import ApiKey
@@ -395,17 +497,34 @@ class TestKeys:
         result = keys.get("key_1")
         assert isinstance(result, ApiKey)
         assert result.id == "key_1"
-        assert not hasattr(result, "secret") or not isinstance(result, type(result).__mro__[0])
+        assert not hasattr(result, "secret") or not isinstance(
+            result, type(result).__mro__[0]
+        )
 
     @respx.mock
     def test_list(self):
         respx.get(f"{BASE}/keys").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {"id": "key_1", "name": "A", "key_prefix": "qk_a", "scopes": [], "status": "active"},
-                    {"id": "key_2", "name": "B", "key_prefix": "qk_b", "scopes": ["data:read"], "status": "active"},
-                ],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {
+                            "id": "key_1",
+                            "name": "A",
+                            "key_prefix": "qk_a",
+                            "scopes": [],
+                            "status": "active",
+                        },
+                        {
+                            "id": "key_2",
+                            "name": "B",
+                            "key_prefix": "qk_b",
+                            "scopes": ["data:read"],
+                            "status": "active",
+                        },
+                    ],
+                },
+            )
         )
         from querri.resources.keys import Keys
         from querri.types.key import ApiKey
@@ -419,9 +538,13 @@ class TestKeys:
     @respx.mock
     def test_delete(self):
         respx.delete(f"{BASE}/keys/key_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "key_1", "status": "revoked",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "key_1",
+                    "status": "revoked",
+                },
+            )
         )
         from querri.resources.keys import Keys
 
@@ -442,10 +565,15 @@ class TestSources:
     @respx.mock
     def test_create(self):
         route = respx.post(f"{BASE}/sources").mock(
-            return_value=httpx.Response(200, json={
-                "id": "src_1", "name": "My Source",
-                "connector_id": "conn_1", "status": "pending",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "src_1",
+                    "name": "My Source",
+                    "connector_id": "conn_1",
+                    "status": "pending",
+                },
+            )
         )
         from querri.resources.sources import Sources
 
@@ -459,10 +587,15 @@ class TestSources:
     @respx.mock
     def test_create_data_source(self):
         respx.post(f"{BASE}/sources").mock(
-            return_value=httpx.Response(200, json={
-                "id": "src_2", "name": "Inline", "columns": ["a", "b"],
-                "row_count": 2,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "src_2",
+                    "name": "Inline",
+                    "columns": ["a", "b"],
+                    "row_count": 2,
+                },
+            )
         )
         from querri.resources.sources import Sources
         from querri.types.data import Source
@@ -480,9 +613,14 @@ class TestSources:
     @respx.mock
     def test_get(self):
         respx.get(f"{BASE}/sources/src_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "src_1", "name": "My Source", "status": "active",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "src_1",
+                    "name": "My Source",
+                    "status": "active",
+                },
+            )
         )
         from querri.resources.sources import Sources
 
@@ -493,12 +631,15 @@ class TestSources:
     @respx.mock
     def test_list(self):
         respx.get(f"{BASE}/sources").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {"id": "src_1", "name": "Alpha"},
-                    {"id": "src_2", "name": "Beta"},
-                ],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {"id": "src_1", "name": "Alpha"},
+                        {"id": "src_2", "name": "Beta"},
+                    ],
+                },
+            )
         )
         from querri.resources.sources import Sources
 
@@ -510,12 +651,15 @@ class TestSources:
     @respx.mock
     def test_list_with_search(self):
         respx.get(f"{BASE}/sources").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {"id": "src_1", "name": "Alpha"},
-                    {"id": "src_2", "name": "Beta"},
-                ],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {"id": "src_1", "name": "Alpha"},
+                        {"id": "src_2", "name": "Beta"},
+                    ],
+                },
+            )
         )
         from querri.resources.sources import Sources
 
@@ -527,9 +671,13 @@ class TestSources:
     @respx.mock
     def test_update(self):
         route = respx.patch(f"{BASE}/sources/src_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "src_1", "updated": True,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "src_1",
+                    "updated": True,
+                },
+            )
         )
         from querri.resources.sources import Sources
 
@@ -552,9 +700,13 @@ class TestSources:
     @respx.mock
     def test_sync(self):
         respx.post(f"{BASE}/sources/src_1/sync").mock(
-            return_value=httpx.Response(200, json={
-                "id": "src_1", "status": "sync_queued",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "src_1",
+                    "status": "sync_queued",
+                },
+            )
         )
         from querri.resources.sources import Sources
 
@@ -565,12 +717,15 @@ class TestSources:
     @respx.mock
     def test_query(self):
         route = respx.post(f"{BASE}/sources/src_1/query").mock(
-            return_value=httpx.Response(200, json={
-                "data": [{"col": "val"}],
-                "total_rows": 1,
-                "page": 1,
-                "page_size": 100,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [{"col": "val"}],
+                    "total_rows": 1,
+                    "page": 1,
+                    "page_size": 100,
+                },
+            )
         )
         from querri.resources.sources import Sources
         from querri.types.data import QueryResult
@@ -586,13 +741,16 @@ class TestSources:
     @respx.mock
     def test_source_data(self):
         route = respx.get(f"{BASE}/sources/src_1/data").mock(
-            return_value=httpx.Response(200, json={
-                "data": [{"a": 1}],
-                "total_count": 50,
-                "page": 2,
-                "page_size": 10,
-                "columns": ["a"],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [{"a": 1}],
+                    "total_count": 50,
+                    "page": 2,
+                    "page_size": 10,
+                    "columns": ["a"],
+                },
+            )
         )
         from querri.resources.sources import Sources
         from querri.types.data import DataPage
@@ -608,11 +766,16 @@ class TestSources:
 
     @respx.mock
     def test_append_rows(self):
-        route = respx.post(f"{BASE}/sources/src_1/rows").mock(
-            return_value=httpx.Response(200, json={
-                "id": "src_1", "name": "Test",
-                "columns": ["x"], "row_count": 5,
-            })
+        respx.post(f"{BASE}/sources/src_1/rows").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "src_1",
+                    "name": "Test",
+                    "columns": ["x"],
+                    "row_count": 5,
+                },
+            )
         )
         from querri.resources.sources import Sources
         from querri.types.data import DataWriteResult
@@ -624,11 +787,16 @@ class TestSources:
 
     @respx.mock
     def test_replace_data(self):
-        route = respx.put(f"{BASE}/sources/src_1/data").mock(
-            return_value=httpx.Response(200, json={
-                "id": "src_1", "name": "Test",
-                "columns": ["x"], "row_count": 2,
-            })
+        respx.put(f"{BASE}/sources/src_1/data").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "src_1",
+                    "name": "Test",
+                    "columns": ["x"],
+                    "row_count": 2,
+                },
+            )
         )
         from querri.resources.sources import Sources
         from querri.types.data import DataWriteResult
@@ -641,9 +809,13 @@ class TestSources:
     @respx.mock
     def test_ask(self):
         route = respx.post(f"{BASE}/sources/src_1/ask").mock(
-            return_value=httpx.Response(200, json={
-                "answer": "42", "data": [{"result": 42}],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "answer": "42",
+                    "data": [{"result": 42}],
+                },
+            )
         )
         from querri.resources.sources import Sources
 
@@ -655,11 +827,19 @@ class TestSources:
     @respx.mock
     def test_list_connectors(self):
         respx.get(f"{BASE}/connectors").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {"id": "conn_1", "name": "PostgreSQL", "service": "postgres", "status": "active"},
-                ],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {
+                            "id": "conn_1",
+                            "name": "PostgreSQL",
+                            "service": "postgres",
+                            "status": "active",
+                        },
+                    ],
+                },
+            )
         )
         from querri.resources.sources import Sources
 
@@ -680,10 +860,15 @@ class TestFiles:
     @respx.mock
     def test_get(self):
         respx.get(f"{BASE}/files/file_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "file_1", "name": "data.csv", "size": 1024,
-                "content_type": "text/csv",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "file_1",
+                    "name": "data.csv",
+                    "size": 1024,
+                    "content_type": "text/csv",
+                },
+            )
         )
         from querri.resources.files import Files
         from querri.types.file import File
@@ -698,12 +883,15 @@ class TestFiles:
     @respx.mock
     def test_list(self):
         respx.get(f"{BASE}/files").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {"id": "file_1", "name": "a.csv"},
-                    {"id": "file_2", "name": "b.csv"},
-                ],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {"id": "file_1", "name": "a.csv"},
+                        {"id": "file_2", "name": "b.csv"},
+                    ],
+                },
+            )
         )
         from querri.resources.files import Files
         from querri.types.file import File
@@ -736,11 +924,15 @@ class TestViews:
 
     @respx.mock
     def test_create(self):
-        route = respx.post(f"{BASE}/views").mock(
-            return_value=httpx.Response(200, json={
-                "uuid": "view_1", "name": "Revenue",
-                "sql_definition": "SELECT sum(revenue) FROM sales",
-            })
+        respx.post(f"{BASE}/views").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "uuid": "view_1",
+                    "name": "Revenue",
+                    "sql_definition": "SELECT sum(revenue) FROM sales",
+                },
+            )
         )
         from querri.resources.views import Views
 
@@ -756,9 +948,14 @@ class TestViews:
     def test_create_draft(self):
         """Creating a view with no fields produces a draft."""
         route = respx.post(f"{BASE}/views").mock(
-            return_value=httpx.Response(200, json={
-                "uuid": "view_draft", "name": None, "sql_definition": None,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "uuid": "view_draft",
+                    "name": None,
+                    "sql_definition": None,
+                },
+            )
         )
         from querri.resources.views import Views
 
@@ -771,12 +968,15 @@ class TestViews:
     @respx.mock
     def test_list(self):
         respx.get(f"{BASE}/views").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {"uuid": "view_1", "name": "A"},
-                    {"uuid": "view_2", "name": "B"},
-                ],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {"uuid": "view_1", "name": "A"},
+                        {"uuid": "view_2", "name": "B"},
+                    ],
+                },
+            )
         )
         from querri.resources.views import Views
 
@@ -789,9 +989,12 @@ class TestViews:
     def test_list_returns_raw_list(self):
         """If API returns a plain list instead of {data: [...]}, handle it."""
         respx.get(f"{BASE}/views").mock(
-            return_value=httpx.Response(200, json=[
-                {"uuid": "view_1", "name": "A"},
-            ])
+            return_value=httpx.Response(
+                200,
+                json=[
+                    {"uuid": "view_1", "name": "A"},
+                ],
+            )
         )
         from querri.resources.views import Views
 
@@ -802,10 +1005,14 @@ class TestViews:
     @respx.mock
     def test_get(self):
         respx.get(f"{BASE}/views/view_1").mock(
-            return_value=httpx.Response(200, json={
-                "uuid": "view_1", "name": "Revenue",
-                "sql_definition": "SELECT 1",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "uuid": "view_1",
+                    "name": "Revenue",
+                    "sql_definition": "SELECT 1",
+                },
+            )
         )
         from querri.resources.views import Views
 
@@ -816,9 +1023,13 @@ class TestViews:
     @respx.mock
     def test_update(self):
         route = respx.patch(f"{BASE}/views/view_1").mock(
-            return_value=httpx.Response(200, json={
-                "uuid": "view_1", "sql_definition": "SELECT 2",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "uuid": "view_1",
+                    "sql_definition": "SELECT 2",
+                },
+            )
         )
         from querri.resources.views import Views
 
@@ -840,10 +1051,14 @@ class TestViews:
 
     @respx.mock
     def test_run(self):
-        route = respx.post(f"{BASE}/views/run").mock(
-            return_value=httpx.Response(200, json={
-                "status": "started", "view_count": 3,
-            })
+        respx.post(f"{BASE}/views/run").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "status": "started",
+                    "view_count": 3,
+                },
+            )
         )
         from querri.resources.views import Views
 
@@ -854,9 +1069,13 @@ class TestViews:
     @respx.mock
     def test_run_specific_views(self):
         route = respx.post(f"{BASE}/views/run").mock(
-            return_value=httpx.Response(200, json={
-                "status": "started", "view_count": 2,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "status": "started",
+                    "view_count": 2,
+                },
+            )
         )
         from querri.resources.views import Views
 
@@ -868,25 +1087,34 @@ class TestViews:
     @respx.mock
     def test_preview(self):
         route = respx.post(f"{BASE}/views/view_1/preview").mock(
-            return_value=httpx.Response(200, json={
-                "data": [{"col": "val"}],
-                "columns": ["col"],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [{"col": "val"}],
+                    "columns": ["col"],
+                },
+            )
         )
         from querri.resources.views import Views
 
         views = Views(_http())
         result = views.preview("view_1", limit=50)
         assert result["data"] == [{"col": "val"}]
-        assert b'"limit": 50' in route.calls[0].request.content or b'"limit":50' in route.calls[0].request.content
+        assert (
+            b'"limit": 50' in route.calls[0].request.content
+            or b'"limit":50' in route.calls[0].request.content
+        )
 
     @respx.mock
     def test_generate_metadata(self):
         respx.post(f"{BASE}/views/view_1/generate-metadata").mock(
-            return_value=httpx.Response(200, json={
-                "name": "Generated Name",
-                "description": "Generated description",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "name": "Generated Name",
+                    "description": "Generated description",
+                },
+            )
         )
         from querri.resources.views import Views
 
@@ -905,12 +1133,17 @@ class TestPolicies:
 
     @respx.mock
     def test_create(self):
-        route = respx.post(f"{BASE}/access/policies").mock(
-            return_value=httpx.Response(200, json={
-                "id": "pol_1", "name": "Sales",
-                "source_ids": ["src_1"], "row_filters": [],
-                "user_count": 0,
-            })
+        respx.post(f"{BASE}/access/policies").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "pol_1",
+                    "name": "Sales",
+                    "source_ids": ["src_1"],
+                    "row_filters": [],
+                    "user_count": 0,
+                },
+            )
         )
         from querri.resources.policies import Policies
         from querri.types.policy import Policy
@@ -923,13 +1156,17 @@ class TestPolicies:
 
     @respx.mock
     def test_create_with_row_filters(self):
-        route = respx.post(f"{BASE}/access/policies").mock(
-            return_value=httpx.Response(200, json={
-                "id": "pol_2", "name": "Region Filter",
-                "source_ids": ["src_1"],
-                "row_filters": [{"column": "region", "values": ["US"]}],
-                "user_count": 0,
-            })
+        respx.post(f"{BASE}/access/policies").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "pol_2",
+                    "name": "Region Filter",
+                    "source_ids": ["src_1"],
+                    "row_filters": [{"column": "region", "values": ["US"]}],
+                    "user_count": 0,
+                },
+            )
         )
         from querri.resources.policies import Policies
 
@@ -946,12 +1183,17 @@ class TestPolicies:
     @respx.mock
     def test_get(self):
         respx.get(f"{BASE}/access/policies/pol_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "pol_1", "name": "Sales",
-                "source_ids": [], "row_filters": [],
-                "user_count": 2,
-                "user_ids": ["usr_1", "usr_2"],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "pol_1",
+                    "name": "Sales",
+                    "source_ids": [],
+                    "row_filters": [],
+                    "user_count": 2,
+                    "user_ids": ["usr_1", "usr_2"],
+                },
+            )
         )
         from querri.resources.policies import Policies
 
@@ -963,12 +1205,21 @@ class TestPolicies:
     @respx.mock
     def test_list(self):
         respx.get(f"{BASE}/access/policies").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {"id": "pol_1", "name": "A", "source_ids": [], "row_filters": [], "user_count": 0},
-                ],
-                "has_more": False,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {
+                            "id": "pol_1",
+                            "name": "A",
+                            "source_ids": [],
+                            "row_filters": [],
+                            "user_count": 0,
+                        },
+                    ],
+                    "has_more": False,
+                },
+            )
         )
         from querri.resources.policies import Policies
         from querri.types.policy import Policy
@@ -981,12 +1232,21 @@ class TestPolicies:
     @respx.mock
     def test_list_with_name_filter(self):
         route = respx.get(f"{BASE}/access/policies").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {"id": "pol_1", "name": "Exact", "source_ids": [], "row_filters": [], "user_count": 0},
-                ],
-                "has_more": False,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {
+                            "id": "pol_1",
+                            "name": "Exact",
+                            "source_ids": [],
+                            "row_filters": [],
+                            "user_count": 0,
+                        },
+                    ],
+                    "has_more": False,
+                },
+            )
         )
         from querri.resources.policies import Policies
 
@@ -998,9 +1258,13 @@ class TestPolicies:
     @respx.mock
     def test_update(self):
         respx.patch(f"{BASE}/access/policies/pol_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "pol_1", "updated": True,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "pol_1",
+                    "updated": True,
+                },
+            )
         )
         from querri.resources.policies import Policies
         from querri.types.policy import PolicyUpdateResponse
@@ -1013,9 +1277,13 @@ class TestPolicies:
     @respx.mock
     def test_delete(self):
         respx.delete(f"{BASE}/access/policies/pol_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "pol_1", "deleted": True,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "pol_1",
+                    "deleted": True,
+                },
+            )
         )
         from querri.resources.policies import Policies
         from querri.types.policy import PolicyDeleteResponse
@@ -1027,11 +1295,14 @@ class TestPolicies:
 
     @respx.mock
     def test_assign_users(self):
-        route = respx.post(f"{BASE}/access/policies/pol_1/users").mock(
-            return_value=httpx.Response(200, json={
-                "policy_id": "pol_1",
-                "assigned_user_ids": ["usr_1", "usr_2"],
-            })
+        respx.post(f"{BASE}/access/policies/pol_1/users").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "policy_id": "pol_1",
+                    "assigned_user_ids": ["usr_1", "usr_2"],
+                },
+            )
         )
         from querri.resources.policies import Policies
         from querri.types.policy import PolicyAssignResponse
@@ -1045,9 +1316,14 @@ class TestPolicies:
     @respx.mock
     def test_remove_user(self):
         respx.delete(f"{BASE}/access/policies/pol_1/users/usr_1").mock(
-            return_value=httpx.Response(200, json={
-                "policy_id": "pol_1", "user_id": "usr_1", "removed": True,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "policy_id": "pol_1",
+                    "user_id": "usr_1",
+                    "removed": True,
+                },
+            )
         )
         from querri.resources.policies import Policies
         from querri.types.policy import PolicyRemoveUserResponse
@@ -1059,18 +1335,21 @@ class TestPolicies:
 
     @respx.mock
     def test_resolve(self):
-        route = respx.post(f"{BASE}/access/resolve").mock(
-            return_value=httpx.Response(200, json={
-                "user_id": "usr_1",
-                "source_id": "src_1",
-                "source_is_access_controlled": True,
-                "effective_access": "filtered",
-                "resolved_filters": {
-                    "row_filters": {"region": ["US"]},
-                    "has_any_policy": True,
+        respx.post(f"{BASE}/access/resolve").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "user_id": "usr_1",
+                    "source_id": "src_1",
+                    "source_is_access_controlled": True,
+                    "effective_access": "filtered",
+                    "resolved_filters": {
+                        "row_filters": {"region": ["US"]},
+                        "has_any_policy": True,
+                    },
+                    "where_clause": "region IN ('US')",
                 },
-                "where_clause": "region IN ('US')",
-            })
+            )
         )
         from querri.resources.policies import Policies
         from querri.types.policy import ResolvedAccess
@@ -1084,19 +1363,22 @@ class TestPolicies:
 
     @respx.mock
     def test_columns(self):
-        route = respx.get(f"{BASE}/access/columns").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {
-                        "source_id": "src_1",
-                        "source_name": "Sales",
-                        "columns": [
-                            {"name": "region", "type": "string"},
-                            {"name": "revenue", "type": "number"},
-                        ],
-                    },
-                ],
-            })
+        respx.get(f"{BASE}/access/columns").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {
+                            "source_id": "src_1",
+                            "source_name": "Sales",
+                            "columns": [
+                                {"name": "region", "type": "string"},
+                                {"name": "revenue", "type": "number"},
+                            ],
+                        },
+                    ],
+                },
+            )
         )
         from querri.resources.policies import Policies
         from querri.types.policy import SourceColumns
@@ -1112,11 +1394,14 @@ class TestPolicies:
     @respx.mock
     def test_columns_with_source_filter(self):
         route = respx.get(f"{BASE}/access/columns").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {"source_id": "src_1", "source_name": "Sales", "columns": []},
-                ],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {"source_id": "src_1", "source_name": "Sales", "columns": []},
+                    ],
+                },
+            )
         )
         from querri.resources.policies import Policies
 
@@ -1127,12 +1412,15 @@ class TestPolicies:
     @respx.mock
     def test_replace_user_policies(self):
         respx.put(f"{BASE}/access/users/usr_1/policies").mock(
-            return_value=httpx.Response(200, json={
-                "user_id": "usr_1",
-                "policy_ids": ["pol_a"],
-                "added": ["pol_a"],
-                "removed": ["pol_old"],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "user_id": "usr_1",
+                    "policy_ids": ["pol_a"],
+                    "added": ["pol_a"],
+                    "removed": ["pol_old"],
+                },
+            )
         )
         from querri.resources.policies import Policies
         from querri.types.policy import PolicyReplaceResponse
@@ -1155,12 +1443,15 @@ class TestEmbed:
 
     @respx.mock
     def test_create_session(self):
-        route = respx.post(f"{BASE}/embed/sessions").mock(
-            return_value=httpx.Response(200, json={
-                "session_token": "es_abc123",
-                "expires_in": 3600,
-                "user_id": "usr_1",
-            })
+        respx.post(f"{BASE}/embed/sessions").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_token": "es_abc123",
+                    "expires_in": 3600,
+                    "user_id": "usr_1",
+                },
+            )
         )
         from querri.resources.embed import Embed
         from querri.types.embed import EmbedSession
@@ -1175,17 +1466,22 @@ class TestEmbed:
     @respx.mock
     def test_create_session_with_origin_and_ttl(self):
         route = respx.post(f"{BASE}/embed/sessions").mock(
-            return_value=httpx.Response(200, json={
-                "session_token": "es_xyz",
-                "expires_in": 7200,
-                "user_id": "usr_1",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_token": "es_xyz",
+                    "expires_in": 7200,
+                    "user_id": "usr_1",
+                },
+            )
         )
         from querri.resources.embed import Embed
 
         embed = Embed(_http())
         result = embed.create_session(
-            user_id="usr_1", origin="https://example.com", ttl=7200,
+            user_id="usr_1",
+            origin="https://example.com",
+            ttl=7200,
         )
         assert result.expires_in == 7200
         req_body = route.calls[0].request.content
@@ -1195,10 +1491,13 @@ class TestEmbed:
     @respx.mock
     def test_create_session_with_source_scope(self):
         route = respx.post(f"{BASE}/embed/sessions").mock(
-            return_value=httpx.Response(200, json={
-                "session_token": "es_scoped",
-                "expires_in": 3600,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_token": "es_scoped",
+                    "expires_in": 3600,
+                },
+            )
         )
         from querri.resources.embed import Embed
 
@@ -1210,10 +1509,13 @@ class TestEmbed:
     @respx.mock
     def test_refresh_session(self):
         respx.post(f"{BASE}/embed/sessions/refresh").mock(
-            return_value=httpx.Response(200, json={
-                "session_token": "es_new",
-                "expires_in": 3600,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_token": "es_new",
+                    "expires_in": 3600,
+                },
+            )
         )
         from querri.resources.embed import Embed
 
@@ -1224,13 +1526,16 @@ class TestEmbed:
     @respx.mock
     def test_list_sessions(self):
         respx.get(f"{BASE}/embed/sessions").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {"session_token": "es_1", "user_id": "usr_1"},
-                    {"session_token": "es_2", "user_id": "usr_2"},
-                ],
-                "has_more": False,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {"session_token": "es_1", "user_id": "usr_1"},
+                        {"session_token": "es_2", "user_id": "usr_2"},
+                    ],
+                    "has_more": False,
+                },
+            )
         )
         from querri.resources.embed import Embed
         from querri.types.embed import EmbedSessionList
@@ -1244,9 +1549,13 @@ class TestEmbed:
     @respx.mock
     def test_revoke_session_by_id(self):
         respx.delete(f"{BASE}/embed/sessions/es_abc").mock(
-            return_value=httpx.Response(200, json={
-                "id": "es_abc", "revoked": True,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "es_abc",
+                    "revoked": True,
+                },
+            )
         )
         from querri.resources.embed import Embed
         from querri.types.embed import EmbedSessionRevokeResponse
@@ -1259,9 +1568,13 @@ class TestEmbed:
     @respx.mock
     def test_revoke_session_by_token_kwarg(self):
         respx.delete(f"{BASE}/embed/sessions/es_tok").mock(
-            return_value=httpx.Response(200, json={
-                "id": "es_tok", "revoked": True,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "es_tok",
+                    "revoked": True,
+                },
+            )
         )
         from querri.resources.embed import Embed
 
@@ -1280,14 +1593,17 @@ class TestEmbed:
     def test_revoke_user_sessions(self):
         """Test the compound revoke_user_sessions method."""
         respx.get(f"{BASE}/embed/sessions").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {"session_token": "es_1", "user_id": "usr_target"},
-                    {"session_token": "es_2", "user_id": "usr_other"},
-                    {"session_token": "es_3", "user_id": "usr_target"},
-                ],
-                "has_more": False,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {"session_token": "es_1", "user_id": "usr_target"},
+                        {"session_token": "es_2", "user_id": "usr_other"},
+                        {"session_token": "es_3", "user_id": "usr_target"},
+                    ],
+                    "has_more": False,
+                },
+            )
         )
         respx.delete(f"{BASE}/embed/sessions/es_1").mock(
             return_value=httpx.Response(200, json={"id": "es_1", "revoked": True})
@@ -1313,15 +1629,18 @@ class TestUsage:
     @respx.mock
     def test_org_usage(self):
         route = respx.get(f"{BASE}/usage").mock(
-            return_value=httpx.Response(200, json={
-                "org_id": "org_test",
-                "period": "current_month",
-                "period_start": "2025-01-01T00:00:00Z",
-                "period_end": "2025-01-31T23:59:59Z",
-                "total_ai_messages": 500,
-                "active_user_count": 10,
-                "project_count": 25,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "org_id": "org_test",
+                    "period": "current_month",
+                    "period_start": "2025-01-01T00:00:00Z",
+                    "period_end": "2025-01-31T23:59:59Z",
+                    "total_ai_messages": 500,
+                    "active_user_count": 10,
+                    "project_count": 25,
+                },
+            )
         )
         from querri.resources.usage import Usage
         from querri.types.usage import OrgUsageReport
@@ -1336,10 +1655,13 @@ class TestUsage:
     @respx.mock
     def test_org_usage_custom_period(self):
         route = respx.get(f"{BASE}/usage").mock(
-            return_value=httpx.Response(200, json={
-                "period": "last_30_days",
-                "total_ai_messages": 200,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "period": "last_30_days",
+                    "total_ai_messages": 200,
+                },
+            )
         )
         from querri.resources.usage import Usage
 
@@ -1350,18 +1672,21 @@ class TestUsage:
 
     @respx.mock
     def test_user_usage(self):
-        route = respx.get(f"{BASE}/usage/users/usr_1").mock(
-            return_value=httpx.Response(200, json={
-                "user_id": "usr_1",
-                "period": "current_month",
-                "period_start": "2025-01-01T00:00:00Z",
-                "period_end": "2025-01-31T23:59:59Z",
-                "ai_messages": 42,
-                "daily_breakdown": [
-                    {"date": "2025-01-15", "count": 10},
-                    {"date": "2025-01-16", "count": 32},
-                ],
-            })
+        respx.get(f"{BASE}/usage/users/usr_1").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "user_id": "usr_1",
+                    "period": "current_month",
+                    "period_start": "2025-01-01T00:00:00Z",
+                    "period_end": "2025-01-31T23:59:59Z",
+                    "ai_messages": 42,
+                    "daily_breakdown": [
+                        {"date": "2025-01-15", "count": 10},
+                        {"date": "2025-01-16", "count": 32},
+                    ],
+                },
+            )
         )
         from querri.resources.usage import Usage
         from querri.types.usage import UserUsageReport
@@ -1385,22 +1710,31 @@ class TestAudit:
     @respx.mock
     def test_list(self):
         respx.get(f"{BASE}/audit/events").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {
-                        "id": "evt_1", "actor_id": "usr_1",
-                        "actor_type": "user", "action": "data.query",
-                        "target_type": "source", "target_id": "src_1",
-                        "timestamp": "2025-01-15T10:00:00Z",
-                    },
-                    {
-                        "id": "evt_2", "actor_id": "usr_2",
-                        "actor_type": "user", "action": "file.upload",
-                        "target_type": "file", "target_id": "file_1",
-                        "timestamp": "2025-01-15T11:00:00Z",
-                    },
-                ],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {
+                            "id": "evt_1",
+                            "actor_id": "usr_1",
+                            "actor_type": "user",
+                            "action": "data.query",
+                            "target_type": "source",
+                            "target_id": "src_1",
+                            "timestamp": "2025-01-15T10:00:00Z",
+                        },
+                        {
+                            "id": "evt_2",
+                            "actor_id": "usr_2",
+                            "actor_type": "user",
+                            "action": "file.upload",
+                            "target_type": "file",
+                            "target_id": "file_1",
+                            "timestamp": "2025-01-15T11:00:00Z",
+                        },
+                    ],
+                },
+            )
         )
         from querri.resources.audit import Audit
         from querri.types.audit import AuditEvent
@@ -1458,12 +1792,17 @@ class TestSharing:
 
     @respx.mock
     def test_share_project(self):
-        route = respx.post(f"{BASE}/projects/proj_1/shares").mock(
-            return_value=httpx.Response(200, json={
-                "user_id": "usr_1", "permission": "edit",
-                "resource_type": "project", "resource_id": "proj_1",
-                "granted_by": "usr_admin",
-            })
+        respx.post(f"{BASE}/projects/proj_1/shares").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "user_id": "usr_1",
+                    "permission": "edit",
+                    "resource_type": "project",
+                    "resource_id": "proj_1",
+                    "granted_by": "usr_admin",
+                },
+            )
         )
         from querri.resources.sharing import Sharing
         from querri.types.sharing import ShareEntry
@@ -1479,10 +1818,15 @@ class TestSharing:
     @respx.mock
     def test_revoke_project_share(self):
         respx.delete(f"{BASE}/projects/proj_1/shares/usr_1").mock(
-            return_value=httpx.Response(200, json={
-                "user_id": "usr_1", "resource_type": "project",
-                "resource_id": "proj_1", "revoked": True,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "user_id": "usr_1",
+                    "resource_type": "project",
+                    "resource_id": "proj_1",
+                    "revoked": True,
+                },
+            )
         )
         from querri.resources.sharing import Sharing
 
@@ -1493,12 +1837,15 @@ class TestSharing:
     @respx.mock
     def test_list_project_shares(self):
         respx.get(f"{BASE}/projects/proj_1/shares").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {"user_id": "usr_1", "permission": "view"},
-                    {"user_id": "usr_2", "permission": "edit"},
-                ],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {"user_id": "usr_1", "permission": "view"},
+                        {"user_id": "usr_2", "permission": "edit"},
+                    ],
+                },
+            )
         )
         from querri.resources.sharing import Sharing
         from querri.types.sharing import ShareEntry
@@ -1514,11 +1861,16 @@ class TestSharing:
     @respx.mock
     def test_share_dashboard(self):
         respx.post(f"{BASE}/dashboards/dash_1/shares").mock(
-            return_value=httpx.Response(200, json={
-                "user_id": "usr_1", "permission": "view",
-                "resource_type": "dashboard", "resource_id": "dash_1",
-                "granted_by": "usr_admin",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "user_id": "usr_1",
+                    "permission": "view",
+                    "resource_type": "dashboard",
+                    "resource_id": "dash_1",
+                    "granted_by": "usr_admin",
+                },
+            )
         )
         from querri.resources.sharing import Sharing
         from querri.types.sharing import ShareEntry
@@ -1531,10 +1883,15 @@ class TestSharing:
     @respx.mock
     def test_revoke_dashboard_share(self):
         respx.delete(f"{BASE}/dashboards/dash_1/shares/usr_1").mock(
-            return_value=httpx.Response(200, json={
-                "user_id": "usr_1", "resource_type": "dashboard",
-                "resource_id": "dash_1", "revoked": True,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "user_id": "usr_1",
+                    "resource_type": "dashboard",
+                    "resource_id": "dash_1",
+                    "revoked": True,
+                },
+            )
         )
         from querri.resources.sharing import Sharing
 
@@ -1545,11 +1902,14 @@ class TestSharing:
     @respx.mock
     def test_list_dashboard_shares(self):
         respx.get(f"{BASE}/dashboards/dash_1/shares").mock(
-            return_value=httpx.Response(200, json={
-                "data": [
-                    {"user_id": "usr_1", "permission": "view"},
-                ],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {"user_id": "usr_1", "permission": "view"},
+                    ],
+                },
+            )
         )
         from querri.resources.sharing import Sharing
         from querri.types.sharing import ShareEntry
@@ -1564,10 +1924,15 @@ class TestSharing:
     @respx.mock
     def test_share_source(self):
         respx.post(f"{BASE}/sources/src_1/shares").mock(
-            return_value=httpx.Response(200, json={
-                "user_id": "usr_1", "permission": "view",
-                "resource_type": "source", "resource_id": "src_1",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "user_id": "usr_1",
+                    "permission": "view",
+                    "resource_type": "source",
+                    "resource_id": "src_1",
+                },
+            )
         )
         from querri.resources.sharing import Sharing
         from querri.types.sharing import ShareEntry
@@ -1580,10 +1945,15 @@ class TestSharing:
     @respx.mock
     def test_share_source_with_edit(self):
         route = respx.post(f"{BASE}/sources/src_1/shares").mock(
-            return_value=httpx.Response(200, json={
-                "user_id": "usr_1", "permission": "edit",
-                "resource_type": "source", "resource_id": "src_1",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "user_id": "usr_1",
+                    "permission": "edit",
+                    "resource_type": "source",
+                    "resource_id": "src_1",
+                },
+            )
         )
         from querri.resources.sharing import Sharing
 
@@ -1595,16 +1965,24 @@ class TestSharing:
     @respx.mock
     def test_org_share_source(self):
         route = respx.post(f"{BASE}/sources/src_1/org-share").mock(
-            return_value=httpx.Response(200, json={
-                "source_id": "src_1", "enabled": True, "permission": "view",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "source_id": "src_1",
+                    "enabled": True,
+                    "permission": "view",
+                },
+            )
         )
         from querri.resources.sharing import Sharing
 
         sharing = Sharing(_http())
         result = sharing.org_share_source("src_1", enabled=True)
         assert result["enabled"] is True
-        assert b'"enabled": true' in route.calls[0].request.content or b'"enabled":true' in route.calls[0].request.content
+        assert (
+            b'"enabled": true' in route.calls[0].request.content
+            or b'"enabled":true' in route.calls[0].request.content
+        )
 
 
 # =========================================================================
@@ -1679,9 +2057,14 @@ class TestOptionalFieldOmission:
     @respx.mock
     def test_user_create_minimal_body(self):
         route = respx.post(f"{BASE}/users").mock(
-            return_value=httpx.Response(200, json={
-                "id": "usr_1", "email": "a@b.com", "role": "member",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "usr_1",
+                    "email": "a@b.com",
+                    "role": "member",
+                },
+            )
         )
         from querri.resources.users import Users
 
@@ -1695,9 +2078,14 @@ class TestOptionalFieldOmission:
     @respx.mock
     def test_user_update_empty_body_when_no_fields(self):
         route = respx.patch(f"{BASE}/users/usr_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "usr_1", "email": "a@b.com", "role": "member",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "usr_1",
+                    "email": "a@b.com",
+                    "role": "member",
+                },
+            )
         )
         from querri.resources.users import Users
 
@@ -1709,9 +2097,13 @@ class TestOptionalFieldOmission:
     @respx.mock
     def test_dashboard_update_only_sends_provided_fields(self):
         route = respx.patch(f"{BASE}/dashboards/dash_1").mock(
-            return_value=httpx.Response(200, json={
-                "id": "dash_1", "updated": True,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "dash_1",
+                    "updated": True,
+                },
+            )
         )
         from querri.resources.dashboards import Dashboards
 
@@ -1738,10 +2130,16 @@ class TestOptionalFieldOmission:
     @respx.mock
     def test_policy_create_minimal(self):
         route = respx.post(f"{BASE}/access/policies").mock(
-            return_value=httpx.Response(200, json={
-                "id": "pol_1", "name": "Test",
-                "source_ids": [], "row_filters": [], "user_count": 0,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "pol_1",
+                    "name": "Test",
+                    "source_ids": [],
+                    "row_filters": [],
+                    "user_count": 0,
+                },
+            )
         )
         from querri.resources.policies import Policies
 

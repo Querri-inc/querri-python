@@ -39,7 +39,7 @@ def get_client(ctx: typer.Context) -> Querri:
             return Querri(api_key=api_key, org_id=org_id, host=host)
         except ConfigError as exc:
             _handle_config_error(obj, exc)
-            raise typer.Exit(code=2)  # noqa: B904
+            raise typer.Exit(code=2) from None
 
     # 2. Environment variables — let resolve_config handle them
     if os.environ.get("QUERRI_API_KEY") or os.environ.get("QUERRI_ACCESS_TOKEN"):
@@ -47,7 +47,7 @@ def get_client(ctx: typer.Context) -> Querri:
             return Querri(org_id=org_id, host=host)
         except ConfigError as exc:
             _handle_config_error(obj, exc)
-            raise typer.Exit(code=2)  # noqa: B904
+            raise typer.Exit(code=2) from None
 
     # 3. Token store — load active profile, auto-refresh if needed
     try:
@@ -60,7 +60,9 @@ def get_client(ctx: typer.Context) -> Querri:
 
         if profile and profile.access_token:
             # Use the host stored in the profile (from login), CLI flag, env, or default
-            resolved_host = host or os.environ.get("QUERRI_HOST") or profile.host or DEFAULT_HOST
+            resolved_host = (
+                host or os.environ.get("QUERRI_HOST") or profile.host or DEFAULT_HOST
+            )
 
             # Auto-refresh if near expiry
             if needs_refresh(profile):
@@ -85,9 +87,12 @@ def get_client(ctx: typer.Context) -> Querri:
         pass
 
     # 4. Nothing worked
-    _handle_config_error(obj, ConfigError(
-        "No credentials found. Run 'querri auth login' or set QUERRI_API_KEY."
-    ))
+    _handle_config_error(
+        obj,
+        ConfigError(
+            "No credentials found. Run 'querri auth login' or set QUERRI_API_KEY."
+        ),
+    )
     raise typer.Exit(code=2)
 
 
@@ -97,16 +102,18 @@ def _handle_config_error(obj: dict[str, Any], exc: ConfigError) -> None:
 
     if is_json:
         import json
+
         error_obj = {
             "error": "auth_failed",
             "message": str(exc),
             "hint": "Run 'querri auth login' or set QUERRI_API_KEY and QUERRI_ORG_ID "
-                    "environment variables.",
+            "environment variables.",
             "code": 2,
         }
         print(json.dumps(error_obj))
     else:
         from querri.cli._output import print_error
+
         print_error(str(exc))
         print(
             "\nTo get started:\n"
@@ -161,8 +168,10 @@ def resolve_project_id(ctx: typer.Context) -> str:
 
     # 3. Error
     from querri.cli._output import print_error
+
     if is_json:
         from querri.cli._output import print_json_error
+
         print_json_error(
             "no_project",
             "No active project. Run 'querri project select <name>' or pass --project.",
@@ -190,9 +199,15 @@ def resolve_user_id(ctx: typer.Context) -> str:
 
     obj = ctx.ensure_object(dict)
     from querri.cli._output import print_error
+
     if obj.get("json"):
         from querri.cli._output import print_json_error
+
         print_json_error("no_user_id", "Could not determine user ID.", 1)
     else:
-        print_error("Could not determine user ID. Set QUERRI_USER_ID or log in with 'querri auth login'.")
+        print_error(
+            "Could not determine user ID. "
+            "Set QUERRI_USER_ID or log in with "
+            "'querri auth login'."
+        )
     raise typer.Exit(code=1)

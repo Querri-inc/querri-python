@@ -38,11 +38,7 @@ def _hash_access_spec(access: dict[str, Any]) -> str:
     """
     # Only hash the parts that define the policy content — not meta-keys
     # like ``policy_ids`` which reference existing policies.
-    hashable = {
-        k: v
-        for k, v in access.items()
-        if k in ("sources", "filters")
-    }
+    hashable = {k: v for k, v in access.items() if k in ("sources", "filters")}
     normalized = json.dumps(hashable, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(normalized.encode()).hexdigest()[:8]
 
@@ -91,7 +87,9 @@ def _build_policy_body(access: dict[str, Any], policy_name: str) -> dict[str, An
     return body
 
 
-def _resolve_user_param(user: str | dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
+def _resolve_user_param(
+    user: str | dict[str, Any],
+) -> tuple[str, dict[str, Any] | None]:
     """Normalise the ``user`` parameter into (external_id, creation_body | None).
 
     Returns:
@@ -106,7 +104,8 @@ def _resolve_user_param(user: str | dict[str, Any]) -> tuple[str, dict[str, Any]
 
     if not isinstance(user, dict):
         raise TypeError(
-            f"'user' must be a string (external_id) or a dict, got {type(user).__name__}"
+            f"'user' must be a string (external_id) "
+            f"or a dict, got {type(user).__name__}"
         )
 
     external_id = user.get("external_id")
@@ -206,7 +205,9 @@ def sync_get_session(
         user_id: str = result["id"]
         logger.debug(
             "Resolved user external_id=%s → id=%s (created=%s)",
-            external_id, user_id, result.get("created", "unknown"),
+            external_id,
+            user_id,
+            result.get("created", "unknown"),
         )
     else:
         # String shorthand — look up existing user by external_id
@@ -224,7 +225,9 @@ def sync_get_session(
             )
         user_id = data[0]["id"]
         logger.debug(
-            "Looked up user external_id=%s → id=%s", external_id, user_id,
+            "Looked up user external_id=%s → id=%s",
+            external_id,
+            user_id,
         )
 
     # ------------------------------------------------------------------
@@ -248,7 +251,8 @@ def sync_get_session(
 
     logger.debug(
         "Created embed session for user_id=%s, expires_in=%s",
-        user_id, session.get("expires_in"),
+        user_id,
+        session.get("expires_in"),
     )
     return session
 
@@ -277,7 +281,9 @@ def _sync_apply_access(
 
         if policies:
             policy_id = policies[0]["id"]
-            logger.debug("Reusing existing auto-policy %s (name=%s)", policy_id, policy_name)
+            logger.debug(
+                "Reusing existing auto-policy %s (name=%s)", policy_id, policy_name
+            )
         else:
             # Create a new policy
             policy_body = _build_policy_body(access, policy_name)
@@ -297,7 +303,9 @@ def _sync_apply_access(
         json={"policy_ids": all_policy_ids},
     )
     logger.debug(
-        "Replaced policies for user %s with %s", user_id, all_policy_ids,
+        "Replaced policies for user %s with %s",
+        user_id,
+        all_policy_ids,
     )
 
 
@@ -389,7 +397,9 @@ async def async_get_session(
         user_id: str = result["id"]
         logger.debug(
             "Resolved user external_id=%s → id=%s (created=%s)",
-            external_id, user_id, result.get("created", "unknown"),
+            external_id,
+            user_id,
+            result.get("created", "unknown"),
         )
     else:
         resp = await http.get("/users", params={"external_id": external_id, "limit": 1})
@@ -406,7 +416,9 @@ async def async_get_session(
             )
         user_id = data[0]["id"]
         logger.debug(
-            "Looked up user external_id=%s → id=%s", external_id, user_id,
+            "Looked up user external_id=%s → id=%s",
+            external_id,
+            user_id,
         )
 
     # ------------------------------------------------------------------
@@ -429,7 +441,8 @@ async def async_get_session(
 
     logger.debug(
         "Created embed session for user_id=%s, expires_in=%s",
-        user_id, session.get("expires_in"),
+        user_id,
+        session.get("expires_in"),
     )
     return session
 
@@ -457,7 +470,9 @@ async def _async_apply_access(
 
         if policies:
             policy_id = policies[0]["id"]
-            logger.debug("Reusing existing auto-policy %s (name=%s)", policy_id, policy_name)
+            logger.debug(
+                "Reusing existing auto-policy %s (name=%s)", policy_id, policy_name
+            )
         else:
             policy_body = _build_policy_body(access, policy_name)
             resp = await http.post("/access/policies", json=policy_body)
@@ -476,7 +491,9 @@ async def _async_apply_access(
         json={"policy_ids": all_policy_ids},
     )
     logger.debug(
-        "Replaced policies for user %s with %s", user_id, all_policy_ids,
+        "Replaced policies for user %s with %s",
+        user_id,
+        all_policy_ids,
     )
 
 

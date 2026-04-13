@@ -44,7 +44,10 @@ def _pick_scopes() -> list[str]:
 
     def _render() -> None:
         print("\033[2J\033[H", end="", file=sys.stderr)  # clear screen
-        print("Select scopes (enter number to toggle, 'a' for all, 'd' for done):\n", file=sys.stderr)
+        print(
+            "Select scopes (enter number to toggle, 'a' for all, 'd' for done):\n",
+            file=sys.stderr,
+        )
         idx = 1
         for group_name, group_scopes in _SCOPE_GROUPS:
             print(f"  {group_name}:", file=sys.stderr)
@@ -61,7 +64,7 @@ def _pick_scopes() -> list[str]:
             raw = input("> ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             print(file=sys.stderr)
-            raise typer.Exit(code=0)
+            raise typer.Exit(code=0) from None
         if raw == "d" or raw == "done":
             break
         if raw == "a" or raw == "all":
@@ -103,7 +106,7 @@ def list_keys(
     try:
         items = client.keys.list()
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json([k.model_dump(mode="json") for k in items])
@@ -139,13 +142,15 @@ def get_key(
                 print_error("API key ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument KEY_ID. Usage: querri key get KEY_ID")
+            print_error(
+                "Missing required argument KEY_ID. Usage: querri key get KEY_ID"
+            )
             raise typer.Exit(code=1)
     client = get_client(ctx)
     try:
         key = client.keys.get(key_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(key)
@@ -176,11 +181,21 @@ def get_key(
 def new_key(
     ctx: typer.Context,
     name: str | None = typer.Option(None, "--name", "-n", help="Key name."),
-    scopes: str | None = typer.Option(None, "--scopes", "-s", help="Comma-separated scopes."),
-    expires_in_days: int | None = typer.Option(None, "--expires-in-days", help="Days until expiry."),
-    bound_user_id: str | None = typer.Option(None, "--bound-user-id", help="Bind key to a user ID."),
-    rate_limit: int | None = typer.Option(None, "--rate-limit", help="Requests per minute."),
-    ip_allowlist: str | None = typer.Option(None, "--ip-allowlist", help="Comma-separated IP allowlist."),
+    scopes: str | None = typer.Option(
+        None, "--scopes", "-s", help="Comma-separated scopes."
+    ),
+    expires_in_days: int | None = typer.Option(
+        None, "--expires-in-days", help="Days until expiry."
+    ),
+    bound_user_id: str | None = typer.Option(
+        None, "--bound-user-id", help="Bind key to a user ID."
+    ),
+    rate_limit: int | None = typer.Option(
+        None, "--rate-limit", help="Requests per minute."
+    ),
+    ip_allowlist: str | None = typer.Option(
+        None, "--ip-allowlist", help="Comma-separated IP allowlist."
+    ),
 ) -> None:
     """Create a new API key.
 
@@ -194,7 +209,11 @@ def new_key(
                 print_error("Key name is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required option --name. Usage: querri key new --name NAME --scopes SCOPES [options]")
+            print_error(
+                "Missing required option --name."
+                " Usage: querri key new"
+                " --name NAME --scopes SCOPES [options]"
+            )
             raise typer.Exit(code=1)
     if not scopes:
         if sys.stdin.isatty():
@@ -225,7 +244,7 @@ def new_key(
             ip_allowlist=ip_list,
         )
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(key)
@@ -241,13 +260,15 @@ def new_key(
             from rich.panel import Panel
 
             console = Console(stderr=True)
-            console.print(Panel(
-                f"[bold]{key.secret}[/bold]",
-                title="API Key Secret",
-                subtitle="Save now — cannot be retrieved later",
-                border_style="#f15a24",
-                padding=(1, 2),
-            ))
+            console.print(
+                Panel(
+                    f"[bold]{key.secret}[/bold]",
+                    title="API Key Secret",
+                    subtitle="Save now — cannot be retrieved later",
+                    border_style="#f15a24",
+                    padding=(1, 2),
+                )
+            )
         else:
             print(f"Secret: {key.secret}", file=sys.stderr)
             print("Save this key now — it cannot be retrieved later.", file=sys.stderr)
@@ -267,13 +288,15 @@ def delete_key(
                 print_error("API key ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument KEY_ID. Usage: querri key delete KEY_ID")
+            print_error(
+                "Missing required argument KEY_ID. Usage: querri key delete KEY_ID"
+            )
             raise typer.Exit(code=1)
     client = get_client(ctx)
     try:
         client.keys.delete(key_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json({"id": key_id, "deleted": True})

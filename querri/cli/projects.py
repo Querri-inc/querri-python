@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import sys
 import time
+from typing import TYPE_CHECKING
 
-logger = logging.getLogger("querri.cli")
+if TYPE_CHECKING:
+    from rich.text import Text
 
 import typer
 
@@ -27,6 +30,9 @@ from querri.cli._output import (
     print_success,
     print_table,
 )
+from querri.cli.chat import project_chat_app
+
+logger = logging.getLogger("querri.cli")
 
 projects_app = typer.Typer(
     name="project",
@@ -36,8 +42,6 @@ projects_app = typer.Typer(
 )
 
 # Register project chat subgroup (querri project chat -m "...")
-from querri.cli.chat import project_chat_app  # noqa: E402
-
 projects_app.add_typer(project_chat_app, name="chat", rich_help_panel="Chat")
 
 
@@ -50,7 +54,9 @@ projects_app.add_typer(project_chat_app, name="chat", rich_help_panel="Chat")
 def new_project(
     ctx: typer.Context,
     name: str | None = typer.Argument(None, help="Project name."),
-    description: str | None = typer.Option(None, "--description", "-d", help="Description."),
+    description: str | None = typer.Option(
+        None, "--description", "-d", help="Description."
+    ),
 ) -> None:
     """Create a new project and set it as active.
 
@@ -77,9 +83,11 @@ def new_project(
     user_id = resolve_user_id(ctx)
 
     try:
-        project = client.projects.create(name=name, user_id=user_id, description=description)
+        project = client.projects.create(
+            name=name, user_id=user_id, description=description
+        )
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     # Auto-select the new project
     profile = _get_profile(ctx)
@@ -126,7 +134,9 @@ def select_project(
             page = client.projects.list(limit=50)
             all_projects = list(page)
         except Exception as exc:
-            raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+            raise typer.Exit(
+                code=handle_api_error(exc, is_json=obj.get("json"))
+            ) from None
 
         if not all_projects:
             print_error("No projects found. Create one with 'querri project new'.")
@@ -146,7 +156,7 @@ def select_project(
                 raw = input("Select project: ").strip()
             except (EOFError, KeyboardInterrupt):
                 print(file=sys.stderr)
-                raise typer.Exit(code=0)
+                raise typer.Exit(code=0) from None
             if not raw:
                 continue
             try:
@@ -174,10 +184,8 @@ def select_project(
     # Try as UUID first (UUIDs are 32+ hex chars or have dashes)
     project = None
     if len(name_or_id) >= 20 or "-" in name_or_id:
-        try:
+        with contextlib.suppress(Exception):
             project = client.projects.get(name_or_id)
-        except Exception:
-            pass  # Not a valid UUID, fall through to name search
 
     # Name search
     if project is None:
@@ -185,7 +193,9 @@ def select_project(
             page = client.projects.list(limit=100)
             all_projects = list(page)
         except Exception as exc:
-            raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+            raise typer.Exit(
+                code=handle_api_error(exc, is_json=obj.get("json"))
+            ) from None
 
         query = name_or_id.lower()
         matches = [p for p in all_projects if query in p.name.lower()]
@@ -265,7 +275,7 @@ def list_projects(
         page = client.projects.list(limit=limit, after=after)
         items = list(page)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         data = []
@@ -282,15 +292,22 @@ def list_projects(
         rows = []
         for p in items:
             marker = " *" if p.id == active_id else ""
-            rows.append({
-                "id": p.id,
-                "name": f"{p.name}{marker}",
-                "status": getattr(p, "status", ""),
-                "updated_at": getattr(p, "updated_at", ""),
-            })
+            rows.append(
+                {
+                    "id": p.id,
+                    "name": f"{p.name}{marker}",
+                    "status": getattr(p, "status", ""),
+                    "updated_at": getattr(p, "updated_at", ""),
+                }
+            )
         print_table(
             rows,
-            [("id", "ID"), ("name", "Name"), ("status", "Status"), ("updated_at", "Updated")],
+            [
+                ("id", "ID"),
+                ("name", "Name"),
+                ("status", "Status"),
+                ("updated_at", "Updated"),
+            ],
             ctx=ctx,
         )
         if active_id:
@@ -305,7 +322,9 @@ def list_projects(
 @projects_app.command("get")
 def get_project(
     ctx: typer.Context,
-    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(
+        None, help="Project ID (default: active project)."
+    ),
 ) -> None:
     """Get project details."""
     obj = ctx.ensure_object(dict)
@@ -314,7 +333,7 @@ def get_project(
     try:
         project = client.projects.get(pid)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(project)
@@ -337,7 +356,6 @@ def get_project(
         )
 
 
-
 # ---------------------------------------------------------------------------
 # querri project update
 # ---------------------------------------------------------------------------
@@ -346,9 +364,13 @@ def get_project(
 @projects_app.command("update")
 def update_project(
     ctx: typer.Context,
-    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(
+        None, help="Project ID (default: active project)."
+    ),
     name: str | None = typer.Option(None, "--name", "-n", help="New name."),
-    description: str | None = typer.Option(None, "--description", "-d", help="New description."),
+    description: str | None = typer.Option(
+        None, "--description", "-d", help="New description."
+    ),
 ) -> None:
     """Update a project."""
     obj = ctx.ensure_object(dict)
@@ -357,7 +379,7 @@ def update_project(
     try:
         project = client.projects.update(pid, name=name, description=description)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     # Update stored name if this is the active project
     if name:
@@ -390,7 +412,7 @@ def delete_project(
     try:
         client.projects.delete(project_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     # Clear state if deleting active project
     profile = _get_profile(ctx)
@@ -414,10 +436,14 @@ def delete_project(
 @projects_app.command("run")
 def run_project(
     ctx: typer.Context,
-    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(
+        None, help="Project ID (default: active project)."
+    ),
     user_id: str | None = typer.Option(None, "--user-id", help="User ID to run as."),
     wait: bool = typer.Option(False, "--wait", "-w", help="Block until run completes."),
-    timeout: int = typer.Option(600, "--timeout", help="Max seconds to wait (with --wait)."),
+    timeout: int = typer.Option(
+        600, "--timeout", help="Max seconds to wait (with --wait)."
+    ),
 ) -> None:
     """Run a project pipeline."""
     obj = ctx.ensure_object(dict)
@@ -429,7 +455,7 @@ def run_project(
     try:
         result = client.projects.run(pid, user_id=uid)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if wait:
         elapsed = 0
@@ -441,19 +467,26 @@ def run_project(
                 if elapsed >= timeout:
                     if obj.get("json"):
                         from querri.cli._output import print_json_error
-                        print_json_error("timeout", f"Run did not complete within {timeout}s", 1)
+
+                        print_json_error(
+                            "timeout", f"Run did not complete within {timeout}s", 1
+                        )
                     else:
                         print_error(f"Run did not complete within {timeout}s")
                     raise typer.Exit(code=1)
                 if is_interactive:
-                    sys.stderr.write(f"\r⏳ Waiting... {elapsed}s elapsed (status: {status.status})")
+                    sys.stderr.write(
+                        f"\r⏳ Waiting... {elapsed}s elapsed (status: {status.status})"
+                    )
                     sys.stderr.flush()
                 time.sleep(2)
                 elapsed += 2
         except Exception as exc:
             if isinstance(exc, (typer.Exit, SystemExit)):
                 raise
-            raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+            raise typer.Exit(
+                code=handle_api_error(exc, is_json=obj.get("json"))
+            ) from None
 
         if is_interactive:
             sys.stderr.write("\r" + " " * 60 + "\r")
@@ -481,7 +514,9 @@ def run_project(
 @projects_app.command("run-status")
 def run_status(
     ctx: typer.Context,
-    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(
+        None, help="Project ID (default: active project)."
+    ),
 ) -> None:
     """Check the run status of a project."""
     obj = ctx.ensure_object(dict)
@@ -490,7 +525,7 @@ def run_status(
     try:
         status = client.projects.run_status(pid)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(status)
@@ -504,7 +539,9 @@ def run_status(
 @projects_app.command("run-cancel")
 def run_cancel(
     ctx: typer.Context,
-    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(
+        None, help="Project ID (default: active project)."
+    ),
 ) -> None:
     """Cancel a running project."""
     obj = ctx.ensure_object(dict)
@@ -513,7 +550,7 @@ def run_cancel(
     try:
         result = client.projects.run_cancel(pid)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)
@@ -530,7 +567,9 @@ def run_cancel(
 def add_source(
     ctx: typer.Context,
     source_id: str = typer.Argument(help="Source UUID to add to the project."),
-    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(
+        None, help="Project ID (default: active project)."
+    ),
 ) -> None:
     """Add a data source to the active project.
 
@@ -550,7 +589,7 @@ def add_source(
     try:
         chat = client.projects.chats.create(pid)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=is_json))
+        raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
 
     profile = _get_profile(ctx)
     if profile:
@@ -565,7 +604,10 @@ def add_source(
 
     try:
         stream = client.projects.chats.stream(
-            pid, chat.id, prompt=prompt, user_id=uid,
+            pid,
+            chat.id,
+            prompt=prompt,
+            user_id=uid,
         )
         # Consume the stream to completion
         text_parts: list[str] = []
@@ -578,17 +620,19 @@ def add_source(
     except Exception as exc:
         if isinstance(exc, (typer.Exit, SystemExit)):
             raise
-        raise typer.Exit(code=handle_api_error(exc, is_json=is_json))
+        raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
 
     response_text = "".join(text_parts)
 
     if is_json:
-        print_json({
-            "source_id": source_id,
-            "project_id": pid,
-            "status": "added",
-            "response": response_text,
-        })
+        print_json(
+            {
+                "source_id": source_id,
+                "project_id": pid,
+                "status": "added",
+                "response": response_text,
+            }
+        )
     else:
         print_success(f"Added source {source_id} to project")
         if response_text.strip():
@@ -603,9 +647,13 @@ def add_source(
 @projects_app.command("show")
 def show_project(
     ctx: typer.Context,
-    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(
+        None, help="Project ID (default: active project)."
+    ),
     top: int | None = typer.Option(None, "--top", help="Show only the first N steps."),
-    bottom: int | None = typer.Option(None, "--bottom", help="Show only the last N steps."),
+    bottom: int | None = typer.Option(
+        None, "--bottom", help="Show only the last N steps."
+    ),
 ) -> None:
     """Show a visual overview of the project and its step pipeline.
 
@@ -628,7 +676,7 @@ def show_project(
         try:
             project = client.projects.get(pid)
         except Exception as exc:
-            raise typer.Exit(code=handle_api_error(exc, is_json=is_json))
+            raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
 
     if is_json:
         print_json(project)
@@ -659,6 +707,7 @@ def _get_full_project(client: object, project_id: str) -> object | None:
         internal_base = base_url.replace("/api/v1", "/api")
 
         import httpx as _httpx
+
         resp = _httpx.get(
             f"{internal_base}/projects/{project_id}",
             headers=dict(http._client.headers),
@@ -739,7 +788,9 @@ def _render_project_show(
     # Step DAG
     all_steps = getattr(project, "steps", None) or []
     if not all_steps:
-        console.print("\n  [dim]No steps yet. Send a chat message to create steps.[/dim]")
+        console.print(
+            "\n  [dim]No steps yet. Send a chat message to create steps.[/dim]"
+        )
         return
 
     # Slice steps by order
@@ -770,7 +821,9 @@ def _render_project_show(
         slice_label = f"  [dim](last {len(steps)} of {total})[/dim]"
 
     tree = Tree(
-        Text.from_markup(f"[bold {QUERRI_ORANGE}]Data Flow[/bold {QUERRI_ORANGE}]{slice_label}"),
+        Text.from_markup(
+            f"[bold {QUERRI_ORANGE}]Data Flow[/bold {QUERRI_ORANGE}]{slice_label}"
+        ),
         guide_style=QUERRI_ORANGE,
     )
 
@@ -779,9 +832,9 @@ def _render_project_show(
     def _add_step(parent_branch: Tree, step: object) -> None:
         if step.id in visited:
             # Avoid cycles — show reference instead
-            parent_branch.add(Text.from_markup(
-                f"[dim]↩ {step.name} (ref {step.id[:8]}…)[/dim]"
-            ))
+            parent_branch.add(
+                Text.from_markup(f"[dim]↩ {step.name} (ref {step.id[:8]}…)[/dim]")
+            )
             return
         visited.add(step.id)
 
@@ -850,9 +903,9 @@ def _step_label(step: object, by_id: dict[str, object]) -> Text:
         for did in deps:
             d = by_id.get(did)
             dep_names.append(d.name if d else did[:8])
-        label.append_text(Text.from_markup(
-            f"\n    [dim]← depends on: {', '.join(dep_names)}[/dim]"
-        ))
+        label.append_text(
+            Text.from_markup(f"\n    [dim]← depends on: {', '.join(dep_names)}[/dim]")
+        )
 
     # Step ID
     label.append(f"\n    {step.id}", style="dim")

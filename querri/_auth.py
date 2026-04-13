@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import contextlib
 import json
 import os
 import secrets
@@ -170,8 +171,7 @@ class TokenStore:
 
         data = {
             "profiles": {
-                name: asdict(profile)
-                for name, profile in self.profiles.items()
+                name: asdict(profile) for name, profile in self.profiles.items()
             },
             "active_profile": self.active_profile,
         }
@@ -195,10 +195,8 @@ class TokenStore:
             os.rename(str(tmp_path_obj), str(self.STORE_FILE))
         except OSError:
             # Clean up temp file on failure
-            try:
+            with contextlib.suppress(OSError):
                 tmp_path_obj.unlink(missing_ok=True)
-            except OSError:
-                pass
             raise
 
     # -- Profile management -------------------------------------------------
@@ -219,7 +217,9 @@ class TokenStore:
             KeyError: If the named profile does not exist.
         """
         if name not in self.profiles:
-            raise KeyError(f"Profile {name!r} not found. Available: {list(self.profiles)}")
+            raise KeyError(
+                f"Profile {name!r} not found. Available: {list(self.profiles)}"
+            )
         self.active_profile = name
         self.save()
 
@@ -376,9 +376,11 @@ class _OAuthCallbackHandler(BaseHTTPRequestHandler):
             self.send_response(400)
             self.send_header("Content-Type", "text/html")
             self.end_headers()
-            self.wfile.write(b"<html><body><h1>Authentication failed</h1>"
-                             b"<p>Invalid state parameter. Please try again.</p>"
-                             b"</body></html>")
+            self.wfile.write(
+                b"<html><body><h1>Authentication failed</h1>"
+                b"<p>Invalid state parameter. Please try again.</p>"
+                b"</body></html>"
+            )
             server.error = "State parameter mismatch"
             server.shutdown_flag = True
             return
@@ -403,9 +405,11 @@ class _OAuthCallbackHandler(BaseHTTPRequestHandler):
             self.send_response(400)
             self.send_header("Content-Type", "text/html")
             self.end_headers()
-            self.wfile.write(b"<html><body><h1>Authentication failed</h1>"
-                             b"<p>No authorization code received.</p>"
-                             b"</body></html>")
+            self.wfile.write(
+                b"<html><body><h1>Authentication failed</h1>"
+                b"<p>No authorization code received.</p>"
+                b"</body></html>"
+            )
             server.error = "No authorization code received"
             server.shutdown_flag = True
             return
@@ -423,7 +427,8 @@ class _OAuthCallbackHandler(BaseHTTPRequestHandler):
 <title>Querri CLI - Authenticated</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Poppins:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Poppins:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap"
+rel="stylesheet">
 <link rel="icon" href="https://querri.com/favicon.svg" type="image/svg+xml">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
@@ -750,10 +755,8 @@ def start_oauth_flow(
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
         detail = ""
-        try:
+        with contextlib.suppress(Exception):
             detail = exc.response.text[:200]
-        except Exception:
-            pass
         raise RuntimeError(
             f"Token exchange failed (HTTP {exc.response.status_code}). {detail}"
         ) from exc

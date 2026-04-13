@@ -25,7 +25,9 @@ from querri._streaming import (
 # ---------------------------------------------------------------------------
 
 
-def _make_response(lines: list[str], headers: dict[str, str] | None = None) -> httpx.Response:
+def _make_response(
+    lines: list[str], headers: dict[str, str] | None = None
+) -> httpx.Response:
     """Create a mock response that yields lines."""
     response = MagicMock(spec=httpx.Response)
     response.headers = headers or {}
@@ -96,7 +98,7 @@ class TestBuildEvent:
     def test_tool_output_available(self):
         event = _build_event(
             "tool-output-available",
-            '{"toolName": "query_data", "output": {"rows": 42}}'
+            '{"toolName": "query_data", "output": {"rows": 42}}',
         )
         assert event.event_type == "tool-output-available"
         assert event.tool_name == "query_data"
@@ -104,8 +106,7 @@ class TestBuildEvent:
 
     def test_file_event(self):
         event = _build_event(
-            "file",
-            '{"url": "https://example.com/chart.png", "mediaType": "image/png"}'
+            "file", '{"url": "https://example.com/chart.png", "mediaType": "image/png"}'
         )
         assert event.event_type == "file"
         assert event.file_url == "https://example.com/chart.png"
@@ -122,16 +123,14 @@ class TestBuildEvent:
 
     def test_finish_event(self):
         event = _build_event(
-            "finish",
-            '{"usage": {"credits_used": 5, "tokens_used": 1200}}'
+            "finish", '{"usage": {"credits_used": 5, "tokens_used": 1200}}'
         )
         assert event.event_type == "finish"
         assert event.usage == {"credits_used": 5, "tokens_used": 1200}
 
     def test_terminate_event(self):
         event = _build_event(
-            "terminate",
-            '{"reason": "session_timeout", "message": "Session expired"}'
+            "terminate", '{"reason": "session_timeout", "message": "Session expired"}'
         )
         assert event.event_type == "terminate"
         assert event.terminate_reason == "session_timeout"
@@ -170,16 +169,18 @@ class TestChatStreamEvents:
     """Test the events() iterator with v2 SSE format."""
 
     def test_v2_text_delta_events(self):
-        response = _make_response([
-            "event: text-delta",
-            'data: {"textDelta": "Hello"}',
-            "",
-            "event: text-delta",
-            'data: {"textDelta": " world"}',
-            "",
-            "event: finish",
-            'data: {"usage": {"credits_used": 1}}',
-        ])
+        response = _make_response(
+            [
+                "event: text-delta",
+                'data: {"textDelta": "Hello"}',
+                "",
+                "event: text-delta",
+                'data: {"textDelta": " world"}',
+                "",
+                "event: finish",
+                'data: {"usage": {"credits_used": 1}}',
+            ]
+        )
         stream = ChatStream(response)
         events = list(stream.events())
 
@@ -192,25 +193,29 @@ class TestChatStreamEvents:
         assert events[2].usage == {"credits_used": 1}
 
     def test_v2_text_accumulates(self):
-        response = _make_response([
-            "event: text-delta",
-            'data: {"textDelta": "Hello"}',
-            "",
-            "event: text-delta",
-            'data: {"textDelta": " world"}',
-        ])
+        response = _make_response(
+            [
+                "event: text-delta",
+                'data: {"textDelta": "Hello"}',
+                "",
+                "event: text-delta",
+                'data: {"textDelta": " world"}',
+            ]
+        )
         stream = ChatStream(response)
         list(stream.events())  # consume
         assert stream.text() == "Hello world"
 
     def test_v2_tool_output(self):
-        response = _make_response([
-            "event: text-delta",
-            'data: {"textDelta": "Analyzing..."}',
-            "",
-            "event: tool-output-available",
-            'data: {"toolName": "query", "output": {"rows": 10}}',
-        ])
+        response = _make_response(
+            [
+                "event: text-delta",
+                'data: {"textDelta": "Analyzing..."}',
+                "",
+                "event: tool-output-available",
+                'data: {"toolName": "query", "output": {"rows": 10}}',
+            ]
+        )
         stream = ChatStream(response)
         events = list(stream.events())
 
@@ -218,10 +223,12 @@ class TestChatStreamEvents:
         assert events[1].tool_name == "query"
 
     def test_v2_file_event(self):
-        response = _make_response([
-            "event: file",
-            'data: {"url": "https://x.com/chart.png", "mediaType": "image/png"}',
-        ])
+        response = _make_response(
+            [
+                "event: file",
+                'data: {"url": "https://x.com/chart.png", "mediaType": "image/png"}',
+            ]
+        )
         stream = ChatStream(response)
         events = list(stream.events())
 
@@ -230,13 +237,15 @@ class TestChatStreamEvents:
 
     def test_v2_error_event_yielded(self):
         """v2 error events are yielded (not raised); callers decide how to handle."""
-        response = _make_response([
-            "event: text-delta",
-            'data: {"textDelta": "partial"}',
-            "",
-            "event: error",
-            'data: {"message": "Internal error"}',
-        ])
+        response = _make_response(
+            [
+                "event: text-delta",
+                'data: {"textDelta": "partial"}',
+                "",
+                "event: error",
+                'data: {"message": "Internal error"}',
+            ]
+        )
         stream = ChatStream(response)
         events = list(stream.events())
 
@@ -245,13 +254,15 @@ class TestChatStreamEvents:
         assert events[1].error == "Internal error"
 
     def test_v2_terminate_event(self):
-        response = _make_response([
-            "event: text-delta",
-            'data: {"textDelta": "Hello"}',
-            "",
-            "event: terminate",
-            'data: {"reason": "session_timeout", "message": "Session expired"}',
-        ])
+        response = _make_response(
+            [
+                "event: text-delta",
+                'data: {"textDelta": "Hello"}',
+                "",
+                "event: terminate",
+                'data: {"reason": "session_timeout", "message": "Session expired"}',
+            ]
+        )
         stream = ChatStream(response)
         events = list(stream.events())
 
@@ -261,16 +272,18 @@ class TestChatStreamEvents:
 
     def test_v2_reasoning_events(self):
         """Reasoning events are parsed with reasoning_text field."""
-        response = _make_response([
-            "event: text-delta",
-            'data: {"textDelta": "Hi"}',
-            "",
-            "event: reasoning-delta",
-            'data: {"delta": "thinking..."}',
-            "",
-            "event: text-delta",
-            'data: {"textDelta": "!"}',
-        ])
+        response = _make_response(
+            [
+                "event: text-delta",
+                'data: {"textDelta": "Hi"}',
+                "",
+                "event: reasoning-delta",
+                'data: {"delta": "thinking..."}',
+                "",
+                "event: text-delta",
+                'data: {"textDelta": "!"}',
+            ]
+        )
         stream = ChatStream(response)
         events = list(stream.events())
 
@@ -282,16 +295,18 @@ class TestChatStreamEvents:
 
     def test_v2_unknown_event_ignored(self):
         """Unknown event types pass through without error (forward compat)."""
-        response = _make_response([
-            "event: text-delta",
-            'data: {"textDelta": "Hi"}',
-            "",
-            "event: some-future-event",
-            'data: {"foo": "bar"}',
-            "",
-            "event: text-delta",
-            'data: {"textDelta": "!"}',
-        ])
+        response = _make_response(
+            [
+                "event: text-delta",
+                'data: {"textDelta": "Hi"}',
+                "",
+                "event: some-future-event",
+                'data: {"foo": "bar"}',
+                "",
+                "event: text-delta",
+                'data: {"textDelta": "!"}',
+            ]
+        )
         stream = ChatStream(response)
         events = list(stream.events())
 
@@ -311,11 +326,13 @@ class TestChatStreamEventsV1Fallback:
     """Test that events() also handles v1 prefix format."""
 
     def test_v1_text_as_events(self):
-        response = _make_response([
-            '0:"Hello"',
-            '0:" world"',
-            'd:done',
-        ])
+        response = _make_response(
+            [
+                '0:"Hello"',
+                '0:" world"',
+                "d:done",
+            ]
+        )
         stream = ChatStream(response)
         events = list(stream.events())
 
@@ -327,19 +344,23 @@ class TestChatStreamEventsV1Fallback:
         assert events[2].event_type == "[DONE]"
 
     def test_v1_error_as_event(self):
-        response = _make_response([
-            'e:something broke',
-        ])
+        response = _make_response(
+            [
+                "e:something broke",
+            ]
+        )
         stream = ChatStream(response)
         with pytest.raises(StreamError, match="something broke"):
             list(stream.events())
 
     def test_v1_text_accumulates_via_events(self):
-        response = _make_response([
-            '0:"Hello"',
-            '0:" world"',
-            'd:done',
-        ])
+        response = _make_response(
+            [
+                '0:"Hello"',
+                '0:" world"',
+                "d:done",
+            ]
+        )
         stream = ChatStream(response)
         list(stream.events())
         assert stream.text() == "Hello world"
@@ -354,34 +375,38 @@ class TestBackwardCompat:
     """Verify that the old __iter__ API still works after v2 changes."""
 
     def test_iter_yields_text(self):
-        response = _make_response([
-            '0:"Hello"',
-            '0:" world"',
-            'd:done',
-        ])
+        response = _make_response(
+            [
+                '0:"Hello"',
+                '0:" world"',
+                "d:done",
+            ]
+        )
         stream = ChatStream(response)
         chunks = list(stream)
         assert chunks == ["Hello", " world"]
 
     def test_text_method(self):
-        response = _make_response([
-            '0:"Hello"',
-            '0:" world"',
-            'd:done',
-        ])
+        response = _make_response(
+            [
+                '0:"Hello"',
+                '0:" world"',
+                "d:done",
+            ]
+        )
         stream = ChatStream(response)
         assert stream.text() == "Hello world"
 
     def test_message_id(self):
         response = _make_response(
-            ['d:done'],
+            ["d:done"],
             headers={"x-message-id": "msg_123"},
         )
         stream = ChatStream(response)
         assert stream.message_id == "msg_123"
 
     def test_response_closed(self):
-        response = _make_response(['d:done'])
+        response = _make_response(["d:done"])
         stream = ChatStream(response)
         list(stream)
         response.close.assert_called_once()
@@ -422,14 +447,16 @@ class TestMixedFormat:
 
     def test_v1_then_v2(self):
         """A stream that starts with v1 format then switches to v2."""
-        response = _make_response([
-            '0:"Hello"',
-            "",
-            "event: text-delta",
-            'data: {"textDelta": " world"}',
-            "",
-            'd:done',
-        ])
+        response = _make_response(
+            [
+                '0:"Hello"',
+                "",
+                "event: text-delta",
+                'data: {"textDelta": " world"}',
+                "",
+                "d:done",
+            ]
+        )
         stream = ChatStream(response)
         events = list(stream.events())
 
@@ -454,22 +481,26 @@ class TestEdgeCases:
         assert events == []
 
     def test_only_comments_and_blanks(self):
-        response = _make_response([
-            "",
-            ": keepalive",
-            "",
-            ": another comment",
-        ])
+        response = _make_response(
+            [
+                "",
+                ": keepalive",
+                "",
+                ": another comment",
+            ]
+        )
         stream = ChatStream(response)
         events = list(stream.events())
         assert events == []
 
     def test_malformed_json_in_data(self):
         """Malformed JSON should not crash — event passes through with raw_data."""
-        response = _make_response([
-            "event: text-delta",
-            "data: {this is not json}",
-        ])
+        response = _make_response(
+            [
+                "event: text-delta",
+                "data: {this is not json}",
+            ]
+        )
         stream = ChatStream(response)
         events = list(stream.events())
 
@@ -480,12 +511,14 @@ class TestEdgeCases:
 
     def test_event_without_data_is_ignored(self):
         """An event: line not followed by data: line gets discarded."""
-        response = _make_response([
-            "event: text-delta",
-            "",  # blank line, no data follows
-            "event: finish",
-            'data: {"usage": {}}',
-        ])
+        response = _make_response(
+            [
+                "event: text-delta",
+                "",  # blank line, no data follows
+                "event: finish",
+                'data: {"usage": {}}',
+            ]
+        )
         stream = ChatStream(response)
         events = list(stream.events())
 

@@ -84,7 +84,10 @@ class TestUserCRUD:
                 updated = client.users.update(user_id, first_name="Updated")
                 assert updated.id == user_id
             except Exception:
-                pytest.skip("User update not supported for API-created users (WorkOS limitation)")
+                pytest.skip(
+                    "User update not supported for"
+                    " API-created users (WorkOS limitation)"
+                )
 
         finally:
             # Delete (cleanup)
@@ -155,7 +158,8 @@ class TestPolicyCRUD:
         try:
             # Assign
             assign_resp = client.policies.assign_users(
-                policy.id, user_ids=[user.id],
+                policy.id,
+                user_ids=[user.id],
             )
             assert len(assign_resp.assigned_user_ids) >= 1
 

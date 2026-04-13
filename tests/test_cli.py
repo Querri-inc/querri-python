@@ -93,6 +93,7 @@ class TestOutputFormatting:
     def test_tty_detection_module(self) -> None:
         """IS_INTERACTIVE constant exists in _output module."""
         from querri.cli._output import IS_INTERACTIVE
+
         assert isinstance(IS_INTERACTIVE, bool)
 
 
@@ -107,8 +108,10 @@ class TestErrorHandling:
     def test_auth_error_exit_code_2(self) -> None:
         """Missing credentials → exit code 2."""
         # Clear env vars AND mock empty token store so disk tokens aren't found
-        with patch.dict("os.environ", {}, clear=True), \
-             patch("querri._auth.TokenStore") as mock_store_cls:
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("querri._auth.TokenStore") as mock_store_cls,
+        ):
             mock_store_cls.load.return_value.profiles = {}
             result = runner.invoke(main_app, ["whoami"])
             assert result.exit_code == 2
@@ -116,8 +119,10 @@ class TestErrorHandling:
     def test_auth_error_json_mode(self) -> None:
         """--json + auth error → JSON error output."""
         # Clear env vars AND mock empty token store so disk tokens aren't found
-        with patch.dict("os.environ", {}, clear=True), \
-             patch("querri._auth.TokenStore") as mock_store_cls:
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("querri._auth.TokenStore") as mock_store_cls,
+        ):
             mock_store_cls.load.return_value.profiles = {}
             result = runner.invoke(main_app, ["--json", "whoami"])
             assert result.exit_code == 2
@@ -137,7 +142,15 @@ class TestErrorHandling:
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "project", "get", "nonexistent"],
+                [
+                    "--api-key",
+                    "qk_test123456",
+                    "--org-id",
+                    "org_1",
+                    "project",
+                    "get",
+                    "nonexistent",
+                ],
             )
             assert result.exit_code == 3
 
@@ -169,7 +182,15 @@ class TestErrorHandling:
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "project", "get", "proj_1"],
+                [
+                    "--api-key",
+                    "qk_test123456",
+                    "--org-id",
+                    "org_1",
+                    "project",
+                    "get",
+                    "proj_1",
+                ],
             )
             assert result.exit_code == 5
 
@@ -185,7 +206,16 @@ class TestErrorHandling:
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "--json", "project", "get", "xyz"],
+                [
+                    "--api-key",
+                    "qk_test123456",
+                    "--org-id",
+                    "org_1",
+                    "--json",
+                    "project",
+                    "get",
+                    "xyz",
+                ],
             )
             assert result.exit_code == 3
 
@@ -254,7 +284,15 @@ class TestProjectsCommand:
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "--json", "project", "list"],
+                [
+                    "--api-key",
+                    "qk_test123456",
+                    "--org-id",
+                    "org_1",
+                    "--json",
+                    "project",
+                    "list",
+                ],
             )
             assert result.exit_code == 0
             data = json.loads(result.output)
@@ -274,7 +312,15 @@ class TestProjectsCommand:
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "--quiet", "project", "list"],
+                [
+                    "--api-key",
+                    "qk_test123456",
+                    "--org-id",
+                    "org_1",
+                    "--quiet",
+                    "project",
+                    "list",
+                ],
             )
             assert result.exit_code == 0
             lines = result.output.strip().split("\n")
@@ -285,14 +331,25 @@ class TestProjectsCommand:
 
         mock_client = MagicMock()
         mock_client.projects.get.return_value = Project(
-            id="proj_1", name="Test Project", status="idle",
-            description="A test", step_count=3,
+            id="proj_1",
+            name="Test Project",
+            status="idle",
+            description="A test",
+            step_count=3,
         )
 
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "project", "get", "proj_1"],
+                [
+                    "--api-key",
+                    "qk_test123456",
+                    "--org-id",
+                    "org_1",
+                    "project",
+                    "get",
+                    "proj_1",
+                ],
             )
             assert result.exit_code == 0
             assert "proj_1" in result.output
@@ -303,13 +360,24 @@ class TestProjectsCommand:
 
         mock_client = MagicMock()
         mock_client.projects.get.return_value = Project(
-            id="proj_1", name="Test", status="idle",
+            id="proj_1",
+            name="Test",
+            status="idle",
         )
 
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                ["--api-key", "qk_test123456", "--org-id", "org_1", "--json", "project", "get", "proj_1"],
+                [
+                    "--api-key",
+                    "qk_test123456",
+                    "--org-id",
+                    "org_1",
+                    "--json",
+                    "project",
+                    "get",
+                    "proj_1",
+                ],
             )
             assert result.exit_code == 0
             data = json.loads(result.output)
@@ -402,9 +470,21 @@ class TestSubAppRegistration:
     """Verify all sub-apps are registered and reachable."""
 
     EXPECTED_SUBCOMMANDS = [
-        "whoami", "project", "step", "chat", "file", "source", "view",
-        "user", "dashboard", "key", "policy", "share",
-        "session", "usage", "audit",
+        "whoami",
+        "project",
+        "step",
+        "chat",
+        "file",
+        "source",
+        "view",
+        "user",
+        "dashboard",
+        "key",
+        "policy",
+        "share",
+        "session",
+        "usage",
+        "audit",
     ]
 
     def test_all_subcommands_in_help(self) -> None:
@@ -428,7 +508,9 @@ class TestSubAppRegistration:
             group.name or group.typer_instance.info.name
             for group in main_app.registered_groups
         ]
-        assert len(registered) == 16, f"Expected 16 sub-apps, got {len(registered)}: {registered}"
+        assert len(registered) == 16, (
+            f"Expected 16 sub-apps, got {len(registered)}: {registered}"
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -67,7 +67,14 @@ class TestCredentialRedaction:
         """querri whoami --json must mask the API key."""
         result = runner.invoke(
             main_app,
-            ["--api-key", "qk_supersecretkey12345", "--org-id", "org_1", "--json", "whoami"],
+            [
+                "--api-key",
+                "qk_supersecretkey12345",
+                "--org-id",
+                "org_1",
+                "--json",
+                "whoami",
+            ],
         )
         assert result.exit_code == 0
         assert "supersecretkey12345" not in result.output
@@ -79,18 +86,20 @@ class TestCredentialRedaction:
         from querri._exceptions import NotFoundError
 
         mock_client = MagicMock()
-        mock_client.projects.get.side_effect = NotFoundError(
-            "Not found", status=404
-        )
+        mock_client.projects.get.side_effect = NotFoundError("Not found", status=404)
 
         with patch("querri.cli.projects.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
                 [
-                    "--api-key", "qk_supersecretkey12345",
-                    "--org-id", "org_1",
+                    "--api-key",
+                    "qk_supersecretkey12345",
+                    "--org-id",
+                    "org_1",
                     "--json",
-                    "projects", "get", "proj_1",
+                    "projects",
+                    "get",
+                    "proj_1",
                 ],
             )
             # No credentials should be in any output
@@ -111,8 +120,10 @@ class TestShellHistoryWarning:
         result = runner.invoke(
             main_app,
             [
-                "--api-key", "qk_test123456",
-                "--org-id", "org_1",
+                "--api-key",
+                "qk_test123456",
+                "--org-id",
+                "org_1",
                 "--interactive",
                 "whoami",
             ],
@@ -121,15 +132,20 @@ class TestShellHistoryWarning:
         assert result.exit_code == 0
         # Warning about shell history should be present in output
         # (CliRunner mixes stdout/stderr)
-        assert "shell history" in result.output.lower() or "querri_api_key" in result.output.upper()
+        assert (
+            "shell history" in result.output.lower()
+            or "querri_api_key" in result.output.upper()
+        )
 
     def test_no_warning_in_non_interactive(self) -> None:
         """--no-interactive suppresses the shell history warning."""
         result = runner.invoke(
             main_app,
             [
-                "--api-key", "qk_test123456",
-                "--org-id", "org_1",
+                "--api-key",
+                "qk_test123456",
+                "--org-id",
+                "org_1",
                 "--no-interactive",
                 "whoami",
             ],
@@ -155,13 +171,19 @@ class TestFilePathValidation:
             result = runner.invoke(
                 main_app,
                 [
-                    "--api-key", "qk_test123456",
-                    "--org-id", "org_1",
-                    "file", "upload", "/nonexistent/path/file.csv",
+                    "--api-key",
+                    "qk_test123456",
+                    "--org-id",
+                    "org_1",
+                    "file",
+                    "upload",
+                    "/nonexistent/path/file.csv",
                 ],
             )
             assert result.exit_code == 1
-            assert "not found" in result.output.lower() or "error" in result.output.lower()
+            assert (
+                "not found" in result.output.lower() or "error" in result.output.lower()
+            )
 
 
 # ---------------------------------------------------------------------------

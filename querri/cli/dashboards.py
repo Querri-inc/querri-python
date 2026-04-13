@@ -37,7 +37,7 @@ def list_dashboards(
     try:
         items = client.dashboards.list(limit=limit, after=after)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json([d.model_dump(mode="json") for d in items])
@@ -47,7 +47,12 @@ def list_dashboards(
     else:
         print_table(
             items,
-            [("id", "ID"), ("name", "Name"), ("widget_count", "Widgets"), ("updated_at", "Updated")],
+            [
+                ("id", "ID"),
+                ("name", "Name"),
+                ("widget_count", "Widgets"),
+                ("updated_at", "Updated"),
+            ],
             ctx=ctx,
         )
 
@@ -65,14 +70,17 @@ def get_dashboard(
                 print_error("Dashboard ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument DASHBOARD_ID. Usage: querri dashboard get DASHBOARD_ID")
+            print_error(
+                "Missing required argument DASHBOARD_ID."
+                " Usage: querri dashboard get DASHBOARD_ID"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         dashboard = client.dashboards.get(dashboard_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(dashboard)
@@ -97,7 +105,9 @@ def get_dashboard(
 def new_dashboard(
     ctx: typer.Context,
     name: str | None = typer.Option(None, "--name", "-n", help="Dashboard name."),
-    description: str | None = typer.Option(None, "--description", "-d", help="Description."),
+    description: str | None = typer.Option(
+        None, "--description", "-d", help="Description."
+    ),
 ) -> None:
     """Create a new dashboard."""
     if not name:
@@ -107,14 +117,18 @@ def new_dashboard(
                 print_error("Dashboard name is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required option --name. Usage: querri dashboard new --name NAME [--description DESCRIPTION]")
+            print_error(
+                "Missing required option --name."
+                " Usage: querri dashboard new"
+                " --name NAME [--description DESCRIPTION]"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         dashboard = client.dashboards.create(name=name, description=description)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(dashboard)
@@ -129,7 +143,9 @@ def update_dashboard(
     ctx: typer.Context,
     dashboard_id: str | None = typer.Argument(None, help="Dashboard ID."),
     name: str | None = typer.Option(None, "--name", "-n", help="New name."),
-    description: str | None = typer.Option(None, "--description", "-d", help="New description."),
+    description: str | None = typer.Option(
+        None, "--description", "-d", help="New description."
+    ),
 ) -> None:
     """Update a dashboard."""
     if not dashboard_id:
@@ -139,14 +155,19 @@ def update_dashboard(
                 print_error("Dashboard ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument DASHBOARD_ID. Usage: querri dashboard update DASHBOARD_ID [--name NAME] [--description DESCRIPTION]")
+            print_error(
+                "Missing required argument DASHBOARD_ID."
+                " Usage: querri dashboard update"
+                " DASHBOARD_ID"
+                " [--name NAME] [--description DESCRIPTION]"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         client.dashboards.update(dashboard_id, name=name, description=description)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json({"id": dashboard_id, "updated": True})
@@ -167,14 +188,18 @@ def delete_dashboard(
                 print_error("Dashboard ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument DASHBOARD_ID. Usage: querri dashboard delete DASHBOARD_ID")
+            print_error(
+                "Missing required argument DASHBOARD_ID."
+                " Usage: querri dashboard delete"
+                " DASHBOARD_ID"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         client.dashboards.delete(dashboard_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json({"id": dashboard_id, "deleted": True})
@@ -186,7 +211,9 @@ def delete_dashboard(
 def refresh_dashboard(
     ctx: typer.Context,
     dashboard_id: str | None = typer.Argument(None, help="Dashboard ID."),
-    wait: bool = typer.Option(False, "--wait", "-w", help="Block until refresh completes."),
+    wait: bool = typer.Option(
+        False, "--wait", "-w", help="Block until refresh completes."
+    ),
 ) -> None:
     """Trigger a dashboard refresh."""
     if not dashboard_id:
@@ -196,14 +223,18 @@ def refresh_dashboard(
                 print_error("Dashboard ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument DASHBOARD_ID. Usage: querri dashboard refresh DASHBOARD_ID [--wait]")
+            print_error(
+                "Missing required argument DASHBOARD_ID."
+                " Usage: querri dashboard refresh"
+                " DASHBOARD_ID [--wait]"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         result = client.dashboards.refresh(dashboard_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if wait:
         try:
@@ -213,7 +244,9 @@ def refresh_dashboard(
                     break
                 time.sleep(2)
         except Exception as exc:
-            raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+            raise typer.Exit(
+                code=handle_api_error(exc, is_json=obj.get("json"))
+            ) from None
 
         if obj.get("json"):
             print_json(status)
@@ -239,14 +272,18 @@ def refresh_status(
                 print_error("Dashboard ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument DASHBOARD_ID. Usage: querri dashboard refresh-status DASHBOARD_ID")
+            print_error(
+                "Missing required argument DASHBOARD_ID."
+                " Usage: querri dashboard"
+                " refresh-status DASHBOARD_ID"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         status = client.dashboards.refresh_status(dashboard_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(status)

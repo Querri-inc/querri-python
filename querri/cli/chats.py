@@ -55,6 +55,7 @@ def _resolve_user_id(
     )
     if is_json:
         from querri.cli._output import print_json_error
+
         print_json_error("validation_error", msg, 1)
     else:
         print_error(msg)
@@ -73,7 +74,9 @@ def _resolve_project(ctx: typer.Context, project_id: str | None) -> str:
         project_id = input("Project ID: ").strip()
         if project_id:
             return project_id
-    print_error("No active project. Select one with 'querri project select' or pass PROJECT_ID.")
+    print_error(
+        "No active project. Select one with 'querri project select' or pass PROJECT_ID."
+    )
     raise typer.Exit(code=1)
 
 
@@ -95,7 +98,9 @@ def _resolve_chat(ctx: typer.Context, chat_id: str | None) -> str:
 @chats_app.command("list")
 def list_chats(
     ctx: typer.Context,
-    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(
+        None, help="Project ID (default: active project)."
+    ),
     limit: int = typer.Option(25, "--limit", "-l", help="Max chats to return."),
 ) -> None:
     """List chats on a project."""
@@ -107,7 +112,7 @@ def list_chats(
         client = get_client(ctx)
         chats = client.projects.chats.list(project_id, limit=limit)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=is_json))
+        raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
 
     if is_json:
         print_json([c.model_dump(mode="json") for c in chats])
@@ -115,17 +120,23 @@ def list_chats(
         for c in chats:
             print_id(c.id)
     else:
-        print_table(chats, [
-            ("id", "ID"),
-            ("name", "Name"),
-            ("created_at", "Created"),
-        ], ctx=ctx)
+        print_table(
+            chats,
+            [
+                ("id", "ID"),
+                ("name", "Name"),
+                ("created_at", "Created"),
+            ],
+            ctx=ctx,
+        )
 
 
 @chats_app.command("get")
 def get_chat(
     ctx: typer.Context,
-    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(
+        None, help="Project ID (default: active project)."
+    ),
     chat_id: str | None = typer.Argument(None, help="Chat ID (default: active chat)."),
 ) -> None:
     """Get chat details with message history."""
@@ -138,7 +149,7 @@ def get_chat(
         client = get_client(ctx)
         chat = client.projects.chats.get(project_id, chat_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=is_json))
+        raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
 
     if is_json:
         print_json(chat)
@@ -146,17 +157,23 @@ def get_chat(
         print_id(chat.id)
     else:
         from querri.cli._output import print_detail
-        print_detail(chat, [
-            ("id", "ID"),
-            ("name", "Name"),
-            ("created_at", "Created"),
-        ])
+
+        print_detail(
+            chat,
+            [
+                ("id", "ID"),
+                ("name", "Name"),
+                ("created_at", "Created"),
+            ],
+        )
 
 
 @chats_app.command("new")
 def new_chat(
     ctx: typer.Context,
-    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(
+        None, help="Project ID (default: active project)."
+    ),
     name: str | None = typer.Option(None, "--name", "-n", help="Chat display name."),
 ) -> None:
     """Create a new chat on a project."""
@@ -168,7 +185,7 @@ def new_chat(
         client = get_client(ctx)
         chat = client.projects.chats.create(project_id, name=name)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=is_json))
+        raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
 
     if is_json:
         print_json(chat)
@@ -181,7 +198,9 @@ def new_chat(
 @chats_app.command("delete")
 def delete_chat(
     ctx: typer.Context,
-    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(
+        None, help="Project ID (default: active project)."
+    ),
     chat_id: str | None = typer.Argument(None, help="Chat ID (default: active chat)."),
 ) -> None:
     """Delete a chat from a project."""
@@ -194,7 +213,7 @@ def delete_chat(
         client = get_client(ctx)
         client.projects.chats.delete(project_id, chat_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=is_json))
+        raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
 
     if is_json:
         print_json({"id": chat_id, "deleted": True})
@@ -205,7 +224,9 @@ def delete_chat(
 @chats_app.command("cancel")
 def cancel_chat(
     ctx: typer.Context,
-    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(
+        None, help="Project ID (default: active project)."
+    ),
     chat_id: str | None = typer.Argument(None, help="Chat ID (default: active chat)."),
 ) -> None:
     """Cancel an active chat stream."""
@@ -218,7 +239,7 @@ def cancel_chat(
         client = get_client(ctx)
         result = client.projects.chats.cancel(project_id, chat_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=is_json))
+        raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
 
     if is_json:
         print_json(result)
@@ -229,11 +250,17 @@ def cancel_chat(
 @chats_app.command("stream")
 def stream_chat(
     ctx: typer.Context,
-    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(
+        None, help="Project ID (default: active project)."
+    ),
     chat_id: str | None = typer.Argument(None, help="Chat ID (default: active chat)."),
-    message: str | None = typer.Option(None, "--message", "-m", help="Message to send."),
+    message: str | None = typer.Option(
+        None, "--message", "-m", help="Message to send."
+    ),
     user_id: str | None = typer.Option(
-        None, "--user-id", "-u",
+        None,
+        "--user-id",
+        "-u",
         help="User ID (or set QUERRI_USER_ID env var).",
     ),
     model: str | None = typer.Option(None, "--model", help="Model selection."),
@@ -255,7 +282,12 @@ def stream_chat(
                 print_error("Message is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required option --message. Usage: querri chat stream PROJECT_ID CHAT_ID --message MESSAGE --user-id USER_ID")
+            print_error(
+                "Missing required option --message. "
+                "Usage: querri chat stream "
+                "PROJECT_ID CHAT_ID "
+                "--message MESSAGE --user-id USER_ID"
+            )
             raise typer.Exit(code=1)
 
     obj = ctx.ensure_object(dict)
@@ -274,7 +306,7 @@ def stream_chat(
             model=model,
         )
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=is_json))
+        raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
 
     # Set up Ctrl+C handler for clean cancellation
     cancelled = False
@@ -295,7 +327,7 @@ def stream_chat(
             _stream_plain(stream, show_reasoning=reasoning)
     except Exception as exc:
         if not cancelled:
-            raise typer.Exit(code=handle_api_error(exc, is_json=is_json))
+            raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
     finally:
         signal.signal(signal.SIGINT, old_handler)
 
@@ -307,16 +339,20 @@ def stream_chat(
 def _stream_plain(stream: object, *, show_reasoning: bool = False) -> None:
     """Stream text to stdout without formatting — delegates to chat module."""
     from querri.cli.chat import _stream_plain as _chat_stream_plain
+
     _chat_stream_plain(stream, show_reasoning=show_reasoning)
 
 
 def _stream_rich(stream: object, *, show_reasoning: bool = False) -> None:
     """Stream with Rich Live markdown rendering — delegates to chat module."""
     from querri.cli.chat import _stream_rich as _chat_stream_rich
+
     _chat_stream_rich(stream, show_reasoning=show_reasoning)
 
 
 def _stream_json(stream: object) -> None:
-    """Accumulate full response and output structured JSON — delegates to chat module."""
+    """Accumulate full response and output structured
+    JSON -- delegates to chat module."""
     from querri.cli.chat import _stream_json as _chat_stream_json
+
     _chat_stream_json(stream)

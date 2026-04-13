@@ -59,9 +59,7 @@ def _should_retry(status: int, method: str) -> bool:
     """
     if status == 429:
         return True
-    if status in _RETRYABLE_STATUSES and method.upper() in _IDEMPOTENT_METHODS:
-        return True
-    return False
+    return status in _RETRYABLE_STATUSES and method.upper() in _IDEMPOTENT_METHODS
 
 
 def _backoff_delay(attempt: int, retry_after: float | None = None) -> float:
@@ -87,7 +85,10 @@ def _parse_error_response(response: httpx.Response) -> dict[str, Any]:
 
 
 def _get_retry_after(response: httpx.Response) -> float | None:
-    """Parse the Retry-After response header as seconds. Returns None if absent or unparseable."""
+    """Parse Retry-After header as seconds.
+
+    Returns None if absent or unparseable.
+    """
     header = response.headers.get("retry-after")
     if header is None:
         return None
@@ -135,30 +136,43 @@ class SyncHTTPClient:
                 if stream:
                     # For streaming, caller manages the response lifecycle
                     req = self._client.build_request(
-                        method, path, json=json, params=params,
-                        data=data, files=files, headers=headers,
+                        method,
+                        path,
+                        json=json,
+                        params=params,
+                        data=data,
+                        files=files,
+                        headers=headers,
                     )
                     response = self._client.send(req, stream=True)
                 else:
                     response = self._client.request(
-                        method, path, json=json, params=params,
-                        data=data, files=files, headers=headers,
+                        method,
+                        path,
+                        json=json,
+                        params=params,
+                        data=data,
+                        files=files,
+                        headers=headers,
                     )
 
                 if response.status_code < 400:
                     return response
 
                 # Check if we should retry
-                if (
-                    attempt < max_retries
-                    and _should_retry(response.status_code, method)
+                if attempt < max_retries and _should_retry(
+                    response.status_code, method
                 ):
                     retry_after = _get_retry_after(response)
                     delay = _backoff_delay(attempt, retry_after)
                     logger.debug(
                         "Retrying %s %s (attempt %d/%d, status %d, delay %.1fs)",
-                        method, path, attempt + 1, max_retries,
-                        response.status_code, delay,
+                        method,
+                        path,
+                        attempt + 1,
+                        max_retries,
+                        response.status_code,
+                        delay,
                     )
                     time.sleep(delay)
                     continue
@@ -168,8 +182,10 @@ class SyncHTTPClient:
                 request_id = response.headers.get("x-request-id")
                 retry_after = _get_retry_after(response)
                 raise_for_status(
-                    response.status_code, body,
-                    request_id=request_id, retry_after=retry_after,
+                    response.status_code,
+                    body,
+                    request_id=request_id,
+                    retry_after=retry_after,
                 )
 
             except (httpx.ConnectError, httpx.TimeoutException) as exc:
@@ -178,7 +194,12 @@ class SyncHTTPClient:
                     delay = _backoff_delay(attempt)
                     logger.debug(
                         "Connection error on %s %s (attempt %d/%d, delay %.1fs): %s",
-                        method, path, attempt + 1, max_retries, delay, exc,
+                        method,
+                        path,
+                        attempt + 1,
+                        max_retries,
+                        delay,
+                        exc,
                     )
                     time.sleep(delay)
                     continue
@@ -187,7 +208,8 @@ class SyncHTTPClient:
                     status=0,
                 ) from last_exc
 
-        # Loop exhausted all retries without returning or raising — re-raise the last error.
+        # Loop exhausted all retries without returning
+        # or raising -- re-raise the last error.
         raise APIError(
             f"Request failed after {max_retries + 1} attempts",
             status=0,
@@ -256,29 +278,42 @@ class AsyncHTTPClient:
             try:
                 if stream:
                     req = self._client.build_request(
-                        method, path, json=json, params=params,
-                        data=data, files=files, headers=headers,
+                        method,
+                        path,
+                        json=json,
+                        params=params,
+                        data=data,
+                        files=files,
+                        headers=headers,
                     )
                     response = await self._client.send(req, stream=True)
                 else:
                     response = await self._client.request(
-                        method, path, json=json, params=params,
-                        data=data, files=files, headers=headers,
+                        method,
+                        path,
+                        json=json,
+                        params=params,
+                        data=data,
+                        files=files,
+                        headers=headers,
                     )
 
                 if response.status_code < 400:
                     return response
 
-                if (
-                    attempt < max_retries
-                    and _should_retry(response.status_code, method)
+                if attempt < max_retries and _should_retry(
+                    response.status_code, method
                 ):
                     retry_after = _get_retry_after(response)
                     delay = _backoff_delay(attempt, retry_after)
                     logger.debug(
                         "Retrying %s %s (attempt %d/%d, status %d, delay %.1fs)",
-                        method, path, attempt + 1, max_retries,
-                        response.status_code, delay,
+                        method,
+                        path,
+                        attempt + 1,
+                        max_retries,
+                        response.status_code,
+                        delay,
                     )
                     await asyncio.sleep(delay)
                     continue
@@ -287,8 +322,10 @@ class AsyncHTTPClient:
                 request_id = response.headers.get("x-request-id")
                 retry_after = _get_retry_after(response)
                 raise_for_status(
-                    response.status_code, body,
-                    request_id=request_id, retry_after=retry_after,
+                    response.status_code,
+                    body,
+                    request_id=request_id,
+                    retry_after=retry_after,
                 )
 
             except (httpx.ConnectError, httpx.TimeoutException) as exc:
@@ -297,7 +334,12 @@ class AsyncHTTPClient:
                     delay = _backoff_delay(attempt)
                     logger.debug(
                         "Connection error on %s %s (attempt %d/%d, delay %.1fs): %s",
-                        method, path, attempt + 1, max_retries, delay, exc,
+                        method,
+                        path,
+                        attempt + 1,
+                        max_retries,
+                        delay,
+                        exc,
                     )
                     await asyncio.sleep(delay)
                     continue
@@ -306,7 +348,8 @@ class AsyncHTTPClient:
                     status=0,
                 ) from last_exc
 
-        # Loop exhausted all retries without returning or raising — re-raise the last error.
+        # Loop exhausted all retries without returning
+        # or raising -- re-raise the last error.
         raise APIError(
             f"Request failed after {max_retries + 1} attempts",
             status=0,

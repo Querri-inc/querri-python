@@ -36,7 +36,7 @@ def list_policies(
     try:
         items = client.policies.list(name=name)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json([p.model_dump(mode="json") for p in items])
@@ -46,7 +46,12 @@ def list_policies(
     else:
         print_table(
             items,
-            [("id", "ID"), ("name", "Name"), ("user_count", "Users"), ("updated_at", "Updated")],
+            [
+                ("id", "ID"),
+                ("name", "Name"),
+                ("user_count", "Users"),
+                ("updated_at", "Updated"),
+            ],
             ctx=ctx,
         )
 
@@ -64,14 +69,17 @@ def get_policy(
                 print_error("Policy ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument POLICY_ID. Usage: querri policy get POLICY_ID")
+            print_error(
+                "Missing required argument POLICY_ID."
+                " Usage: querri policy get POLICY_ID"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         policy = client.policies.get(policy_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(policy)
@@ -98,9 +106,15 @@ def get_policy(
 def new_policy(
     ctx: typer.Context,
     name: str | None = typer.Option(None, "--name", "-n", help="Policy name."),
-    description: str | None = typer.Option(None, "--description", "-d", help="Description."),
-    source_ids: str | None = typer.Option(None, "--source-ids", help="Comma-separated source IDs."),
-    row_filters: str | None = typer.Option(None, "--row-filters", help="JSON array of row filter objects."),
+    description: str | None = typer.Option(
+        None, "--description", "-d", help="Description."
+    ),
+    source_ids: str | None = typer.Option(
+        None, "--source-ids", help="Comma-separated source IDs."
+    ),
+    row_filters: str | None = typer.Option(
+        None, "--row-filters", help="JSON array of row filter objects."
+    ),
 ) -> None:
     """Create a new access policy."""
     if not name:
@@ -110,7 +124,9 @@ def new_policy(
                 print_error("Policy name is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required option --name. Usage: querri policy new --name NAME")
+            print_error(
+                "Missing required option --name. Usage: querri policy new --name NAME"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -122,7 +138,7 @@ def new_policy(
             filters = json.loads(row_filters)
         except json.JSONDecodeError as exc:
             print_error(f"Invalid JSON for --row-filters: {exc}")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
 
     try:
         policy = client.policies.create(
@@ -132,7 +148,7 @@ def new_policy(
             row_filters=filters,
         )
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(policy)
@@ -147,9 +163,15 @@ def update_policy(
     ctx: typer.Context,
     policy_id: str | None = typer.Argument(default=None, help="Policy ID."),
     name: str | None = typer.Option(None, "--name", "-n", help="New name."),
-    description: str | None = typer.Option(None, "--description", "-d", help="New description."),
-    source_ids: str | None = typer.Option(None, "--source-ids", help="Comma-separated source IDs."),
-    row_filters: str | None = typer.Option(None, "--row-filters", help="JSON array of row filter objects."),
+    description: str | None = typer.Option(
+        None, "--description", "-d", help="New description."
+    ),
+    source_ids: str | None = typer.Option(
+        None, "--source-ids", help="Comma-separated source IDs."
+    ),
+    row_filters: str | None = typer.Option(
+        None, "--row-filters", help="JSON array of row filter objects."
+    ),
 ) -> None:
     """Update an access policy."""
     if not policy_id:
@@ -159,7 +181,10 @@ def update_policy(
                 print_error("Policy ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument POLICY_ID. Usage: querri policy update POLICY_ID")
+            print_error(
+                "Missing required argument POLICY_ID."
+                " Usage: querri policy update POLICY_ID"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -171,7 +196,7 @@ def update_policy(
             filters = json.loads(row_filters)
         except json.JSONDecodeError as exc:
             print_error(f"Invalid JSON for --row-filters: {exc}")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
 
     try:
         client.policies.update(
@@ -182,7 +207,7 @@ def update_policy(
             row_filters=filters,
         )
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json({"id": policy_id, "updated": True})
@@ -203,14 +228,17 @@ def delete_policy(
                 print_error("Policy ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument POLICY_ID. Usage: querri policy delete POLICY_ID")
+            print_error(
+                "Missing required argument POLICY_ID."
+                " Usage: querri policy delete POLICY_ID"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         client.policies.delete(policy_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json({"id": policy_id, "deleted": True})
@@ -222,7 +250,9 @@ def delete_policy(
 def assign_users(
     ctx: typer.Context,
     policy_id: str | None = typer.Argument(default=None, help="Policy ID."),
-    user_ids: str | None = typer.Option(None, "--user-ids", help="Comma-separated user IDs."),
+    user_ids: str | None = typer.Option(
+        None, "--user-ids", help="Comma-separated user IDs."
+    ),
 ) -> None:
     """Assign users to an access policy."""
     if not policy_id:
@@ -232,7 +262,11 @@ def assign_users(
                 print_error("Policy ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument POLICY_ID. Usage: querri policy assign POLICY_ID --user-ids USER_IDS")
+            print_error(
+                "Missing required argument POLICY_ID."
+                " Usage: querri policy assign"
+                " POLICY_ID --user-ids USER_IDS"
+            )
             raise typer.Exit(code=1)
     if not user_ids:
         if sys.stdin.isatty():
@@ -241,7 +275,11 @@ def assign_users(
                 print_error("User IDs are required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required option --user-ids. Usage: querri policy assign POLICY_ID --user-ids USER_IDS")
+            print_error(
+                "Missing required option --user-ids."
+                " Usage: querri policy assign"
+                " POLICY_ID --user-ids USER_IDS"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -250,7 +288,7 @@ def assign_users(
     try:
         result = client.policies.assign_users(policy_id, user_ids=user_list)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)
@@ -272,7 +310,11 @@ def remove_user(
                 print_error("Policy ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument POLICY_ID. Usage: querri policy remove POLICY_ID USER_ID")
+            print_error(
+                "Missing required argument POLICY_ID."
+                " Usage: querri policy remove"
+                " POLICY_ID USER_ID"
+            )
             raise typer.Exit(code=1)
     if not user_id:
         if sys.stdin.isatty():
@@ -281,14 +323,18 @@ def remove_user(
                 print_error("User ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument USER_ID. Usage: querri policy remove POLICY_ID USER_ID")
+            print_error(
+                "Missing required argument USER_ID."
+                " Usage: querri policy remove"
+                " POLICY_ID USER_ID"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         client.policies.remove_user(policy_id, user_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json({"policy_id": policy_id, "user_id": user_id, "removed": True})
@@ -310,7 +356,11 @@ def resolve_access(
                 print_error("User ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required option --user-id. Usage: querri policy resolve --user-id USER_ID --source-id SOURCE_ID")
+            print_error(
+                "Missing required option --user-id."
+                " Usage: querri policy resolve"
+                " --user-id USER_ID --source-id SOURCE_ID"
+            )
             raise typer.Exit(code=1)
     if not source_id:
         if sys.stdin.isatty():
@@ -319,14 +369,18 @@ def resolve_access(
                 print_error("Source ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required option --source-id. Usage: querri policy resolve --user-id USER_ID --source-id SOURCE_ID")
+            print_error(
+                "Missing required option --source-id."
+                " Usage: querri policy resolve"
+                " --user-id USER_ID --source-id SOURCE_ID"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         result = client.policies.resolve(user_id=user_id, source_id=source_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)
@@ -346,7 +400,9 @@ def resolve_access(
 @policies_app.command("columns")
 def list_columns(
     ctx: typer.Context,
-    source_id: str | None = typer.Option(None, "--source-id", help="Filter by source ID."),
+    source_id: str | None = typer.Option(
+        None, "--source-id", help="Filter by source ID."
+    ),
 ) -> None:
     """List columns available for access policies."""
     obj = ctx.ensure_object(dict)
@@ -354,7 +410,7 @@ def list_columns(
     try:
         items = client.policies.columns(source_id=source_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json([sc.model_dump(mode="json") for sc in items])

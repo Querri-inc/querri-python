@@ -90,7 +90,8 @@ class RateLimitError(APIError):
     ) -> None:
         # Extract only the kwargs that APIError accepts
         api_kwargs = {
-            k: v for k, v in kwargs.items()
+            k: v
+            for k, v in kwargs.items()
             if k in ("type", "code", "doc_url", "request_id")
         }
         super().__init__(message, status=status, **api_kwargs)  # type: ignore[arg-type]

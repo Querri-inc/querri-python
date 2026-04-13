@@ -109,7 +109,10 @@ class SyncCursorPage(Generic[T]):
         )
 
     def _ensure_first_page(self) -> SyncPage[T]:
-        """Lazy-fetch and cache the first page. Subsequent calls return the cached page."""
+        """Lazy-fetch and cache the first page.
+
+        Subsequent calls return the cached page.
+        """
         if self._first_page is None:
             self._first_page = self._fetch_page(self._params)
         return self._first_page
@@ -236,7 +239,10 @@ class AsyncCursorPage(Generic[T]):
         )
 
     async def _ensure_first_page(self) -> AsyncPage[T]:
-        """Lazy-fetch and cache the first page. Subsequent calls return the cached page."""
+        """Lazy-fetch and cache the first page.
+
+        Subsequent calls return the cached page.
+        """
         if self._first_page is None:
             self._first_page = await self._fetch_page(self._params)
         return self._first_page

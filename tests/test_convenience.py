@@ -107,23 +107,27 @@ class TestResolveUserParam:
         assert body is None
 
     def test_dict_input_minimal(self):
-        ext_id, body = _resolve_user_param({
-            "external_id": "cust-42",
-            "email": "alice@example.com",
-        })
+        ext_id, body = _resolve_user_param(
+            {
+                "external_id": "cust-42",
+                "email": "alice@example.com",
+            }
+        )
         assert ext_id == "cust-42"
         assert body is not None
         assert body["email"] == "alice@example.com"
         assert body["role"] == "member"
 
     def test_dict_input_with_optional_fields(self):
-        ext_id, body = _resolve_user_param({
-            "external_id": "cust-42",
-            "email": "alice@example.com",
-            "first_name": "Alice",
-            "last_name": "Smith",
-            "role": "admin",
-        })
+        ext_id, body = _resolve_user_param(
+            {
+                "external_id": "cust-42",
+                "email": "alice@example.com",
+                "first_name": "Alice",
+                "last_name": "Smith",
+                "role": "admin",
+            }
+        )
         assert ext_id == "cust-42"
         assert body["first_name"] == "Alice"
         assert body["last_name"] == "Smith"
@@ -146,16 +150,20 @@ class TestResolveUserParam:
 
     def test_dict_default_role_is_member(self):
         """Verify that role defaults to 'member' when not explicitly provided."""
-        _, body = _resolve_user_param({
-            "external_id": "cust-42",
-            "email": "alice@example.com",
-        })
+        _, body = _resolve_user_param(
+            {
+                "external_id": "cust-42",
+                "email": "alice@example.com",
+            }
+        )
         assert body["role"] == "member"
 
     def test_dict_without_optional_fields(self):
-        _, body = _resolve_user_param({
-            "external_id": "cust-42",
-            "email": "alice@example.com",
-        })
+        _, body = _resolve_user_param(
+            {
+                "external_id": "cust-42",
+                "email": "alice@example.com",
+            }
+        )
         assert "first_name" not in body
         assert "last_name" not in body

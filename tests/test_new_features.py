@@ -75,7 +75,13 @@ class TestDataWriteOperations:
         respx.post("https://test.querri.com/api/v1/sources/src_1/rows").mock(
             return_value=httpx.Response(
                 200,
-                json={"id": "src_1", "name": "test", "columns": ["a"], "row_count": 3, "updated_at": "2026-01-01T00:00:00Z"},
+                json={
+                    "id": "src_1",
+                    "name": "test",
+                    "columns": ["a"],
+                    "row_count": 3,
+                    "updated_at": "2026-01-01T00:00:00Z",
+                },
             )
         )
         http = SyncHTTPClient(_make_config())
@@ -93,7 +99,13 @@ class TestDataWriteOperations:
         respx.put("https://test.querri.com/api/v1/sources/src_1/data").mock(
             return_value=httpx.Response(
                 200,
-                json={"id": "src_1", "name": "test", "columns": ["x"], "row_count": 5, "updated_at": "2026-01-01T00:00:00Z"},
+                json={
+                    "id": "src_1",
+                    "name": "test",
+                    "columns": ["x"],
+                    "row_count": 5,
+                    "updated_at": "2026-01-01T00:00:00Z",
+                },
             )
         )
         http = SyncHTTPClient(_make_config())
@@ -149,7 +161,11 @@ class TestAsUser:
     def test_session_config_derives_api_base_url(self):
         """Verify _session_config strips /api/v1 and appends /api."""
         parent = _make_config()
-        session = {"session_token": "es_test_token", "expires_in": 3600, "user_id": "usr_1"}
+        session = {
+            "session_token": "es_test_token",
+            "expires_in": 3600,
+            "user_id": "usr_1",
+        }
         config = _session_config(session, parent)
         assert config.base_url == "https://test.querri.com/api"
         assert config.session_token == "es_test_token"

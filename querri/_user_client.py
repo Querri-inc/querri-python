@@ -7,10 +7,15 @@ Resources are automatically filtered by the session user's access policies.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ._base_client import AsyncHTTPClient, SyncHTTPClient
 from ._config import ClientConfig
+
+if TYPE_CHECKING:
+    from .resources.dashboards import AsyncDashboards, Dashboards
+    from .resources.projects import AsyncChats, AsyncProjects, Chats, Projects
+    from .resources.sources import AsyncSources, Sources
 
 
 def _session_config(
@@ -70,6 +75,7 @@ class UserQuerri:
     def projects(self) -> Projects:
         if self._projects is None:
             from .resources.projects import Projects
+
             self._projects = Projects(self._http)
         return self._projects  # type: ignore[return-value]
 
@@ -77,6 +83,7 @@ class UserQuerri:
     def dashboards(self) -> Dashboards:
         if self._dashboards is None:
             from .resources.dashboards import Dashboards
+
             self._dashboards = Dashboards(self._http)
         return self._dashboards  # type: ignore[return-value]
 
@@ -84,6 +91,7 @@ class UserQuerri:
     def sources(self) -> Sources:
         if self._sources is None:
             from .resources.sources import Sources
+
             self._sources = Sources(self._http)
         return self._sources  # type: ignore[return-value]
 
@@ -91,6 +99,7 @@ class UserQuerri:
     def chats(self) -> Chats:
         if self._chats is None:
             from .resources.projects import Chats
+
             self._chats = Chats(self._http)
         return self._chats  # type: ignore[return-value]
 
@@ -143,6 +152,7 @@ class AsyncUserQuerri:
     def projects(self) -> AsyncProjects:
         if self._projects is None:
             from .resources.projects import AsyncProjects
+
             self._projects = AsyncProjects(self._http)
         return self._projects  # type: ignore[return-value]
 
@@ -150,6 +160,7 @@ class AsyncUserQuerri:
     def dashboards(self) -> AsyncDashboards:
         if self._dashboards is None:
             from .resources.dashboards import AsyncDashboards
+
             self._dashboards = AsyncDashboards(self._http)
         return self._dashboards  # type: ignore[return-value]
 
@@ -157,6 +168,7 @@ class AsyncUserQuerri:
     def sources(self) -> AsyncSources:
         if self._sources is None:
             from .resources.sources import AsyncSources
+
             self._sources = AsyncSources(self._http)
         return self._sources  # type: ignore[return-value]
 
@@ -164,6 +176,7 @@ class AsyncUserQuerri:
     def chats(self) -> AsyncChats:
         if self._chats is None:
             from .resources.projects import AsyncChats
+
             self._chats = AsyncChats(self._http)
         return self._chats  # type: ignore[return-value]
 

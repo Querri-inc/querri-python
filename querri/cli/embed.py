@@ -27,7 +27,9 @@ embed_app = typer.Typer(
 @embed_app.command("new")
 def new_session(
     ctx: typer.Context,
-    user_id: str | None = typer.Option(None, "--user-id", help="User ID for the session."),
+    user_id: str | None = typer.Option(
+        None, "--user-id", help="User ID for the session."
+    ),
     origin: str | None = typer.Option(None, "--origin", help="Allowed origin URL."),
     ttl: int = typer.Option(3600, "--ttl", help="Session TTL in seconds."),
 ) -> None:
@@ -39,14 +41,18 @@ def new_session(
                 print_error("User ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument --user-id. Usage: querri session new --user-id USER_ID")
+            print_error(
+                "Missing required argument --user-id."
+                " Usage: querri session new"
+                " --user-id USER_ID"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         session = client.embed.create_session(user_id=user_id, origin=origin, ttl=ttl)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(session)
@@ -56,14 +62,20 @@ def new_session(
         print_success("Created session")
         print_detail(
             session,
-            [("session_token", "Token"), ("expires_in", "Expires In (s)"), ("user_id", "User ID")],
+            [
+                ("session_token", "Token"),
+                ("expires_in", "Expires In (s)"),
+                ("user_id", "User ID"),
+            ],
         )
 
 
 @embed_app.command("refresh")
 def refresh_session(
     ctx: typer.Context,
-    session_token: str | None = typer.Option(None, "--token", help="Session token to refresh."),
+    session_token: str | None = typer.Option(
+        None, "--token", help="Session token to refresh."
+    ),
 ) -> None:
     """Refresh an embedded analytics session."""
     if not session_token:
@@ -73,14 +85,18 @@ def refresh_session(
                 print_error("Session token is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument --token. Usage: querri session refresh --token TOKEN")
+            print_error(
+                "Missing required argument --token."
+                " Usage: querri session refresh"
+                " --token TOKEN"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         session = client.embed.refresh_session(session_token=session_token)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(session)
@@ -105,7 +121,7 @@ def list_sessions(
     try:
         result = client.embed.list_sessions(limit=limit)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)
@@ -140,7 +156,7 @@ def revoke_session(
     try:
         result = client.embed.revoke_session(session_id, session_token=session_token)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)
@@ -151,7 +167,9 @@ def revoke_session(
 @embed_app.command("get")
 def get_session(
     ctx: typer.Context,
-    user: str | None = typer.Option(None, "--user", help="User ID or JSON user object."),
+    user: str | None = typer.Option(
+        None, "--user", help="User ID or JSON user object."
+    ),
     origin: str | None = typer.Option(None, "--origin", help="Allowed origin."),
     ttl: int = typer.Option(3600, "--ttl", help="Session TTL in seconds."),
     access: str | None = typer.Option(None, "--access", help="JSON access config."),
@@ -164,7 +182,11 @@ def get_session(
                 print_error("User is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument --user. Usage: querri session get --user USER")
+            print_error(
+                "Missing required argument --user."
+                " Usage: querri session get"
+                " --user USER"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -181,12 +203,14 @@ def get_session(
             access_obj = json.loads(access)
         except json.JSONDecodeError as exc:
             print_error(f"Invalid JSON for --access: {exc}")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
 
     try:
-        result = client.embed.get_session(user=user_obj, access=access_obj, origin=origin, ttl=ttl)
+        result = client.embed.get_session(
+            user=user_obj, access=access_obj, origin=origin, ttl=ttl
+        )
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)

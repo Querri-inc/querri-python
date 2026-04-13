@@ -161,9 +161,7 @@ class Policies:
             policy_id: The policy UUID.
             user_id: The WorkOS user ID to remove.
         """
-        resp = self._http.delete(
-            f"/access/policies/{policy_id}/users/{user_id}"
-        )
+        resp = self._http.delete(f"/access/policies/{policy_id}/users/{user_id}")
         return PolicyRemoveUserResponse.model_validate(resp.json())
 
     def resolve(
@@ -207,7 +205,6 @@ class Policies:
         body = resp.json()
         return [SourceColumns.model_validate(s) for s in body.get("data", [])]
 
-
     def replace_user_policies(
         self, user_id: str, *, policy_ids: builtins.list[str]
     ) -> PolicyReplaceResponse:
@@ -250,8 +247,12 @@ class Policies:
             Created Policy object.
         """
         return sync_setup_policy(
-            self._http, name=name, sources=sources,
-            row_filters=row_filters, users=users, description=description,
+            self._http,
+            name=name,
+            sources=sources,
+            row_filters=row_filters,
+            users=users,
+            description=description,
         )
 
 
@@ -396,9 +397,7 @@ class AsyncPolicies:
             policy_id: The policy UUID.
             user_id: The WorkOS user ID to remove.
         """
-        resp = await self._http.delete(
-            f"/access/policies/{policy_id}/users/{user_id}"
-        )
+        resp = await self._http.delete(f"/access/policies/{policy_id}/users/{user_id}")
         return PolicyRemoveUserResponse.model_validate(resp.json())
 
     async def resolve(
@@ -484,6 +483,10 @@ class AsyncPolicies:
             Created Policy object.
         """
         return await async_setup_policy(
-            self._http, name=name, sources=sources,
-            row_filters=row_filters, users=users, description=description,
+            self._http,
+            name=name,
+            sources=sources,
+            row_filters=row_filters,
+            users=users,
+            description=description,
         )

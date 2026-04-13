@@ -77,8 +77,6 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM"]
 ignore = [
-    "UP037",  # Conflicts with forward refs in lazy-imported properties
-    "E501",   # Line too long — mostly in docstrings, not critical
-    "B904",   # CLI code legitimately raises in except blocks
-    "F821",   # False positives for quoted forward references in type annotations
+    "UP037",  # Keep quoted forward refs for lazy-imported properties
+    "B008",   # typer.Option() in defaults is standard Typer usage
 ]

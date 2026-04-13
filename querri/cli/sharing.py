@@ -21,9 +21,15 @@ sharing_app = typer.Typer(
     no_args_is_help=True,
 )
 
-share_project_app = typer.Typer(name="project", help="Share projects.", no_args_is_help=True)
-share_dashboard_app = typer.Typer(name="dashboard", help="Share dashboards.", no_args_is_help=True)
-share_source_app = typer.Typer(name="source", help="Share data sources.", no_args_is_help=True)
+share_project_app = typer.Typer(
+    name="project", help="Share projects.", no_args_is_help=True
+)
+share_dashboard_app = typer.Typer(
+    name="dashboard", help="Share dashboards.", no_args_is_help=True
+)
+share_source_app = typer.Typer(
+    name="source", help="Share data sources.", no_args_is_help=True
+)
 
 sharing_app.add_typer(share_project_app, name="project")
 sharing_app.add_typer(share_dashboard_app, name="dashboard")
@@ -55,24 +61,34 @@ def _resolve_arg(value: str | None, name: str, prompt: str, usage: str) -> str:
 def add_project_share(
     ctx: typer.Context,
     project_id: str | None = typer.Argument(None, help="Project ID."),
-    user_id: str | None = typer.Option(None, "--user-id", help="User ID to share with."),
-    permission: str = typer.Option("view", "--permission", help="Permission: view or edit."),
+    user_id: str | None = typer.Option(
+        None, "--user-id", help="User ID to share with."
+    ),
+    permission: str = typer.Option(
+        "view", "--permission", help="Permission: view or edit."
+    ),
 ) -> None:
     """Share a project with a user."""
     project_id = _resolve_arg(
-        project_id, "PROJECT_ID", "Project ID: ",
+        project_id,
+        "PROJECT_ID",
+        "Project ID: ",
         "querri share project add PROJECT_ID --user-id USER_ID",
     )
     user_id = _resolve_arg(
-        user_id, "USER_ID", "User ID: ",
+        user_id,
+        "USER_ID",
+        "User ID: ",
         "querri share project add PROJECT_ID --user-id USER_ID",
     )
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
-        result = client.sharing.share_project(project_id, user_id=user_id, permission=permission)
+        result = client.sharing.share_project(
+            project_id, user_id=user_id, permission=permission
+        )
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)
@@ -88,11 +104,15 @@ def remove_project_share(
 ) -> None:
     """Revoke a user's access to a project."""
     project_id = _resolve_arg(
-        project_id, "PROJECT_ID", "Project ID: ",
+        project_id,
+        "PROJECT_ID",
+        "Project ID: ",
         "querri share project remove PROJECT_ID USER_ID",
     )
     user_id = _resolve_arg(
-        user_id, "USER_ID", "User ID: ",
+        user_id,
+        "USER_ID",
+        "User ID: ",
         "querri share project remove PROJECT_ID USER_ID",
     )
     obj = ctx.ensure_object(dict)
@@ -100,7 +120,7 @@ def remove_project_share(
     try:
         client.sharing.revoke_project_share(project_id, user_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json({"project_id": project_id, "user_id": user_id, "revoked": True})
@@ -115,7 +135,9 @@ def list_project_shares(
 ) -> None:
     """List users who have access to a project."""
     project_id = _resolve_arg(
-        project_id, "PROJECT_ID", "Project ID: ",
+        project_id,
+        "PROJECT_ID",
+        "Project ID: ",
         "querri share project list PROJECT_ID",
     )
     obj = ctx.ensure_object(dict)
@@ -123,7 +145,7 @@ def list_project_shares(
     try:
         items = client.sharing.list_project_shares(project_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json([s.model_dump(mode="json") for s in items])
@@ -142,29 +164,41 @@ def list_project_shares(
 def add_dashboard_share(
     ctx: typer.Context,
     dashboard_id: str | None = typer.Argument(None, help="Dashboard ID."),
-    user_id: str | None = typer.Option(None, "--user-id", help="User ID to share with."),
-    permission: str = typer.Option("view", "--permission", help="Permission: view or edit."),
+    user_id: str | None = typer.Option(
+        None, "--user-id", help="User ID to share with."
+    ),
+    permission: str = typer.Option(
+        "view", "--permission", help="Permission: view or edit."
+    ),
 ) -> None:
     """Share a dashboard with a user."""
     dashboard_id = _resolve_arg(
-        dashboard_id, "DASHBOARD_ID", "Dashboard ID: ",
+        dashboard_id,
+        "DASHBOARD_ID",
+        "Dashboard ID: ",
         "querri share dashboard add DASHBOARD_ID --user-id USER_ID",
     )
     user_id = _resolve_arg(
-        user_id, "USER_ID", "User ID: ",
+        user_id,
+        "USER_ID",
+        "User ID: ",
         "querri share dashboard add DASHBOARD_ID --user-id USER_ID",
     )
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
-        result = client.sharing.share_dashboard(dashboard_id, user_id=user_id, permission=permission)
+        result = client.sharing.share_dashboard(
+            dashboard_id, user_id=user_id, permission=permission
+        )
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)
     else:
-        print_success(f"Shared dashboard {dashboard_id} with user {user_id} ({permission})")
+        print_success(
+            f"Shared dashboard {dashboard_id} with user {user_id} ({permission})"
+        )
 
 
 @share_dashboard_app.command("remove")
@@ -175,11 +209,15 @@ def remove_dashboard_share(
 ) -> None:
     """Revoke a user's access to a dashboard."""
     dashboard_id = _resolve_arg(
-        dashboard_id, "DASHBOARD_ID", "Dashboard ID: ",
+        dashboard_id,
+        "DASHBOARD_ID",
+        "Dashboard ID: ",
         "querri share dashboard remove DASHBOARD_ID USER_ID",
     )
     user_id = _resolve_arg(
-        user_id, "USER_ID", "User ID: ",
+        user_id,
+        "USER_ID",
+        "User ID: ",
         "querri share dashboard remove DASHBOARD_ID USER_ID",
     )
     obj = ctx.ensure_object(dict)
@@ -187,7 +225,7 @@ def remove_dashboard_share(
     try:
         client.sharing.revoke_dashboard_share(dashboard_id, user_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json({"dashboard_id": dashboard_id, "user_id": user_id, "revoked": True})
@@ -202,7 +240,9 @@ def list_dashboard_shares(
 ) -> None:
     """List users who have access to a dashboard."""
     dashboard_id = _resolve_arg(
-        dashboard_id, "DASHBOARD_ID", "Dashboard ID: ",
+        dashboard_id,
+        "DASHBOARD_ID",
+        "Dashboard ID: ",
         "querri share dashboard list DASHBOARD_ID",
     )
     obj = ctx.ensure_object(dict)
@@ -210,7 +250,7 @@ def list_dashboard_shares(
     try:
         items = client.sharing.list_dashboard_shares(dashboard_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json([s.model_dump(mode="json") for s in items])
@@ -231,16 +271,24 @@ def list_dashboard_shares(
 def add_source_share(
     ctx: typer.Context,
     source_id: str | None = typer.Argument(None, help="Source ID."),
-    user_id: str | None = typer.Option(None, "--user-id", help="User ID to share with."),
-    permission: str = typer.Option("view", "--permission", help="Permission: view or edit."),
+    user_id: str | None = typer.Option(
+        None, "--user-id", help="User ID to share with."
+    ),
+    permission: str = typer.Option(
+        "view", "--permission", help="Permission: view or edit."
+    ),
 ) -> None:
     """Share a data source with a user."""
     source_id = _resolve_arg(
-        source_id, "SOURCE_ID", "Source ID: ",
+        source_id,
+        "SOURCE_ID",
+        "Source ID: ",
         "querri share source add SOURCE_ID --user-id USER_ID",
     )
     user_id = _resolve_arg(
-        user_id, "USER_ID", "User ID: ",
+        user_id,
+        "USER_ID",
+        "User ID: ",
         "querri share source add SOURCE_ID --user-id USER_ID",
     )
     obj = ctx.ensure_object(dict)
@@ -252,7 +300,7 @@ def add_source_share(
         )
         result = resp.json()
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)
@@ -268,11 +316,15 @@ def remove_source_share(
 ) -> None:
     """Revoke a user's access to a data source."""
     source_id = _resolve_arg(
-        source_id, "SOURCE_ID", "Source ID: ",
+        source_id,
+        "SOURCE_ID",
+        "Source ID: ",
         "querri share source remove SOURCE_ID USER_ID",
     )
     user_id = _resolve_arg(
-        user_id, "USER_ID", "User ID: ",
+        user_id,
+        "USER_ID",
+        "User ID: ",
         "querri share source remove SOURCE_ID USER_ID",
     )
     obj = ctx.ensure_object(dict)
@@ -280,7 +332,7 @@ def remove_source_share(
     try:
         client._http.delete(f"/sources/{source_id}/shares/{user_id}")
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json({"source_id": source_id, "user_id": user_id, "revoked": True})
@@ -295,7 +347,9 @@ def list_source_shares(
 ) -> None:
     """List users who have access to a data source."""
     source_id = _resolve_arg(
-        source_id, "SOURCE_ID", "Source ID: ",
+        source_id,
+        "SOURCE_ID",
+        "Source ID: ",
         "querri share source list SOURCE_ID",
     )
     obj = ctx.ensure_object(dict)
@@ -305,7 +359,7 @@ def list_source_shares(
         body = resp.json()
         items = body.get("data", [])
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(items)
@@ -321,11 +375,15 @@ def list_source_shares(
 def org_source_share(
     ctx: typer.Context,
     source_id: str | None = typer.Argument(None, help="Source ID."),
-    permission: str = typer.Option("view", "--permission", help="Permission: view or edit."),
+    permission: str = typer.Option(
+        "view", "--permission", help="Permission: view or edit."
+    ),
 ) -> None:
     """Share a data source with the entire organization."""
     source_id = _resolve_arg(
-        source_id, "SOURCE_ID", "Source ID: ",
+        source_id,
+        "SOURCE_ID",
+        "Source ID: ",
         "querri share source org SOURCE_ID",
     )
     obj = ctx.ensure_object(dict)
@@ -337,7 +395,7 @@ def org_source_share(
         )
         result = resp.json()
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)

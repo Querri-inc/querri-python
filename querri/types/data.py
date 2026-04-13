@@ -13,7 +13,9 @@ class Source(BaseModel):
     id: str  #: Unique data source identifier.
     name: str  #: Human-readable source name.
     columns: list[str] = []  #: Column names available in this source.
-    column_types: dict[str, str] | None = None  #: Mapping of column name to type string.
+    column_types: dict[str, str] | None = (
+        None  #: Mapping of column name to type string.
+    )
     row_count: int | None = None  #: Total number of rows in the source.
     access_controlled: bool | None = None  #: Whether RLS is enabled for this source.
     updated_at: str | None = None  #: ISO-8601 last-update timestamp.
@@ -32,7 +34,9 @@ class DataPage(BaseModel):
     """Paginated data from a source."""
 
     data: list[dict[str, Any]] = []  #: Rows of source data.
-    total_rows: int | None = Field(default=None, alias="total_count")  #: Total rows available (API returns as total_count).
+    total_rows: int | None = Field(
+        default=None, alias="total_count"
+    )  #: Total rows available (API returns as total_count).
     page: int | None = None  #: Current page number (1-based).
     page_size: int | None = None  #: Maximum rows per page.
     columns: list[str] | None = None  #: Column names for the data.

@@ -103,10 +103,7 @@ def print_table(
 
 def _get_field(item: Any, field: str) -> str:
     """Extract a field from a dict or object, return as string."""
-    if isinstance(item, dict):
-        val = item.get(field, "")
-    else:
-        val = getattr(item, field, "")
+    val = item.get(field, "") if isinstance(item, dict) else getattr(item, field, "")
     if val is None:
         return "—"
     if isinstance(val, list):
@@ -170,6 +167,7 @@ def print_success(message: str) -> None:
     """Print a success message."""
     if IS_INTERACTIVE:
         from rich.console import Console
+
         Console(stderr=True).print(f"[{QUERRI_ORANGE}]✓[/{QUERRI_ORANGE}] {message}")
     else:
         print(message, file=sys.stderr)
@@ -179,6 +177,7 @@ def print_error(message: str) -> None:
     """Print an error message to stderr (red in TTY mode)."""
     if IS_INTERACTIVE:
         from rich.console import Console
+
         Console(stderr=True).print(f"[red]Error:[/red] {message}")
     else:
         print(f"Error: {message}", file=sys.stderr)
@@ -231,7 +230,10 @@ def handle_api_error(exc: Exception, *, is_json: bool = False) -> int:
     if isinstance(exc, AuthenticationError):
         exit_code = EXIT_AUTH_ERROR
         error_type = "auth_failed"
-        message = "Authentication failed. Check your API key or set QUERRI_API_KEY environment variable."
+        message = (
+            "Authentication failed. Check your API key"
+            " or set QUERRI_API_KEY environment variable."
+        )
     elif isinstance(exc, NotFoundError):
         exit_code = EXIT_NOT_FOUND
         error_type = "not_found"
@@ -240,7 +242,11 @@ def handle_api_error(exc: Exception, *, is_json: bool = False) -> int:
         exit_code = EXIT_RATE_LIMITED
         error_type = "rate_limited"
         retry_after = getattr(exc, "retry_after", None)
-        message = f"Rate limited. Retry after {retry_after}s." if retry_after else "Rate limited."
+        message = (
+            f"Rate limited. Retry after {retry_after}s."
+            if retry_after
+            else "Rate limited."
+        )
     elif isinstance(exc, ServerError):
         exit_code = EXIT_SERVER_ERROR
         error_type = "server_error"

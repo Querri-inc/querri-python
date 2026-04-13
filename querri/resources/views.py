@@ -15,7 +15,10 @@ class Views:
     Usage::
 
         views = client.views.list()
-        view = client.views.create(name="Revenue by Region", sql_definition="SELECT ...")
+        view = client.views.create(
+            name="Revenue by Region",
+            sql_definition="SELECT ...",
+        )
     """
 
     def __init__(self, http: SyncHTTPClient) -> None:
@@ -180,7 +183,10 @@ class AsyncViews:
     Usage::
 
         views = await client.views.list()
-        view = await client.views.create(name="Revenue by Region", sql_definition="SELECT ...")
+        view = await client.views.create(
+            name="Revenue by Region",
+            sql_definition="SELECT ...",
+        )
     """
 
     def __init__(self, http: AsyncHTTPClient) -> None:
@@ -271,7 +277,9 @@ class AsyncViews:
         """
         await self._http.delete(f"/views/{view_uuid}")
 
-    async def run(self, *, view_uuids: builtins.list[str] | None = None) -> dict[str, Any]:
+    async def run(
+        self, *, view_uuids: builtins.list[str] | None = None
+    ) -> dict[str, Any]:
         """Run view materialization.
 
         Args:

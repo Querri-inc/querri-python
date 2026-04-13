@@ -29,7 +29,9 @@ def list_users(
     ctx: typer.Context,
     limit: int = typer.Option(25, "--limit", "-l", help="Max results."),
     after: str | None = typer.Option(None, "--after", help="Cursor for pagination."),
-    external_id: str | None = typer.Option(None, "--external-id", help="Filter by external ID."),
+    external_id: str | None = typer.Option(
+        None, "--external-id", help="Filter by external ID."
+    ),
 ) -> None:
     """List users in the organization."""
     obj = ctx.ensure_object(dict)
@@ -38,7 +40,7 @@ def list_users(
         page = client.users.list(limit=limit, after=after, external_id=external_id)
         items = list(page)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json([u.model_dump(mode="json") for u in items])
@@ -48,7 +50,12 @@ def list_users(
     else:
         print_table(
             items,
-            [("id", "ID"), ("email", "Email"), ("role", "Role"), ("external_id", "External ID")],
+            [
+                ("id", "ID"),
+                ("email", "Email"),
+                ("role", "Role"),
+                ("external_id", "External ID"),
+            ],
             ctx=ctx,
         )
 
@@ -67,13 +74,15 @@ def get_user(
                 print_error("User ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument USER_ID. Usage: querri user get USER_ID")
+            print_error(
+                "Missing required argument USER_ID. Usage: querri user get USER_ID"
+            )
             raise typer.Exit(code=1)
     client = get_client(ctx)
     try:
         user = client.users.get(user_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(user)
@@ -112,7 +121,11 @@ def new_user(
                 print_error("User email is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required option --email. Usage: querri user new --email EMAIL [--role ROLE]")
+            print_error(
+                "Missing required option --email."
+                " Usage: querri user new"
+                " --email EMAIL [--role ROLE]"
+            )
             raise typer.Exit(code=1)
     client = get_client(ctx)
     try:
@@ -124,7 +137,7 @@ def new_user(
             last_name=last_name,
         )
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(user)
@@ -138,7 +151,9 @@ def new_user(
 def update_user(
     ctx: typer.Context,
     user_id: str | None = typer.Argument(None, help="User ID."),
-    role: str | None = typer.Option(None, "--role", "-r", help="New role (member, admin)."),
+    role: str | None = typer.Option(
+        None, "--role", "-r", help="New role (member, admin)."
+    ),
     first_name: str | None = typer.Option(None, "--first-name", help="New first name."),
     last_name: str | None = typer.Option(None, "--last-name", help="New last name."),
 ) -> None:
@@ -151,7 +166,11 @@ def update_user(
                 print_error("User ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument USER_ID. Usage: querri user update USER_ID [options]")
+            print_error(
+                "Missing required argument USER_ID."
+                " Usage: querri user update"
+                " USER_ID [options]"
+            )
             raise typer.Exit(code=1)
     client = get_client(ctx)
     try:
@@ -164,7 +183,7 @@ def update_user(
             kwargs["last_name"] = last_name
         user = client.users.update(user_id, **kwargs)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(user)
@@ -188,13 +207,15 @@ def delete_user(
                 print_error("User ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument USER_ID. Usage: querri user delete USER_ID")
+            print_error(
+                "Missing required argument USER_ID. Usage: querri user delete USER_ID"
+            )
             raise typer.Exit(code=1)
     client = get_client(ctx)
     try:
         client.users.delete(user_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json({"id": user_id, "deleted": True})

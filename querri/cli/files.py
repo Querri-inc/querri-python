@@ -36,7 +36,7 @@ def list_files(
     try:
         items = client.files.list()
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json([f.model_dump(mode="json") for f in items])
@@ -46,7 +46,13 @@ def list_files(
     else:
         print_table(
             items,
-            [("id", "ID"), ("name", "Name"), ("size", "Size"), ("content_type", "Type"), ("created_at", "Created")],
+            [
+                ("id", "ID"),
+                ("name", "Name"),
+                ("size", "Size"),
+                ("content_type", "Type"),
+                ("created_at", "Created"),
+            ],
             ctx=ctx,
         )
 
@@ -64,14 +70,16 @@ def get_file(
                 print_error("File ID cannot be empty.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument <FILE_ID>. Usage: querri file get <FILE_ID>")
+            print_error(
+                "Missing required argument <FILE_ID>. Usage: querri file get <FILE_ID>"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         file = client.files.get(file_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(file)
@@ -96,7 +104,9 @@ def get_file(
 @files_app.command("upload")
 def upload_file(
     ctx: typer.Context,
-    path: str | None = typer.Argument(default=None, help="File path or glob pattern (e.g. '*.csv')."),
+    path: str | None = typer.Argument(
+        default=None, help="File path or glob pattern (e.g. '*.csv')."
+    ),
     name: str | None = typer.Option(None, "--name", "-n", help="Override file name."),
 ) -> None:
     """Upload a file (supports glob patterns for batch upload).
@@ -115,7 +125,9 @@ def upload_file(
                 print_error(f"File not found: {path}")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument <PATH>. Usage: querri file upload <PATH>")
+            print_error(
+                "Missing required argument <PATH>. Usage: querri file upload <PATH>"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -127,6 +139,7 @@ def upload_file(
         if not resolved.exists():
             if obj.get("json"):
                 from querri.cli._output import print_json_error
+
                 print_json_error("validation_error", f"File not found: {path}", 1)
             else:
                 print_error(f"File not found: {path}")
@@ -148,7 +161,9 @@ def upload_file(
             )
             results.append(uploaded)
         except Exception as exc:
-            raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+            raise typer.Exit(
+                code=handle_api_error(exc, is_json=obj.get("json"))
+            ) from None
 
     if obj.get("json"):
         if len(results) == 1:
@@ -181,14 +196,17 @@ def delete_file(
                 print_error("File ID cannot be empty.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument <FILE_ID>. Usage: querri file delete <FILE_ID>")
+            print_error(
+                "Missing required argument <FILE_ID>."
+                " Usage: querri file delete <FILE_ID>"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         client.files.delete(file_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json({"id": file_id, "deleted": True})

@@ -13,7 +13,11 @@ class Sharing:
 
     Usage::
 
-        client.sharing.share_project("proj_uuid", user_id="user_uuid", permission="edit")
+        client.sharing.share_project(
+            "proj_uuid",
+            user_id="user_uuid",
+            permission="edit",
+        )
         shares = client.sharing.list_project_shares("proj_uuid")
     """
 
@@ -170,7 +174,11 @@ class AsyncSharing:
 
     Usage::
 
-        await client.sharing.share_project("proj_uuid", user_id="user_uuid", permission="edit")
+        await client.sharing.share_project(
+            "proj_uuid",
+            user_id="user_uuid",
+            permission="edit",
+        )
         shares = await client.sharing.list_project_shares("proj_uuid")
     """
 

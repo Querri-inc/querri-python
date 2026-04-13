@@ -33,7 +33,7 @@ def org_usage(
     try:
         report = client.usage.org_usage(period=period)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(report)
@@ -65,14 +65,18 @@ def user_usage(
                 print_error("User ID is required.")
                 raise typer.Exit(code=1)
         else:
-            print_error("Missing required argument USER_ID. Usage: querri usage user USER_ID [--period PERIOD]")
+            print_error(
+                "Missing required argument USER_ID."
+                " Usage: querri usage user"
+                " USER_ID [--period PERIOD]"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         report = client.usage.user_usage(user_id, period=period)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(report)

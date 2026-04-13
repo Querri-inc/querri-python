@@ -2,10 +2,25 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ._base_client import AsyncHTTPClient, SyncHTTPClient
 from ._config import resolve_config
+
+if TYPE_CHECKING:
+    from ._user_client import AsyncUserQuerri, UserQuerri
+    from .resources.audit import AsyncAudit, Audit
+    from .resources.dashboards import AsyncDashboards, Dashboards
+    from .resources.embed import AsyncEmbed, Embed
+    from .resources.files import AsyncFiles, Files
+    from .resources.keys import AsyncKeys, Keys
+    from .resources.policies import AsyncPolicies, Policies
+    from .resources.projects import AsyncProjects, Projects
+    from .resources.sharing import AsyncSharing, Sharing
+    from .resources.sources import AsyncSources, Sources
+    from .resources.usage import AsyncUsage, Usage
+    from .resources.users import AsyncUsers, Users
+    from .resources.views import AsyncViews, Views
 
 
 class Querri:
@@ -39,7 +54,8 @@ class Querri:
 
         Args:
             api_key: API key (``qk_`` prefix). Falls back to ``QUERRI_API_KEY`` env var.
-            access_token: JWT access token. Falls back to ``QUERRI_ACCESS_TOKEN`` env var.
+            access_token: JWT access token. Falls back to
+                ``QUERRI_ACCESS_TOKEN`` env var.
             org_id: Organization ID. Falls back to ``QUERRI_ORG_ID`` env var.
             host: API host URL. Falls back to ``QUERRI_HOST`` (default: ``https://app.querri.com``).
             timeout: Request timeout in seconds (default: 30.0).
@@ -76,6 +92,7 @@ class Querri:
     def users(self) -> "Users":
         if self._users is None:
             from .resources.users import Users
+
             self._users = Users(self._http)
         return self._users  # type: ignore[return-value]
 
@@ -83,6 +100,7 @@ class Querri:
     def embed(self) -> "Embed":
         if self._embed is None:
             from .resources.embed import Embed
+
             self._embed = Embed(self._http)
         return self._embed  # type: ignore[return-value]
 
@@ -90,6 +108,7 @@ class Querri:
     def policies(self) -> "Policies":
         if self._policies is None:
             from .resources.policies import Policies
+
             self._policies = Policies(self._http)
         return self._policies  # type: ignore[return-value]
 
@@ -97,6 +116,7 @@ class Querri:
     def projects(self) -> "Projects":
         if self._projects is None:
             from .resources.projects import Projects
+
             self._projects = Projects(self._http)
         return self._projects  # type: ignore[return-value]
 
@@ -104,6 +124,7 @@ class Querri:
     def dashboards(self) -> "Dashboards":
         if self._dashboards is None:
             from .resources.dashboards import Dashboards
+
             self._dashboards = Dashboards(self._http)
         return self._dashboards  # type: ignore[return-value]
 
@@ -111,6 +132,7 @@ class Querri:
     def files(self) -> "Files":
         if self._files is None:
             from .resources.files import Files
+
             self._files = Files(self._http)
         return self._files  # type: ignore[return-value]
 
@@ -118,6 +140,7 @@ class Querri:
     def sources(self) -> "Sources":
         if self._sources is None:
             from .resources.sources import Sources
+
             self._sources = Sources(self._http)
         return self._sources  # type: ignore[return-value]
 
@@ -125,6 +148,7 @@ class Querri:
     def views(self) -> "Views":
         if self._views is None:
             from .resources.views import Views
+
             self._views = Views(self._http)
         return self._views  # type: ignore[return-value]
 
@@ -132,6 +156,7 @@ class Querri:
     def keys(self) -> "Keys":
         if self._keys is None:
             from .resources.keys import Keys
+
             self._keys = Keys(self._http)
         return self._keys  # type: ignore[return-value]
 
@@ -139,6 +164,7 @@ class Querri:
     def sharing(self) -> "Sharing":
         if self._sharing is None:
             from .resources.sharing import Sharing
+
             self._sharing = Sharing(self._http)
         return self._sharing  # type: ignore[return-value]
 
@@ -146,6 +172,7 @@ class Querri:
     def usage(self) -> "Usage":
         if self._usage is None:
             from .resources.usage import Usage
+
             self._usage = Usage(self._http)
         return self._usage  # type: ignore[return-value]
 
@@ -153,6 +180,7 @@ class Querri:
     def audit(self) -> "Audit":
         if self._audit is None:
             from .resources.audit import Audit
+
             self._audit = Audit(self._http)
         return self._audit  # type: ignore[return-value]
 
@@ -168,6 +196,7 @@ class Querri:
             session: Result from ``get_session()`` containing ``session_token``.
         """
         from ._user_client import UserQuerri
+
         return UserQuerri(session, self._config)
 
     def close(self) -> None:
@@ -210,7 +239,8 @@ class AsyncQuerri:
 
         Args:
             api_key: API key (``qk_`` prefix). Falls back to ``QUERRI_API_KEY`` env var.
-            access_token: JWT access token. Falls back to ``QUERRI_ACCESS_TOKEN`` env var.
+            access_token: JWT access token. Falls back to
+                ``QUERRI_ACCESS_TOKEN`` env var.
             org_id: Organization ID. Falls back to ``QUERRI_ORG_ID`` env var.
             host: API host URL. Falls back to ``QUERRI_HOST`` (default: ``https://app.querri.com``).
             timeout: Request timeout in seconds (default: 30.0).
@@ -245,6 +275,7 @@ class AsyncQuerri:
     def users(self) -> "AsyncUsers":
         if self._users is None:
             from .resources.users import AsyncUsers
+
             self._users = AsyncUsers(self._http)
         return self._users  # type: ignore[return-value]
 
@@ -252,6 +283,7 @@ class AsyncQuerri:
     def embed(self) -> "AsyncEmbed":
         if self._embed is None:
             from .resources.embed import AsyncEmbed
+
             self._embed = AsyncEmbed(self._http)
         return self._embed  # type: ignore[return-value]
 
@@ -259,6 +291,7 @@ class AsyncQuerri:
     def policies(self) -> "AsyncPolicies":
         if self._policies is None:
             from .resources.policies import AsyncPolicies
+
             self._policies = AsyncPolicies(self._http)
         return self._policies  # type: ignore[return-value]
 
@@ -266,6 +299,7 @@ class AsyncQuerri:
     def projects(self) -> "AsyncProjects":
         if self._projects is None:
             from .resources.projects import AsyncProjects
+
             self._projects = AsyncProjects(self._http)
         return self._projects  # type: ignore[return-value]
 
@@ -273,6 +307,7 @@ class AsyncQuerri:
     def dashboards(self) -> "AsyncDashboards":
         if self._dashboards is None:
             from .resources.dashboards import AsyncDashboards
+
             self._dashboards = AsyncDashboards(self._http)
         return self._dashboards  # type: ignore[return-value]
 
@@ -280,6 +315,7 @@ class AsyncQuerri:
     def files(self) -> "AsyncFiles":
         if self._files is None:
             from .resources.files import AsyncFiles
+
             self._files = AsyncFiles(self._http)
         return self._files  # type: ignore[return-value]
 
@@ -287,6 +323,7 @@ class AsyncQuerri:
     def sources(self) -> "AsyncSources":
         if self._sources is None:
             from .resources.sources import AsyncSources
+
             self._sources = AsyncSources(self._http)
         return self._sources  # type: ignore[return-value]
 
@@ -294,6 +331,7 @@ class AsyncQuerri:
     def views(self) -> "AsyncViews":
         if self._views is None:
             from .resources.views import AsyncViews
+
             self._views = AsyncViews(self._http)
         return self._views  # type: ignore[return-value]
 
@@ -301,6 +339,7 @@ class AsyncQuerri:
     def keys(self) -> "AsyncKeys":
         if self._keys is None:
             from .resources.keys import AsyncKeys
+
             self._keys = AsyncKeys(self._http)
         return self._keys  # type: ignore[return-value]
 
@@ -308,6 +347,7 @@ class AsyncQuerri:
     def sharing(self) -> "AsyncSharing":
         if self._sharing is None:
             from .resources.sharing import AsyncSharing
+
             self._sharing = AsyncSharing(self._http)
         return self._sharing  # type: ignore[return-value]
 
@@ -315,6 +355,7 @@ class AsyncQuerri:
     def usage(self) -> "AsyncUsage":
         if self._usage is None:
             from .resources.usage import AsyncUsage
+
             self._usage = AsyncUsage(self._http)
         return self._usage  # type: ignore[return-value]
 
@@ -322,6 +363,7 @@ class AsyncQuerri:
     def audit(self) -> "AsyncAudit":
         if self._audit is None:
             from .resources.audit import AsyncAudit
+
             self._audit = AsyncAudit(self._http)
         return self._audit  # type: ignore[return-value]
 
@@ -337,6 +379,7 @@ class AsyncQuerri:
             session: Result from ``get_session()`` containing ``session_token``.
         """
         from ._user_client import AsyncUserQuerri
+
         return AsyncUserQuerri(session, self._config)
 
     async def close(self) -> None:

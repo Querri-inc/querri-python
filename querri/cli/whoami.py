@@ -32,7 +32,9 @@ def whoami(ctx: typer.Context) -> None:
         credential_display = f"{key[:7]}..." if len(key) > 7 else key[:4] + "..."
     elif access_token:
         auth_type = "jwt"
-        credential_display = f"{access_token[:20]}..." if len(access_token) > 20 else access_token
+        credential_display = (
+            f"{access_token[:20]}..." if len(access_token) > 20 else access_token
+        )
     else:
         auth_type = "unknown"
         credential_display = "(none)"

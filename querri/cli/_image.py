@@ -94,7 +94,13 @@ def download_image(
             cached.write_bytes(resp.content)
             return cached
         except Exception as exc:
-            logger.debug("Image download attempt %d/%d failed for %s: %s", attempt + 1, retries + 1, url, exc)
+            logger.debug(
+                "Image download attempt %d/%d failed for %s: %s",
+                attempt + 1,
+                retries + 1,
+                url,
+                exc,
+            )
             if attempt < retries:
                 time.sleep(1.0)
 
@@ -203,7 +209,9 @@ def render_image_rich(
     from rich.text import Text
 
     path = download_image(url, headers=headers)
-    ansi_art = render_image(path, max_width=max_width, max_height=max_height) if path else None
+    ansi_art = (
+        render_image(path, max_width=max_width, max_height=max_height) if path else None
+    )
 
     if ansi_art:
         # Rich Text.from_ansi parses ANSI escape codes into styled text
@@ -212,9 +220,9 @@ def render_image_rich(
         if caption:
             parts.append(Text(f"\n{caption}", style="italic"))
         # Clickable link hint below
-        parts.append(Text.from_markup(
-            f"\n[dim][link={url}]Open full image[/link][/dim]"
-        ))
+        parts.append(
+            Text.from_markup(f"\n[dim][link={url}]Open full image[/link][/dim]")
+        )
         return Text("\n").join(parts)
     else:
         # Fallback: clickable link + hint

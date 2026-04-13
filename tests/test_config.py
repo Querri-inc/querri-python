@@ -41,20 +41,27 @@ class TestResolveConfig:
             assert cfg.org_id == "org_explicit"
 
     def test_missing_credentials_raises(self):
-        env = {k: v for k, v in os.environ.items()
-               if k not in ("QUERRI_API_KEY", "QUERRI_ACCESS_TOKEN")}
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("QUERRI_API_KEY", "QUERRI_ACCESS_TOKEN")
+        }
         mock_ts = MagicMock()
         mock_ts.load.return_value.get_active_profile.return_value = None
-        with patch.dict(os.environ, env, clear=True), \
-             patch("querri._auth.TokenStore", mock_ts):
-            with pytest.raises(ConfigError, match="No credentials found"):
-                resolve_config(org_id="org_123")
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("querri._auth.TokenStore", mock_ts),
+            pytest.raises(ConfigError, match="No credentials found"),
+        ):
+            resolve_config(org_id="org_123")
 
     def test_missing_org_id_raises(self):
         env = {k: v for k, v in os.environ.items() if k != "QUERRI_ORG_ID"}
-        with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(ConfigError, match="No organization ID"):
-                resolve_config(api_key="qk_abc")
+        with (
+            patch.dict(os.environ, env, clear=True),
+            pytest.raises(ConfigError, match="No organization ID"),
+        ):
+            resolve_config(api_key="qk_abc")
 
     def test_defaults(self):
         cfg = resolve_config(api_key="qk_abc", org_id="org_123")
@@ -64,15 +71,18 @@ class TestResolveConfig:
 
     def test_custom_host(self):
         cfg = resolve_config(
-            api_key="qk_abc", org_id="org_123",
+            api_key="qk_abc",
+            org_id="org_123",
             host="https://custom.example.com",
         )
         assert cfg.base_url == "https://custom.example.com/api/v1"
 
     def test_host_trailing_slash_stripped(self):
-        """Verify that a trailing slash on the host is stripped before appending /api/v1."""
+        """Verify that a trailing slash on the host is
+        stripped before appending /api/v1."""
         cfg = resolve_config(
-            api_key="qk_abc", org_id="org_123",
+            api_key="qk_abc",
+            org_id="org_123",
             host="https://example.com/",
         )
         assert cfg.base_url == "https://example.com/api/v1"

@@ -106,7 +106,9 @@ class Embed:
         origin: str | None = None,
         ttl: int = 3600,
     ) -> dict[str, Any]:
-        """Flagship convenience method: get-or-create user, apply policy, create session.
+        """Flagship convenience method.
+
+        Get-or-create user, apply policy, create session.
 
         Args:
             user: External ID string, or dict with external_id, email, first_name, etc.
@@ -117,7 +119,9 @@ class Embed:
         Returns:
             Embed session dict with token, expires_in, user_id, etc.
         """
-        return sync_get_session(self._http, user=user, access=access, origin=origin, ttl=ttl)
+        return sync_get_session(
+            self._http, user=user, access=access, origin=origin, ttl=ttl
+        )
 
     def revoke_user_sessions(self, user_id: str) -> int:
         """Revoke all embed sessions for a user.
@@ -229,7 +233,9 @@ class AsyncEmbed:
         origin: str | None = None,
         ttl: int = 3600,
     ) -> dict[str, Any]:
-        """Flagship convenience method: get-or-create user, apply policy, create session.
+        """Flagship convenience method.
+
+        Get-or-create user, apply policy, create session.
 
         Args:
             user: External ID string, or dict with external_id, email, first_name, etc.
@@ -240,7 +246,9 @@ class AsyncEmbed:
         Returns:
             Embed session dict with token, expires_in, user_id, etc.
         """
-        return await async_get_session(self._http, user=user, access=access, origin=origin, ttl=ttl)
+        return await async_get_session(
+            self._http, user=user, access=access, origin=origin, ttl=ttl
+        )
 
     async def revoke_user_sessions(self, user_id: str) -> int:
         """Revoke all embed sessions for a user.

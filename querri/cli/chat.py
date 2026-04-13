@@ -16,8 +16,6 @@ import re
 import signal
 import sys
 
-logger = logging.getLogger("querri.cli")
-
 import typer
 
 from querri.cli._context import (
@@ -35,9 +33,11 @@ from querri.cli._output import (
     print_success,
 )
 
+logger = logging.getLogger("querri.cli")
+
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 
-_STATUS_ICONS = {
+_STATUSicons = {
     "thinking": "💭",
     "analyzing": "📊",
     "executing": "⚙",
@@ -58,9 +58,9 @@ def _setup_debug_log() -> object:
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "debug.log"
     fh = open(log_path, "a")  # noqa: SIM115
-    fh.write(f"\n{'='*60}\n")
+    fh.write(f"\n{'=' * 60}\n")
     fh.write(f"Debug session started: {datetime.now().isoformat()}\n")
-    fh.write(f"{'='*60}\n")
+    fh.write(f"{'=' * 60}\n")
     fh.flush()
     print(f"  Debug log: {log_path}", file=sys.stderr)
     return fh
@@ -71,6 +71,7 @@ def _debug(log: object | None, msg: str) -> None:
     if log is None:
         return
     from datetime import datetime
+
     ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
     log.write(f"[{ts}] {msg}\n")  # type: ignore[union-attr]
     log.flush()  # type: ignore[union-attr]
@@ -91,8 +92,15 @@ def chat_command(
     model: str | None = typer.Option(None, "--model", help="Model selection."),
     new: bool = typer.Option(False, "--new", help="Force a new chat session."),
     reasoning: bool = typer.Option(False, "--reasoning", help="Show reasoning traces."),
-    experimental_v2: bool = typer.Option(False, "--experimental-v2", "--v2", help="Use experimental v2 agent (faster, direct SQL execution)."),
-    debug: bool = typer.Option(False, "--debug", help="Log all stream events to ~/.querri/debug.log"),
+    experimental_v2: bool = typer.Option(
+        False,
+        "--experimental-v2",
+        "--v2",
+        help="Use experimental v2 agent (faster, direct SQL execution).",
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="Log all stream events to ~/.querri/debug.log"
+    ),
 ) -> None:
     """Send a message to the active project's chat.
 
@@ -129,7 +137,11 @@ def chat_command(
     if not chat_id and not new:
         # Check stored active chat
         profile = _get_profile(ctx)
-        if profile and profile.active_chat_id and profile.active_project_id == project_id:
+        if (
+            profile
+            and profile.active_chat_id
+            and profile.active_project_id == project_id
+        ):
             chat_id = profile.active_chat_id
 
     if not chat_id and not new:
@@ -144,7 +156,7 @@ def chat_command(
             chat = client.projects.chats.create(project_id)
             chat_id = chat.id
         except Exception as exc:
-            raise typer.Exit(code=handle_api_error(exc, is_json=is_json))
+            raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
 
         if not is_json and not obj.get("quiet"):
             print(f"  New chat: {chat_id}", file=sys.stderr)
@@ -162,15 +174,22 @@ def chat_command(
         from rich.text import Text
 
         from querri.cli._output import QUERRI_ORANGE
+
         _console = Console()
-        _console.print(Panel(
-            Text(prompt),
-            title="[bold]You[/bold]", title_align="right",
-            border_style=QUERRI_ORANGE, padding=(0, 1),
-            width=min(_console.width - 10, 80),
-        ), justify="right")
+        _console.print(
+            Panel(
+                Text(prompt),
+                title="[bold]You[/bold]",
+                title_align="right",
+                border_style=QUERRI_ORANGE,
+                padding=(0, 1),
+                width=min(_console.width - 10, 80),
+            ),
+            justify="right",
+        )
     elif not is_json:
         from querri.cli._output import QUERRI_ORANGE
+
         print(f"\n> {prompt}\n", file=sys.stderr)
 
     # Stream the response
@@ -184,7 +203,7 @@ def chat_command(
             experimental_v2=experimental_v2,
         )
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=is_json))
+        raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
 
     # Set up Ctrl+C handler
     cancelled = False
@@ -200,12 +219,24 @@ def chat_command(
         if is_json:
             _stream_json(stream)
         elif is_interactive:
-            _stream_rich(stream, show_reasoning=reasoning, project_id=project_id, client=client, debug_log=debug_log)
+            _stream_rich(
+                stream,
+                show_reasoning=reasoning,
+                project_id=project_id,
+                client=client,
+                debug_log=debug_log,
+            )
         else:
-            _stream_plain(stream, show_reasoning=reasoning, project_id=project_id, client=client, debug_log=debug_log)
+            _stream_plain(
+                stream,
+                show_reasoning=reasoning,
+                project_id=project_id,
+                client=client,
+                debug_log=debug_log,
+            )
     except Exception as exc:
         if not cancelled:
-            raise typer.Exit(code=handle_api_error(exc, is_json=is_json))
+            raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
     finally:
         signal.signal(signal.SIGINT, old_handler)
 
@@ -228,6 +259,7 @@ def _stream_plain(
     debug_log: object | None = None,
 ) -> None:
     from querri._streaming import ChatStream
+
     assert isinstance(stream, ChatStream)
 
     # Debug: dump raw lines first to diagnose parsing
@@ -245,13 +277,19 @@ def _stream_plain(
     _debug(debug_log, f"Stream started (project={project_id})")
 
     for event in stream.events():
-        _debug(debug_log, f"Event: {event.event_type} text={bool(event.text)} raw={str(event.raw_data or '')[:120]}")
+        _debug(
+            debug_log,
+            f"Event: {event.event_type} "
+            f"text={bool(event.text)} "
+            f"raw={str(event.raw_data or '')[:120]}",
+        )
 
         if event.event_type == "status-update":
             import json as _json
+
             parsed_su = _json.loads(event.raw_data) if event.raw_data else {}
             level = parsed_su.get("level", "thinking")
-            icon = _STATUS_ICONS.get(level, "💭")
+            icon = _STATUSicons.get(level, "💭")
             msg = event.text or ""
             if msg and msg != last_status:
                 # Overwrite previous status line with \r
@@ -280,6 +318,7 @@ def _stream_plain(
                 last_status = ""
             if project_id and client:
                 from rich.console import Console
+
                 _render_step_result_event(Console(), event, project_id, client)
                 step_results_rendered = True
                 final_steps.clear()  # Prevent fallback from re-rendering
@@ -309,8 +348,8 @@ def _stream_plain(
     # (older server versions that don't emit step-result)
     if not step_results_rendered and final_steps and project_id:
         from rich.console import Console
-        _render_accumulated_steps(Console(), final_steps, project_id, client)
 
+        _render_accumulated_steps(Console(), final_steps, project_id, client)
 
 
 def _stream_rich(
@@ -328,6 +367,7 @@ def _stream_rich(
     from rich.text import Text
 
     from querri._streaming import ChatStream
+
     assert isinstance(stream, ChatStream)
 
     console = Console()
@@ -342,14 +382,23 @@ def _stream_rich(
     def _build_display() -> Group:
         parts: list[object] = []
         if reasoning_text and show_reasoning:
-            parts.append(Panel(
-                Text(reasoning_text, style="dim italic"),
-                title="[dim]Reasoning[/dim]", title_align="left",
-                border_style="dim", padding=(0, 1),
-            ))
+            parts.append(
+                Panel(
+                    Text(reasoning_text, style="dim italic"),
+                    title="[dim]Reasoning[/dim]",
+                    title_align="left",
+                    border_style="dim",
+                    padding=(0, 1),
+                )
+            )
         elif reasoning_text and not show_reasoning:
             lines = reasoning_text.strip().count("\n") + 1
-            parts.append(Text(f"  Reasoning ({lines} lines) — rerun with --reasoning to expand", style="dim"))
+            parts.append(
+                Text(
+                    f"  Reasoning ({lines} lines) — rerun with --reasoning to expand",
+                    style="dim",
+                )
+            )
         if response_text:
             parts.append(Markdown(response_text))
         # Transient status at the very bottom (replaces each time)
@@ -361,13 +410,19 @@ def _stream_rich(
 
     with Live(Text(""), console=console, refresh_per_second=10) as live:
         for event in stream.events():
-            _debug(debug_log, f"Event: {event.event_type} text={bool(event.text)} raw={str(event.raw_data or '')[:120]}")
+            _debug(
+                debug_log,
+            f"Event: {event.event_type} "
+            f"text={bool(event.text)} "
+            f"raw={str(event.raw_data or '')[:120]}",
+            )
 
             if event.event_type == "status-update":
                 import json as _json
+
                 parsed_su = _json.loads(event.raw_data) if event.raw_data else {}
                 level = parsed_su.get("level", "thinking")
-                icon = _STATUS_ICONS.get(level, "💭")
+                icon = _STATUSicons.get(level, "💭")
                 status_line = f"{icon} {event.text}" if event.text else ""
                 live.update(_build_display())
 
@@ -415,6 +470,7 @@ def _stream_rich(
 
 def _stream_json(stream: object) -> None:
     from querri._streaming import ChatStream
+
     assert isinstance(stream, ChatStream)
 
     text_parts: list[str] = []
@@ -527,9 +583,14 @@ def _render_step_result_event(
 
     base_url, auth_headers = _resolve_internal_url(client)
 
-    _ICONS = {
-        "duckdb_query": "🔍", "draw_figure": "📊", "source": "📂",
-        "add_source": "📂", "load": "📂", "python": "🐍", "coder": "🐍",
+    icons = {
+        "duckdb_query": "🔍",
+        "draw_figure": "📊",
+        "source": "📂",
+        "add_source": "📂",
+        "load": "📂",
+        "python": "🐍",
+        "coder": "🐍",
     }
 
     qdf = result.get("qdf") or {}
@@ -539,7 +600,9 @@ def _render_step_result_event(
         "name": result.get("name") or tool_name,
         "type": tool_name,
         "status": "complete",
-        "has_data": bool(isinstance(qdf, dict) and (qdf.get("uuid") or qdf.get("num_rows"))),
+        "has_data": bool(
+            isinstance(qdf, dict) and (qdf.get("uuid") or qdf.get("num_rows"))
+        ),
         "has_figure": bool(result.get("figure_url") or result.get("svg_url")),
         "figure_url": result.get("figure_url"),
         "message": result.get("message"),
@@ -548,9 +611,15 @@ def _render_step_result_event(
         "headers": qdf.get("headers") if isinstance(qdf, dict) else None,
     }
 
-    step_id = (qdf.get("uuid") if isinstance(qdf, dict) else None) or result.get("qdf_uuid") or "step"
+    step_id = (
+        (qdf.get("uuid") if isinstance(qdf, dict) else None)
+        or result.get("qdf_uuid")
+        or "step"
+    )
     if step_id not in _rendered_step_ids:
-        _render_inline_step(console, step_id, step, project_id, base_url, auth_headers, _ICONS)
+        _render_inline_step(
+            console, step_id, step, project_id, base_url, auth_headers, icons
+        )
         _rendered_step_ids.add(step_id)
 
 
@@ -564,15 +633,23 @@ def _render_accumulated_steps(
     project_id: str,
     client: object | None = None,
 ) -> None:
-    """Render step results accumulated from the SSE stream. Each step renders only once."""
+    """Render step results accumulated from the stream.
+
+    Each step renders only once.
+    """
     base_url = ""
     auth_headers: dict[str, str] = {}
     if client:
         base_url, auth_headers = _resolve_internal_url(client)
 
-    _ICONS = {
-        "duckdb_query": "🔍", "draw_figure": "📊", "source": "📂",
-        "add_source": "📂", "load": "📂", "python": "🐍", "coder": "🐍",
+    icons = {
+        "duckdb_query": "🔍",
+        "draw_figure": "📊",
+        "source": "📂",
+        "add_source": "📂",
+        "load": "📂",
+        "python": "🐍",
+        "coder": "🐍",
     }
 
     rendered = False
@@ -585,7 +662,9 @@ def _render_accumulated_steps(
         step = _merge_step_data(sdata, {})
         if not step.get("name"):
             continue
-        _render_inline_step(console, sid, step, project_id, base_url, auth_headers, _ICONS)
+        _render_inline_step(
+            console, sid, step, project_id, base_url, auth_headers, icons
+        )
         _rendered_step_ids.add(sid)
         rendered = True
 
@@ -631,7 +710,7 @@ def chat_cancel(ctx: typer.Context) -> None:
         else:
             print_success(f"Cancelled chat {chat_id}")
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=is_json))
+        raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
 
 
 # ---------------------------------------------------------------------------
@@ -642,8 +721,12 @@ def chat_cancel(ctx: typer.Context) -> None:
 @project_chat_app.command("show")
 def chat_show(
     ctx: typer.Context,
-    top: int | None = typer.Option(None, "--top", help="Show only the first N messages."),
-    bottom: int | None = typer.Option(None, "--bottom", help="Show only the last N messages."),
+    top: int | None = typer.Option(
+        None, "--top", help="Show only the first N messages."
+    ),
+    bottom: int | None = typer.Option(
+        None, "--bottom", help="Show only the last N messages."
+    ),
 ) -> None:
     """Show the conversation with inline step results (tables, charts).
 
@@ -662,6 +745,7 @@ def chat_show(
 
     # Fetch full project (stepStore) and chat (messages with parts[])
     from querri.cli.projects import _get_full_project
+
     full_project = _get_full_project(client, project_id)
     if full_project is None:
         print_error("Could not load project data.")
@@ -669,7 +753,10 @@ def chat_show(
 
     chat_data = _fetch_project_chat(client, project_id)
     if not chat_data:
-        print_error("No conversation history. Send a message with: querri project chat -m \"hello\"")
+        print_error(
+            'No conversation history. Send a message '
+            'with: querri project chat -m "hello"'
+        )
         raise typer.Exit(code=EXIT_SUCCESS)
 
     messages = chat_data.get("messages", [])
@@ -687,7 +774,9 @@ def chat_show(
     step_store = _build_step_store(full_project)
     base_url, auth_headers = _resolve_internal_url(client)
 
-    _render_messages_with_parts(messages, step_store, project_id, base_url, auth_headers, total=total)
+    _render_messages_with_parts(
+        messages, step_store, project_id, base_url, auth_headers, total=total
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -699,6 +788,7 @@ def _fetch_project_chat(client: object, project_id: str) -> dict | None:
     """Fetch the project's chat via ``GET /api/projects/{pid}/chat``."""
     try:
         import httpx as _httpx
+
         base_url, auth_headers = _resolve_internal_url(client)
         resp = _httpx.get(
             f"{base_url}/api/projects/{project_id}/chat",
@@ -726,11 +816,16 @@ def _resolve_internal_url(client: object) -> tuple[str, dict[str, str]]:
     try:
         http = client._http  # type: ignore[attr-defined]
         base_url = str(http._client.base_url).replace("/api/v1", "").rstrip("/")
-        auth_headers = {k: v for k, v in http._client.headers.items() if k.lower() == "authorization"}
+        auth_headers = {
+            k: v
+            for k, v in http._client.headers.items()
+            if k.lower() == "authorization"
+        }
 
         # Try to refresh token if it may have expired during a long stream
         try:
             from querri._auth import TokenStore, needs_refresh, refresh_tokens
+
             store = TokenStore.load()
             profile = store.profiles.get("default")
             if profile and profile.access_token and needs_refresh(profile):
@@ -752,8 +847,11 @@ def _build_step_store(project: object) -> dict[str, dict]:
     store: dict[str, dict] = {}
     for s in steps:
         store[s.id] = {
-            "name": s.name, "type": s.type, "status": s.status,
-            "has_data": s.has_data, "has_figure": s.has_figure,
+            "name": s.name,
+            "type": s.type,
+            "status": s.status,
+            "has_data": s.has_data,
+            "has_figure": s.has_figure,
             "figure_url": getattr(s, "figure_url", None),
             "message": getattr(s, "message", None),
             "num_rows": getattr(s, "num_rows", None),
@@ -764,15 +862,22 @@ def _build_step_store(project: object) -> dict[str, dict]:
 
 
 def _fetch_step_data_preview(
-    step_id: str, project_id: str, base_url: str, auth_headers: dict[str, str], limit: int = 5,
+    step_id: str,
+    project_id: str,
+    base_url: str,
+    auth_headers: dict[str, str],
+    limit: int = 5,
 ) -> list[dict] | None:
     """Fetch the first few rows of step data from the internal API."""
     try:
         import httpx as _httpx
+
         resp = _httpx.get(
             f"{base_url}/api/projects/{project_id}/steps/{step_id}/data",
             params={"page": 1, "page_size": limit},
-            headers=auth_headers, follow_redirects=True, timeout=10.0,
+            headers=auth_headers,
+            follow_redirects=True,
+            timeout=10.0,
         )
         if resp.status_code == 200:
             return resp.json().get("data", [])
@@ -801,12 +906,25 @@ def _render_messages_with_parts(
     console = Console()
     shown = len(messages)
     total_n = total if total is not None else shown
-    count = f"{shown} of {total_n} messages" if shown != total_n else f"{total_n} messages"
-    console.print(Text.from_markup(f"[bold {QUERRI_ORANGE}]Conversation[/bold {QUERRI_ORANGE}]  [dim]{count}[/dim]\n"))
+    count = (
+        f"{shown} of {total_n} messages" if shown != total_n else f"{total_n} messages"
+    )
+    console.print(
+        Text.from_markup(
+            f"[bold {QUERRI_ORANGE}]Conversation"
+            f"[/bold {QUERRI_ORANGE}]"
+            f"  [dim]{count}[/dim]\n"
+        )
+    )
 
-    _ICONS = {
-        "duckdb_query": "🔍", "draw_figure": "📊", "source": "📂",
-        "add_source": "📂", "load": "📂", "python": "🐍", "coder": "🐍",
+    icons = {
+        "duckdb_query": "🔍",
+        "draw_figure": "📊",
+        "source": "📂",
+        "add_source": "📂",
+        "load": "📂",
+        "python": "🐍",
+        "coder": "🐍",
     }
 
     for msg in messages:
@@ -821,12 +939,17 @@ def _render_messages_with_parts(
             if not user_text:
                 user_text = msg.get("content", "")
             if user_text:
-                console.print(Panel(
-                    Text(user_text),
-                    title="[bold]You[/bold]", title_align="right",
-                    border_style=QUERRI_ORANGE, padding=(0, 1),
-                    width=min(console.width - 10, 80),
-                ), justify="right")
+                console.print(
+                    Panel(
+                        Text(user_text),
+                        title="[bold]You[/bold]",
+                        title_align="right",
+                        border_style=QUERRI_ORANGE,
+                        padding=(0, 1),
+                        width=min(console.width - 10, 80),
+                    ),
+                    justify="right",
+                )
 
         elif role == "assistant":
             # Fallback: if parts[] is empty, reconstruct from stream_chunks
@@ -844,21 +967,28 @@ def _render_messages_with_parts(
                 if ptype == "text":
                     text = part.get("text", "").strip()
                     if text:
-                        console.print(Panel(
-                            Markdown(text),
-                            title="[bold dim]Querri[/bold dim]",
-                            title_align="left", border_style="dim",
-                            padding=(0, 1),
-                        ))
+                        console.print(
+                            Panel(
+                                Markdown(text),
+                                title="[bold dim]Querri[/bold dim]",
+                                title_align="left",
+                                border_style="dim",
+                                padding=(0, 1),
+                            )
+                        )
 
                 elif ptype == "reasoning":
                     reasoning = part.get("reasoning", "").strip()
                     if reasoning:
-                        console.print(Panel(
-                            Text(reasoning, style="dim italic"),
-                            title="[dim]Reasoning[/dim]", title_align="left",
-                            border_style="dim", padding=(0, 1),
-                        ))
+                        console.print(
+                            Panel(
+                                Text(reasoning, style="dim italic"),
+                                title="[dim]Reasoning[/dim]",
+                                title_align="left",
+                                border_style="dim",
+                                padding=(0, 1),
+                            )
+                        )
 
                 elif ptype.startswith("tool-") and ptype != "tool-usage":
                     output = part.get("output", {}) or {}
@@ -882,11 +1012,20 @@ def _render_messages_with_parts(
                     for sid, embedded in step_items:
                         if not sid:
                             continue
-                        # Merge embedded step data with stepStore (embedded takes priority)
+                        # Merge embedded step data with
+                        # stepStore (embedded takes priority)
                         step = _merge_step_data(embedded, step_store.get(sid, {}))
                         if not step:
                             continue
-                        _render_inline_step(console, sid, step, project_id, base_url, auth_headers, _ICONS)
+                        _render_inline_step(
+                            console,
+                            sid,
+                            step,
+                            project_id,
+                            base_url,
+                            auth_headers,
+                            icons,
+                        )
 
     console.print()
 
@@ -933,7 +1072,9 @@ def _parse_stream_chunks(chunks: list[str], step_store: dict[str, dict]) -> list
             if delta:
                 # Flush reasoning if we were in a reasoning block
                 if in_reasoning and reasoning_buf:
-                    parts.append({"type": "reasoning", "reasoning": "".join(reasoning_buf)})
+                    parts.append(
+                        {"type": "reasoning", "reasoning": "".join(reasoning_buf)}
+                    )
                     reasoning_buf.clear()
                     in_reasoning = False
                 text_buf.append(delta)
@@ -959,12 +1100,11 @@ def _parse_stream_chunks(chunks: list[str], step_store: dict[str, dict]) -> list
         elif etype == "tool-output-available":
             output = obj.get("output", {})
             tcid = obj.get("toolCallId", "")
-            tool_name = obj.get("toolName", "")
             if isinstance(output, dict) and tcid:
                 tool_outputs[tcid] = output
 
         elif etype == "tool-input-available":
-            tool_name = obj.get("toolName", "")
+            pass
 
     # Flush remaining buffers
     if reasoning_buf:
@@ -973,14 +1113,16 @@ def _parse_stream_chunks(chunks: list[str], step_store: dict[str, dict]) -> list
         parts.append({"type": "text", "text": "".join(text_buf)})
 
     # Add tool parts from accumulated outputs (final per toolCallId)
-    for tcid, output in tool_outputs.items():
+    for _tcid, output in tool_outputs.items():
         if output.get("status") in ("success", "running"):
             steps = output.get("steps", {})
             if isinstance(steps, dict) and steps:
-                parts.append({
-                    "type": "tool-plan",
-                    "output": output,
-                })
+                parts.append(
+                    {
+                        "type": "tool-plan",
+                        "output": output,
+                    }
+                )
 
     return parts
 
@@ -999,7 +1141,9 @@ def _merge_step_data(embedded: dict, from_store: dict) -> dict:
 
     merged: dict = {
         "name": embedded.get("name") or from_store.get("name", ""),
-        "type": embedded.get("tool") or embedded.get("type") or from_store.get("type", ""),
+        "type": embedded.get("tool")
+        or embedded.get("type")
+        or from_store.get("type", ""),
         "status": embedded.get("status") or from_store.get("status", ""),
         "has_data": has_data or from_store.get("has_data", False),
         "has_figure": has_figure or from_store.get("has_figure", False),
@@ -1047,12 +1191,20 @@ def _render_inline_step(
         num_rows = step.get("num_rows")
         num_cols = step.get("num_cols")
         if num_rows is not None:
-            content_parts.append(Text(f"{num_rows} rows × {num_cols} columns", style="dim"))
+            content_parts.append(
+                Text(f"{num_rows} rows × {num_cols} columns", style="dim")
+            )
         rows = _fetch_step_data_preview(step_id, project_id, base_url, auth_headers)
         if rows and isinstance(rows, list) and rows and isinstance(rows[0], dict):
             all_cols = list(rows[0].keys())
             cols = all_cols[:6]
-            table = Table(show_header=True, header_style="bold", border_style="dim", padding=(0, 1), expand=False)
+            table = Table(
+                show_header=True,
+                header_style="bold",
+                border_style="dim",
+                padding=(0, 1),
+                expand=False,
+            )
             for col in cols:
                 table.add_column(col)
             if len(all_cols) > 6:
@@ -1070,13 +1222,27 @@ def _render_inline_step(
 
     # Chart
     if fig_url:
-        resolved = fig_url if fig_url.startswith("http") else f"{base_url}/api/files/stream/{fig_url.lstrip('/')}"
+        resolved = (
+            fig_url
+            if fig_url.startswith("http")
+            else f"{base_url}/api/files/stream/{fig_url.lstrip('/')}"
+        )
         img_width = min(console.width - 6, 70)
-        content_parts.append(render_image_rich(resolved, max_width=img_width, max_height=24, headers=auth_headers))
+        content_parts.append(
+            render_image_rich(
+                resolved, max_width=img_width, max_height=24, headers=auth_headers
+            )
+        )
 
-    content = Group(*content_parts) if content_parts else Text("[dim]Step completed[/dim]")
-    console.print(Panel(
-        content,
-        title=f"[bold {QUERRI_ORANGE}]{icon} {name}[/bold {QUERRI_ORANGE}]",
-        title_align="left", border_style="dim", padding=(0, 1),
-    ))
+    content = (
+        Group(*content_parts) if content_parts else Text("[dim]Step completed[/dim]")
+    )
+    console.print(
+        Panel(
+            content,
+            title=f"[bold {QUERRI_ORANGE}]{icon} {name}[/bold {QUERRI_ORANGE}]",
+            title_align="left",
+            border_style="dim",
+            padding=(0, 1),
+        )
+    )

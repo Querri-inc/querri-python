@@ -10,6 +10,7 @@ Execute with:
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import os
 import uuid
@@ -71,10 +72,8 @@ def source_id(client: Querri):
     yield source.id
 
     # Cleanup: delete the source after all tests
-    try:
+    with contextlib.suppress(Exception):
         client.sources.delete(source.id)
-    except Exception:
-        pass
 
 
 @pytest.fixture(scope="module")
@@ -454,7 +453,8 @@ class TestRLSResolution:
         print(f"  Effective access: {resolved.effective_access}")
 
     def test_28_verify_where_clause(self, client: Querri, source_id, user_1):
-        """Verify WHERE clause or effective access is reported for a user with policies."""
+        """Verify WHERE clause or effective access is
+        reported for a user with policies."""
         resolved = client.policies.resolve(
             user_id=user_1.id,
             source_id=source_id,
@@ -525,7 +525,7 @@ class TestErrorHandling:
         )
         try:
             with pytest.raises((AuthenticationError, APIError)) as exc_info:
-                bad_client.users.list().data  # force the request
+                _ = bad_client.users.list().data  # force the request
             err = exc_info.value
             assert err.status in (401, 403), f"Expected 401/403, got {err.status}"
             print(f"\n  Error: {err}")

@@ -170,7 +170,11 @@ def _build_event(event_type: str, data: str) -> ChatStreamEvent:
             )
 
         case "reasoning-delta":
-            text = parsed.get("textDelta", parsed.get("delta", data)) if parsed else _unquote_text(data)
+            text = (
+                parsed.get("textDelta", parsed.get("delta", data))
+                if parsed
+                else _unquote_text(data)
+            )
             return ChatStreamEvent(event_type=event_type, reasoning_text=text)
 
         case "reasoning-start" | "reasoning-end":
@@ -226,7 +230,6 @@ def _build_event_from_json(data: str) -> ChatStreamEvent | None:
             return None  # Plan input, skip
         case "tool-output-available":
             output = parsed.get("output") or {}
-            tool_call_id = parsed.get("toolCallId")
             # Check for step-result subtype
             if isinstance(output, dict) and output.get("type") == "step-result":
                 return ChatStreamEvent(
@@ -237,7 +240,12 @@ def _build_event_from_json(data: str) -> ChatStreamEvent | None:
                 )
             return ChatStreamEvent(
                 event_type="tool-output-available",
-                tool_name=parsed.get("toolName") or (output.get("message", "").split(" - ")[0].replace("Step ", "") if output.get("message") else None),
+                tool_name=parsed.get("toolName")
+                or (
+                    output.get("message", "").split(" - ")[0].replace("Step ", "")
+                    if output.get("message")
+                    else None
+                ),
                 tool_data=output,
                 raw_data=data,
             )
@@ -249,7 +257,7 @@ def _build_event_from_json(data: str) -> ChatStreamEvent | None:
             labels = [c.get("label", c.get("prompt", "")) for c in choices]
             text = summary
             if labels:
-                text += "\n" + "\n".join(f"  • {l}" for l in labels)
+                text += "\n" + "\n".join(f"  • {label}" for label in labels)
             return ChatStreamEvent(event_type="text-delta", text=text + "\n")
 
         # Status updates (SSE comments become events here)
@@ -360,9 +368,7 @@ class ChatStream:
                     break
 
         except httpx.ReadTimeout as exc:
-            raise StreamTimeoutError(
-                "Stream timed out waiting for data"
-            ) from exc
+            raise StreamTimeoutError("Stream timed out waiting for data") from exc
         finally:
             self._consumed = True
             self._response.close()
@@ -439,7 +445,9 @@ class ChatStream:
                     yield event
 
                 elif prefix == "e":
-                    event = ChatStreamEvent(event_type="error", error=data, raw_data=data)
+                    event = ChatStreamEvent(
+                        event_type="error", error=data, raw_data=data
+                    )
                     self._events.append(event)
                     yield event
                     raise StreamError(f"Stream error: {data}")
@@ -452,9 +460,7 @@ class ChatStream:
                     break
 
         except httpx.ReadTimeout as exc:
-            raise StreamTimeoutError(
-                "Stream timed out waiting for data"
-            ) from exc
+            raise StreamTimeoutError("Stream timed out waiting for data") from exc
         finally:
             self._consumed = True
             self._response.close()
@@ -551,9 +557,7 @@ class AsyncChatStream:
                     break
 
         except httpx.ReadTimeout as exc:
-            raise StreamTimeoutError(
-                "Stream timed out waiting for data"
-            ) from exc
+            raise StreamTimeoutError("Stream timed out waiting for data") from exc
         finally:
             self._consumed = True
             await self._response.aclose()
@@ -613,7 +617,9 @@ class AsyncChatStream:
                     yield event
 
                 elif prefix == "e":
-                    event = ChatStreamEvent(event_type="error", error=data, raw_data=data)
+                    event = ChatStreamEvent(
+                        event_type="error", error=data, raw_data=data
+                    )
                     self._events.append(event)
                     yield event
                     raise StreamError(f"Stream error: {data}")
@@ -626,9 +632,7 @@ class AsyncChatStream:
                     break
 
         except httpx.ReadTimeout as exc:
-            raise StreamTimeoutError(
-                "Stream timed out waiting for data"
-            ) from exc
+            raise StreamTimeoutError("Stream timed out waiting for data") from exc
         finally:
             self._consumed = True
             await self._response.aclose()
@@ -650,7 +654,10 @@ class AsyncChatStream:
         self._response.close()
 
     async def cancel(self) -> None:
-        """Cancel the stream and close the response. Always raises ``StreamCancelledError``."""
+        """Cancel the stream and close the response.
+
+        Always raises ``StreamCancelledError``.
+        """
         self._cancelled = True
         await self._response.aclose()
         raise StreamCancelledError("Stream cancelled by client")

@@ -21,8 +21,12 @@ class ApiKey(BaseModel):
     expires_at: str | None = None  #: ISO-8601 expiration timestamp, if set.
     rate_limit_per_minute: int = 60  #: Max requests allowed per minute.
     bound_user_id: str | None = None  #: User ID this key is bound to (detail only).
-    source_scope: dict[str, Any] | None = None  #: Source access scope config (detail only).
-    access_policy_ids: list[str] | None = None  #: Bound access policy IDs (detail only).
+    source_scope: dict[str, Any] | None = (
+        None  #: Source access scope config (detail only).
+    )
+    access_policy_ids: list[str] | None = (
+        None  #: Bound access policy IDs (detail only).
+    )
     ip_allowlist: list[str] | None = None  #: IP allowlist (detail only).
 
 

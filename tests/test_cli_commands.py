@@ -34,9 +34,14 @@ class TestUsersCommands:
 
     def _make_user(self, **overrides):
         from querri.types.user import User
+
         defaults = dict(
-            id="usr_1", email="alice@example.com", role="member",
-            first_name="Alice", last_name="Smith", external_id=None,
+            id="usr_1",
+            email="alice@example.com",
+            role="member",
+            first_name="Alice",
+            last_name="Smith",
+            external_id=None,
             created_at="2025-01-01T00:00:00Z",
         )
         defaults.update(overrides)
@@ -94,7 +99,9 @@ class TestUsersCommands:
         mock_client = MagicMock()
         mock_client.users.get.return_value = self._make_user()
         with patch("querri.cli.users.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_QUIET, "user", "get", "usr_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_QUIET, "user", "get", "usr_1"]
+            )
         assert result.exit_code == 0
         assert result.output.strip() == "usr_1"
 
@@ -111,13 +118,24 @@ class TestUsersCommands:
         with patch("querri.cli.users.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                [*_GLOBAL, "user", "new", "--email", "alice@example.com", "--role", "admin"],
+                [
+                    *_GLOBAL,
+                    "user",
+                    "new",
+                    "--email",
+                    "alice@example.com",
+                    "--role",
+                    "admin",
+                ],
             )
         assert result.exit_code == 0
         assert "Created" in result.output
         mock_client.users.create.assert_called_once_with(
-            email="alice@example.com", role="admin",
-            external_id=None, first_name=None, last_name=None,
+            email="alice@example.com",
+            role="admin",
+            external_id=None,
+            first_name=None,
+            last_name=None,
         )
 
     def test_user_new_json(self) -> None:
@@ -190,11 +208,21 @@ class TestUsersCommands:
         with patch("querri.cli.users.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                [*_GLOBAL, "user", "update", "usr_1",
-                 "--role", "admin", "--first-name", "Al"],
+                [
+                    *_GLOBAL,
+                    "user",
+                    "update",
+                    "usr_1",
+                    "--role",
+                    "admin",
+                    "--first-name",
+                    "Al",
+                ],
             )
         assert result.exit_code == 0
-        mock_client.users.update.assert_called_once_with("usr_1", role="admin", first_name="Al")
+        mock_client.users.update.assert_called_once_with(
+            "usr_1", role="admin", first_name="Al"
+        )
 
     def test_user_update_json(self) -> None:
         mock_client = MagicMock()
@@ -225,7 +253,9 @@ class TestUsersCommands:
     def test_user_delete_json(self) -> None:
         mock_client = MagicMock()
         with patch("querri.cli.users.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "user", "delete", "usr_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_JSON, "user", "delete", "usr_1"]
+            )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["deleted"] is True
@@ -245,10 +275,15 @@ class TestDashboardsCommands:
 
     def _make_dashboard(self, **overrides):
         from querri.types.dashboard import Dashboard
+
         defaults = dict(
-            id="dash_1", name="Sales Dashboard", description="Overview",
-            widget_count=5, created_by="usr_1",
-            created_at="2025-01-01T00:00:00Z", updated_at="2025-01-02T00:00:00Z",
+            id="dash_1",
+            name="Sales Dashboard",
+            description="Overview",
+            widget_count=5,
+            created_by="usr_1",
+            created_at="2025-01-01T00:00:00Z",
+            updated_at="2025-01-02T00:00:00Z",
         )
         defaults.update(overrides)
         return Dashboard(**defaults)
@@ -294,7 +329,9 @@ class TestDashboardsCommands:
         mock_client = MagicMock()
         mock_client.dashboards.get.return_value = self._make_dashboard()
         with patch("querri.cli.dashboards.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "dashboard", "get", "dash_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_JSON, "dashboard", "get", "dash_1"]
+            )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["id"] == "dash_1"
@@ -359,14 +396,18 @@ class TestDashboardsCommands:
     def test_dashboard_delete(self) -> None:
         mock_client = MagicMock()
         with patch("querri.cli.dashboards.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, "dashboard", "delete", "dash_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, "dashboard", "delete", "dash_1"]
+            )
         assert result.exit_code == 0
         assert "Deleted" in result.output
 
     def test_dashboard_delete_json(self) -> None:
         mock_client = MagicMock()
         with patch("querri.cli.dashboards.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "dashboard", "delete", "dash_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_JSON, "dashboard", "delete", "dash_1"]
+            )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["deleted"] is True
@@ -375,24 +416,36 @@ class TestDashboardsCommands:
 
     def test_dashboard_refresh(self) -> None:
         from querri.types.dashboard import DashboardRefreshResponse
-        mock_client = MagicMock()
-        mock_client.dashboards.refresh.return_value = DashboardRefreshResponse(
-            id="dash_1", status="refreshing", project_count=3,
-        )
-        with patch("querri.cli.dashboards.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, "dashboard", "refresh", "dash_1"])
-        assert result.exit_code == 0
-        assert "refresh started" in result.output.lower() or "refreshing" in result.output.lower()
 
-    def test_dashboard_refresh_json(self) -> None:
-        from querri.types.dashboard import DashboardRefreshResponse
         mock_client = MagicMock()
         mock_client.dashboards.refresh.return_value = DashboardRefreshResponse(
-            id="dash_1", status="refreshing", project_count=3,
+            id="dash_1",
+            status="refreshing",
+            project_count=3,
         )
         with patch("querri.cli.dashboards.get_client", return_value=mock_client):
             result = runner.invoke(
-                main_app, [*_GLOBAL, *_JSON, "dashboard", "refresh", "dash_1"],
+                main_app, [*_GLOBAL, "dashboard", "refresh", "dash_1"]
+            )
+        assert result.exit_code == 0
+        assert (
+            "refresh started" in result.output.lower()
+            or "refreshing" in result.output.lower()
+        )
+
+    def test_dashboard_refresh_json(self) -> None:
+        from querri.types.dashboard import DashboardRefreshResponse
+
+        mock_client = MagicMock()
+        mock_client.dashboards.refresh.return_value = DashboardRefreshResponse(
+            id="dash_1",
+            status="refreshing",
+            project_count=3,
+        )
+        with patch("querri.cli.dashboards.get_client", return_value=mock_client):
+            result = runner.invoke(
+                main_app,
+                [*_GLOBAL, *_JSON, "dashboard", "refresh", "dash_1"],
             )
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -413,9 +466,13 @@ class TestKeysCommands:
 
     def _make_key(self, **overrides):
         from querri.types.key import ApiKey
+
         defaults = dict(
-            id="key_1", name="My Key", key_prefix="qk_abc",
-            scopes=["data:read"], status="active",
+            id="key_1",
+            name="My Key",
+            key_prefix="qk_abc",
+            scopes=["data:read"],
+            status="active",
             created_at="2025-01-01T00:00:00Z",
         )
         defaults.update(overrides)
@@ -423,9 +480,13 @@ class TestKeysCommands:
 
     def _make_created_key(self, **overrides):
         from querri.types.key import ApiKeyCreated
+
         defaults = dict(
-            id="key_1", name="My Key", key_prefix="qk_abc",
-            scopes=["data:read"], status="active",
+            id="key_1",
+            name="My Key",
+            key_prefix="qk_abc",
+            scopes=["data:read"],
+            status="active",
             secret="qk_test_secret_full_value",
             created_at="2025-01-01T00:00:00Z",
         )
@@ -501,7 +562,16 @@ class TestKeysCommands:
         with patch("querri.cli.keys.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                [*_GLOBAL, *_JSON, "key", "new", "--name", "My Key", "--scopes", "data:read"],
+                [
+                    *_GLOBAL,
+                    *_JSON,
+                    "key",
+                    "new",
+                    "--name",
+                    "My Key",
+                    "--scopes",
+                    "data:read",
+                ],
             )
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -513,13 +583,24 @@ class TestKeysCommands:
         with patch("querri.cli.keys.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                [*_GLOBAL, *_QUIET, "key", "new", "--name", "My Key", "--scopes", "data:read"],
+                [
+                    *_GLOBAL,
+                    *_QUIET,
+                    "key",
+                    "new",
+                    "--name",
+                    "My Key",
+                    "--scopes",
+                    "data:read",
+                ],
             )
         assert result.exit_code == 0
         assert "qk_test_secret_full_value" in result.output
 
     def test_key_new_missing_name(self) -> None:
-        result = runner.invoke(main_app, [*_GLOBAL, "key", "new", "--scopes", "data:read"])
+        result = runner.invoke(
+            main_app, [*_GLOBAL, "key", "new", "--scopes", "data:read"]
+        )
         assert result.exit_code != 0
 
     def test_key_new_missing_scopes(self) -> None:
@@ -538,7 +619,9 @@ class TestKeysCommands:
     def test_key_delete_json(self) -> None:
         mock_client = MagicMock()
         with patch("querri.cli.keys.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "key", "delete", "key_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_JSON, "key", "delete", "key_1"]
+            )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["deleted"] is True
@@ -553,10 +636,16 @@ class TestSourcesCommands:
     """Tests for querri source list/get/new/update/delete/describe/data/query."""
 
     # sources.list returns dicts (not Pydantic models) based on the CLI code
-    _SOURCE_DICT = {"id": "src_1", "name": "Orders", "service": "csv", "connector_id": None}
+    _SOURCE_DICT = {
+        "id": "src_1",
+        "name": "Orders",
+        "service": "csv",
+        "connector_id": None,
+    }
 
     def _make_source_model(self):
         from querri.types.data import Source
+
         return Source(id="src_1", name="Orders")
 
     # -- list ---------------------------------------------------------------
@@ -600,7 +689,9 @@ class TestSourcesCommands:
         mock_client = MagicMock()
         mock_client.sources.get.return_value = self._SOURCE_DICT
         with patch("querri.cli.sources.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "source", "get", "src_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_JSON, "source", "get", "src_1"]
+            )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["id"] == "src_1"
@@ -613,10 +704,15 @@ class TestSourcesCommands:
 
     def test_source_describe(self) -> None:
         src = {
-            "id": "src_1", "name": "Orders", "row_count": 100,
-            "description": "Order data", "summary": "Summary",
-            "updated_at": "2025-01-01", "columns": ["id", "total"],
-            "column_details": {}, "column_types": {"id": "integer", "total": "float"},
+            "id": "src_1",
+            "name": "Orders",
+            "row_count": 100,
+            "description": "Order data",
+            "summary": "Summary",
+            "updated_at": "2025-01-01",
+            "columns": ["id", "total"],
+            "column_details": {},
+            "column_types": {"id": "integer", "total": "float"},
         }
         mock_client = MagicMock()
         mock_client.sources.get.return_value = src
@@ -629,9 +725,12 @@ class TestSourcesCommands:
 
     def test_source_data(self) -> None:
         from querri.types.data import DataPage
+
         page = DataPage(
             data=[{"id": 1, "total": 99.0}],
-            total_rows=1, page=1, page_size=25,
+            total_rows=1,
+            page=1,
+            page_size=25,
             columns=["id", "total"],
         )
         mock_client = MagicMock()
@@ -642,15 +741,20 @@ class TestSourcesCommands:
 
     def test_source_data_json(self) -> None:
         from querri.types.data import DataPage
+
         page = DataPage(
             data=[{"id": 1, "total": 99.0}],
-            total_rows=1, page=1, page_size=25,
+            total_rows=1,
+            page=1,
+            page_size=25,
             columns=["id", "total"],
         )
         mock_client = MagicMock()
         mock_client.sources.source_data.return_value = page
         with patch("querri.cli.sources.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "source", "data", "src_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_JSON, "source", "data", "src_1"]
+            )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert "data" in data
@@ -659,15 +763,27 @@ class TestSourcesCommands:
 
     def test_source_query(self) -> None:
         from querri.types.data import QueryResult
+
         qr = QueryResult(
-            data=[{"id": 1, "total": 99}], total_rows=1, page=1, page_size=25,
+            data=[{"id": 1, "total": 99}],
+            total_rows=1,
+            page=1,
+            page_size=25,
         )
         mock_client = MagicMock()
         mock_client.sources.query.return_value = qr
         with patch("querri.cli.sources.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                [*_GLOBAL, "source", "query", "--source-id", "src_1", "--sql", "SELECT 1"],
+                [
+                    *_GLOBAL,
+                    "source",
+                    "query",
+                    "--source-id",
+                    "src_1",
+                    "--sql",
+                    "SELECT 1",
+                ],
             )
         assert result.exit_code == 0
 
@@ -692,7 +808,8 @@ class TestSourcesCommands:
             )
         assert result.exit_code == 0
         mock_client.sources.create_data_source.assert_called_once_with(
-            name="Test", rows=rows,
+            name="Test",
+            rows=rows,
         )
 
     def test_source_new_invalid_json(self) -> None:
@@ -728,7 +845,9 @@ class TestSourcesCommands:
     def test_source_delete_json(self) -> None:
         mock_client = MagicMock()
         with patch("querri.cli.sources.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "source", "delete", "src_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_JSON, "source", "delete", "src_1"]
+            )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["deleted"] is True
@@ -742,7 +861,13 @@ class TestSourcesCommands:
 class TestViewsCommands:
     """Tests for querri view list/get/new/update/delete/run/preview."""
 
-    _VIEW_DICT = {"id": "v_1", "uuid": "v_1", "name": "Revenue", "status": "ready", "description": "Monthly revenue"}
+    _VIEW_DICT = {
+        "id": "v_1",
+        "uuid": "v_1",
+        "name": "Revenue",
+        "status": "ready",
+        "description": "Monthly revenue",
+    }
 
     # -- list ---------------------------------------------------------------
 
@@ -801,7 +926,15 @@ class TestViewsCommands:
         with patch("querri.cli.views.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                [*_GLOBAL, "view", "new", "--name", "Revenue", "--sql", "SELECT sum(total) FROM orders"],
+                [
+                    *_GLOBAL,
+                    "view",
+                    "new",
+                    "--name",
+                    "Revenue",
+                    "--sql",
+                    "SELECT sum(total) FROM orders",
+                ],
             )
         assert result.exit_code == 0
         assert "Created" in result.output
@@ -875,7 +1008,9 @@ class TestViewsCommands:
     def test_view_delete_json(self) -> None:
         mock_client = MagicMock()
         with patch("querri.cli.views.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "view", "delete", "v_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_JSON, "view", "delete", "v_1"]
+            )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["deleted"] is True
@@ -917,7 +1052,8 @@ class TestViewsCommands:
     def test_view_preview(self) -> None:
         mock_client = MagicMock()
         mock_client.views.preview.return_value = {
-            "rows": [{"a": 1, "b": 2}], "total_rows": 1,
+            "rows": [{"a": 1, "b": 2}],
+            "total_rows": 1,
         }
         with patch("querri.cli.views.get_client", return_value=mock_client):
             result = runner.invoke(main_app, [*_GLOBAL, "view", "preview", "v_1"])
@@ -926,10 +1062,13 @@ class TestViewsCommands:
     def test_view_preview_json(self) -> None:
         mock_client = MagicMock()
         mock_client.views.preview.return_value = {
-            "rows": [{"a": 1}], "total_rows": 1,
+            "rows": [{"a": 1}],
+            "total_rows": 1,
         }
         with patch("querri.cli.views.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "view", "preview", "v_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_JSON, "view", "preview", "v_1"]
+            )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert "rows" in data
@@ -949,9 +1088,13 @@ class TestFilesCommands:
 
     def _make_file(self, **overrides):
         from querri.types.file import File
+
         defaults = dict(
-            id="file_1", name="data.csv", size=1024,
-            content_type="text/csv", created_at="2025-01-01T00:00:00Z",
+            id="file_1",
+            name="data.csv",
+            size=1024,
+            content_type="text/csv",
+            created_at="2025-01-01T00:00:00Z",
         )
         defaults.update(overrides)
         return File(**defaults)
@@ -997,7 +1140,9 @@ class TestFilesCommands:
         mock_client = MagicMock()
         mock_client.files.get.return_value = self._make_file()
         with patch("querri.cli.files.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "file", "get", "file_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_JSON, "file", "get", "file_1"]
+            )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["id"] == "file_1"
@@ -1018,7 +1163,9 @@ class TestFilesCommands:
     def test_file_delete_json(self) -> None:
         mock_client = MagicMock()
         with patch("querri.cli.files.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "file", "delete", "file_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_JSON, "file", "delete", "file_1"]
+            )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["deleted"] is True
@@ -1038,9 +1185,13 @@ class TestPoliciesCommands:
 
     def _make_policy(self, **overrides):
         from querri.types.policy import Policy
+
         defaults = dict(
-            id="pol_1", name="Sales Team", description="RLS for sales",
-            source_ids=["src_1"], user_count=3,
+            id="pol_1",
+            name="Sales Team",
+            description="RLS for sales",
+            source_ids=["src_1"],
+            user_count=3,
             created_at="2025-01-01T00:00:00Z",
             updated_at="2025-01-02T00:00:00Z",
         )
@@ -1088,7 +1239,9 @@ class TestPoliciesCommands:
         mock_client = MagicMock()
         mock_client.policies.get.return_value = self._make_policy()
         with patch("querri.cli.policies.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "policy", "get", "pol_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_JSON, "policy", "get", "pol_1"]
+            )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["id"] == "pol_1"
@@ -1105,7 +1258,15 @@ class TestPoliciesCommands:
         with patch("querri.cli.policies.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                [*_GLOBAL, "policy", "new", "--name", "Sales Team", "--source-ids", "src_1"],
+                [
+                    *_GLOBAL,
+                    "policy",
+                    "new",
+                    "--name",
+                    "Sales Team",
+                    "--source-ids",
+                    "src_1",
+                ],
             )
         assert result.exit_code == 0
         assert "Created" in result.output
@@ -1176,7 +1337,9 @@ class TestPoliciesCommands:
     def test_policy_delete_json(self) -> None:
         mock_client = MagicMock()
         with patch("querri.cli.policies.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "policy", "delete", "pol_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_JSON, "policy", "delete", "pol_1"]
+            )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["deleted"] is True
@@ -1194,7 +1357,8 @@ class TestPoliciesCommands:
         assert result.exit_code == 0
         assert "Assigned" in result.output
         mock_client.policies.assign_users.assert_called_once_with(
-            "pol_1", user_ids=["usr_1", "usr_2"],
+            "pol_1",
+            user_ids=["usr_1", "usr_2"],
         )
 
     def test_policy_assign_json(self) -> None:
@@ -1218,7 +1382,9 @@ class TestPoliciesCommands:
     def test_policy_remove(self) -> None:
         mock_client = MagicMock()
         with patch("querri.cli.policies.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, "policy", "remove", "pol_1", "usr_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, "policy", "remove", "pol_1", "usr_1"]
+            )
         assert result.exit_code == 0
         assert "Removed" in result.output
         mock_client.policies.remove_user.assert_called_once_with("pol_1", "usr_1")
@@ -1227,7 +1393,8 @@ class TestPoliciesCommands:
         mock_client = MagicMock()
         with patch("querri.cli.policies.get_client", return_value=mock_client):
             result = runner.invoke(
-                main_app, [*_GLOBAL, *_JSON, "policy", "remove", "pol_1", "usr_1"],
+                main_app,
+                [*_GLOBAL, *_JSON, "policy", "remove", "pol_1", "usr_1"],
             )
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -1248,19 +1415,25 @@ class TestEmbedCommands:
 
     def _make_session(self, **overrides):
         from querri.types.embed import EmbedSession
+
         defaults = dict(session_token="es_abc123", expires_in=3600, user_id="usr_1")
         defaults.update(overrides)
         return EmbedSession(**defaults)
 
     def _make_session_list(self):
         from querri.types.embed import EmbedSessionList, EmbedSessionListItem
-        return EmbedSessionList(data=[
-            EmbedSessionListItem(
-                session_token="es_abc123", user_id="usr_1",
-                origin="https://example.com", created_at="2025-01-01T00:00:00Z",
-                auth_method="api_key",
-            ),
-        ])
+
+        return EmbedSessionList(
+            data=[
+                EmbedSessionListItem(
+                    session_token="es_abc123",
+                    user_id="usr_1",
+                    origin="https://example.com",
+                    created_at="2025-01-01T00:00:00Z",
+                    auth_method="api_key",
+                ),
+            ]
+        )
 
     # -- list ---------------------------------------------------------------
 
@@ -1325,9 +1498,11 @@ class TestEmbedCommands:
 
     def test_session_revoke_by_id(self) -> None:
         from querri.types.embed import EmbedSessionRevokeResponse
+
         mock_client = MagicMock()
         mock_client.embed.revoke_session.return_value = EmbedSessionRevokeResponse(
-            id="ses_1", revoked=True,
+            id="ses_1",
+            revoked=True,
         )
         with patch("querri.cli.embed.get_client", return_value=mock_client):
             result = runner.invoke(
@@ -1339,9 +1514,11 @@ class TestEmbedCommands:
 
     def test_session_revoke_by_token(self) -> None:
         from querri.types.embed import EmbedSessionRevokeResponse
+
         mock_client = MagicMock()
         mock_client.embed.revoke_session.return_value = EmbedSessionRevokeResponse(
-            id="ses_1", revoked=True,
+            id="ses_1",
+            revoked=True,
         )
         with patch("querri.cli.embed.get_client", return_value=mock_client):
             result = runner.invoke(
@@ -1353,9 +1530,11 @@ class TestEmbedCommands:
 
     def test_session_revoke_json(self) -> None:
         from querri.types.embed import EmbedSessionRevokeResponse
+
         mock_client = MagicMock()
         mock_client.embed.revoke_session.return_value = EmbedSessionRevokeResponse(
-            id="ses_1", revoked=True,
+            id="ses_1",
+            revoked=True,
         )
         with patch("querri.cli.embed.get_client", return_value=mock_client):
             result = runner.invoke(
@@ -1381,6 +1560,7 @@ class TestUsageCommands:
 
     def _make_org_usage(self):
         from querri.types.usage import OrgUsageReport
+
         return OrgUsageReport(
             period="current_month",
             period_start="2025-01-01T00:00:00Z",
@@ -1392,6 +1572,7 @@ class TestUsageCommands:
 
     def _make_user_usage(self):
         from querri.types.usage import UserUsageReport
+
         return UserUsageReport(
             user_id="usr_1",
             period="current_month",
@@ -1433,7 +1614,9 @@ class TestUsageCommands:
         mock_client = MagicMock()
         mock_client.usage.user_usage.return_value = self._make_user_usage()
         with patch("querri.cli.usage.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "usage", "user", "usr_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_JSON, "usage", "user", "usr_1"]
+            )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["ai_messages"] == 42
@@ -1453,9 +1636,13 @@ class TestAuditCommands:
 
     def _make_event(self, **overrides):
         from querri.types.audit import AuditEvent
+
         defaults = dict(
-            id="evt_1", actor_id="usr_1", action="create",
-            target_type="project", target_id="proj_1",
+            id="evt_1",
+            actor_id="usr_1",
+            action="create",
+            target_type="project",
+            target_id="proj_1",
             timestamp="2025-01-01T00:00:00Z",
         )
         defaults.update(overrides)
@@ -1485,13 +1672,27 @@ class TestAuditCommands:
         with patch("querri.cli.audit.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                [*_GLOBAL, "audit", "list",
-                 "--actor-id", "usr_1", "--action", "create", "--limit", "10"],
+                [
+                    *_GLOBAL,
+                    "audit",
+                    "list",
+                    "--actor-id",
+                    "usr_1",
+                    "--action",
+                    "create",
+                    "--limit",
+                    "10",
+                ],
             )
         assert result.exit_code == 0
         mock_client.audit.list.assert_called_once_with(
-            actor_id="usr_1", target_id=None, action="create",
-            start_date=None, end_date=None, limit=10, after=None,
+            actor_id="usr_1",
+            target_id=None,
+            action="create",
+            start_date=None,
+            end_date=None,
+            limit=10,
+            after=None,
         )
 
 
@@ -1509,8 +1710,11 @@ class TestChatsCommands:
 
     def _make_chat(self, **overrides):
         from querri.types.chat import Chat
+
         defaults = dict(
-            id="chat_1", project_id="proj_1", name="Analysis",
+            id="chat_1",
+            project_id="proj_1",
+            name="Analysis",
             created_at="2025-01-01T00:00:00Z",
         )
         defaults.update(overrides)
@@ -1537,8 +1741,10 @@ class TestChatsCommands:
         """Falls back to active project from profile when no arg given."""
         mock_client = MagicMock()
         mock_client.projects.chats.list.return_value = [self._make_chat()]
-        with patch("querri.cli.chats.get_client", return_value=mock_client), \
-             patch("querri.cli.chats.resolve_project_id", return_value="proj_active"):
+        with (
+            patch("querri.cli.chats.get_client", return_value=mock_client),
+            patch("querri.cli.chats.resolve_project_id", return_value="proj_active"),
+        ):
             result = runner.invoke(main_app, [*_GLOBAL, "chat", "list"])
         assert result.exit_code == 0
         mock_client.projects.chats.list.assert_called_once_with("proj_active", limit=25)
@@ -1548,26 +1754,39 @@ class TestChatsCommands:
         mock_client = MagicMock()
         mock_client.projects.chats.list.return_value = [self._make_chat()]
         profile = self._mock_profile(active_project_id="proj_active")
-        with patch("querri.cli.chats.get_client", return_value=mock_client), \
-             patch("querri.cli.chats._get_profile", return_value=profile):
-            result = runner.invoke(main_app, [*_GLOBAL, "chat", "list", "proj_explicit"])
+        with (
+            patch("querri.cli.chats.get_client", return_value=mock_client),
+            patch("querri.cli.chats._get_profile", return_value=profile),
+        ):
+            result = runner.invoke(
+                main_app, [*_GLOBAL, "chat", "list", "proj_explicit"]
+            )
         assert result.exit_code == 0
-        mock_client.projects.chats.list.assert_called_once_with("proj_explicit", limit=25)
+        mock_client.projects.chats.list.assert_called_once_with(
+            "proj_explicit", limit=25
+        )
 
     def test_chat_list_no_active_project_errors(self) -> None:
         """Errors with helpful message when no active project and no arg."""
         profile = self._mock_profile(active_project_id=None)
-        with patch("querri.cli.chats._get_profile", return_value=profile), \
-             patch("querri.cli.chats.resolve_project_id", side_effect=SystemExit(1)):
+        with (
+            patch("querri.cli.chats._get_profile", return_value=profile),
+            patch("querri.cli.chats.resolve_project_id", side_effect=SystemExit(1)),
+        ):
             result = runner.invoke(main_app, [*_GLOBAL, "chat", "list"])
         assert result.exit_code != 0
-        assert "active project" in result.output.lower() or "project" in result.output.lower()
+        assert (
+            "active project" in result.output.lower()
+            or "project" in result.output.lower()
+        )
 
     def test_chat_list_json(self) -> None:
         mock_client = MagicMock()
         mock_client.projects.chats.list.return_value = [self._make_chat()]
         with patch("querri.cli.chats.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "chat", "list", "proj_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_JSON, "chat", "list", "proj_1"]
+            )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert isinstance(data, list)
@@ -1576,7 +1795,9 @@ class TestChatsCommands:
         mock_client = MagicMock()
         mock_client.projects.chats.list.return_value = [self._make_chat()]
         with patch("querri.cli.chats.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_QUIET, "chat", "list", "proj_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, *_QUIET, "chat", "list", "proj_1"]
+            )
         assert result.exit_code == 0
         assert "chat_1" in result.output
 
@@ -1586,7 +1807,9 @@ class TestChatsCommands:
         mock_client = MagicMock()
         mock_client.projects.chats.get.return_value = self._make_chat()
         with patch("querri.cli.chats.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, "chat", "get", "proj_1", "chat_1"])
+            result = runner.invoke(
+                main_app, [*_GLOBAL, "chat", "get", "proj_1", "chat_1"]
+            )
         assert result.exit_code == 0
         mock_client.projects.chats.get.assert_called_once_with("proj_1", "chat_1")
 
@@ -1594,10 +1817,14 @@ class TestChatsCommands:
         """Falls back to active chat from profile when no chat arg given."""
         mock_client = MagicMock()
         mock_client.projects.chats.get.return_value = self._make_chat()
-        profile = self._mock_profile(active_project_id="proj_1", active_chat_id="chat_active")
-        with patch("querri.cli.chats.get_client", return_value=mock_client), \
-             patch("querri.cli.chats.resolve_project_id", return_value="proj_1"), \
-             patch("querri.cli.chats._get_profile", return_value=profile):
+        profile = self._mock_profile(
+            active_project_id="proj_1", active_chat_id="chat_active"
+        )
+        with (
+            patch("querri.cli.chats.get_client", return_value=mock_client),
+            patch("querri.cli.chats.resolve_project_id", return_value="proj_1"),
+            patch("querri.cli.chats._get_profile", return_value=profile),
+        ):
             result = runner.invoke(main_app, [*_GLOBAL, "chat", "get"])
         assert result.exit_code == 0
         mock_client.projects.chats.get.assert_called_once_with("proj_1", "chat_active")
@@ -1607,7 +1834,8 @@ class TestChatsCommands:
         mock_client.projects.chats.get.return_value = self._make_chat()
         with patch("querri.cli.chats.get_client", return_value=mock_client):
             result = runner.invoke(
-                main_app, [*_GLOBAL, *_JSON, "chat", "get", "proj_1", "chat_1"],
+                main_app,
+                [*_GLOBAL, *_JSON, "chat", "get", "proj_1", "chat_1"],
             )
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -1618,7 +1846,8 @@ class TestChatsCommands:
         mock_client.projects.chats.get.return_value = self._make_chat()
         with patch("querri.cli.chats.get_client", return_value=mock_client):
             result = runner.invoke(
-                main_app, [*_GLOBAL, *_QUIET, "chat", "get", "proj_1", "chat_1"],
+                main_app,
+                [*_GLOBAL, *_QUIET, "chat", "get", "proj_1", "chat_1"],
             )
         assert result.exit_code == 0
         assert result.output.strip() == "chat_1"
@@ -1665,7 +1894,8 @@ class TestChatsCommands:
         mock_client = MagicMock()
         with patch("querri.cli.chats.get_client", return_value=mock_client):
             result = runner.invoke(
-                main_app, [*_GLOBAL, "chat", "delete", "proj_1", "chat_1"],
+                main_app,
+                [*_GLOBAL, "chat", "delete", "proj_1", "chat_1"],
             )
         assert result.exit_code == 0
         assert "deleted" in result.output.lower()
@@ -1675,7 +1905,8 @@ class TestChatsCommands:
         mock_client = MagicMock()
         with patch("querri.cli.chats.get_client", return_value=mock_client):
             result = runner.invoke(
-                main_app, [*_GLOBAL, *_JSON, "chat", "delete", "proj_1", "chat_1"],
+                main_app,
+                [*_GLOBAL, *_JSON, "chat", "delete", "proj_1", "chat_1"],
             )
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -1688,7 +1919,8 @@ class TestChatsCommands:
         mock_client.projects.chats.cancel.return_value = {"cancelled": True}
         with patch("querri.cli.chats.get_client", return_value=mock_client):
             result = runner.invoke(
-                main_app, [*_GLOBAL, "chat", "cancel", "proj_1", "chat_1"],
+                main_app,
+                [*_GLOBAL, "chat", "cancel", "proj_1", "chat_1"],
             )
         assert result.exit_code == 0
         assert "cancelled" in result.output.lower()
@@ -1699,7 +1931,8 @@ class TestChatsCommands:
         mock_client.projects.chats.cancel.return_value = {"cancelled": True}
         with patch("querri.cli.chats.get_client", return_value=mock_client):
             result = runner.invoke(
-                main_app, [*_GLOBAL, *_JSON, "chat", "cancel", "proj_1", "chat_1"],
+                main_app,
+                [*_GLOBAL, *_JSON, "chat", "cancel", "proj_1", "chat_1"],
             )
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -1709,10 +1942,14 @@ class TestChatsCommands:
         """cancel falls back to active project + chat from profile."""
         mock_client = MagicMock()
         mock_client.projects.chats.cancel.return_value = {"cancelled": True}
-        profile = self._mock_profile(active_project_id="proj_a", active_chat_id="chat_a")
-        with patch("querri.cli.chats.get_client", return_value=mock_client), \
-             patch("querri.cli.chats.resolve_project_id", return_value="proj_a"), \
-             patch("querri.cli.chats._get_profile", return_value=profile):
+        profile = self._mock_profile(
+            active_project_id="proj_a", active_chat_id="chat_a"
+        )
+        with (
+            patch("querri.cli.chats.get_client", return_value=mock_client),
+            patch("querri.cli.chats.resolve_project_id", return_value="proj_a"),
+            patch("querri.cli.chats._get_profile", return_value=profile),
+        ):
             result = runner.invoke(main_app, [*_GLOBAL, "chat", "cancel"])
         assert result.exit_code == 0
         mock_client.projects.chats.cancel.assert_called_once_with("proj_a", "chat_a")
@@ -1728,6 +1965,7 @@ class TestSharingCommands:
 
     def _make_share(self, **overrides):
         from querri.types.sharing import ShareEntry
+
         defaults = dict(user_id="usr_1", permission="view")
         defaults.update(overrides)
         return ShareEntry(**defaults)
@@ -1745,7 +1983,9 @@ class TestSharingCommands:
         assert result.exit_code == 0
         assert "Shared" in result.output
         mock_client.sharing.share_project.assert_called_once_with(
-            "proj_1", user_id="usr_1", permission="view",
+            "proj_1",
+            user_id="usr_1",
+            permission="view",
         )
 
     def test_share_project_add_edit_permission(self) -> None:
@@ -1754,12 +1994,23 @@ class TestSharingCommands:
         with patch("querri.cli.sharing.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                [*_GLOBAL, "share", "project", "add", "proj_1",
-                 "--user-id", "usr_1", "--permission", "edit"],
+                [
+                    *_GLOBAL,
+                    "share",
+                    "project",
+                    "add",
+                    "proj_1",
+                    "--user-id",
+                    "usr_1",
+                    "--permission",
+                    "edit",
+                ],
             )
         assert result.exit_code == 0
         mock_client.sharing.share_project.assert_called_once_with(
-            "proj_1", user_id="usr_1", permission="edit",
+            "proj_1",
+            user_id="usr_1",
+            permission="edit",
         )
 
     def test_share_project_add_json(self) -> None:
@@ -1768,7 +2019,16 @@ class TestSharingCommands:
         with patch("querri.cli.sharing.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,
-                [*_GLOBAL, *_JSON, "share", "project", "add", "proj_1", "--user-id", "usr_1"],
+                [
+                    *_GLOBAL,
+                    *_JSON,
+                    "share",
+                    "project",
+                    "add",
+                    "proj_1",
+                    "--user-id",
+                    "usr_1",
+                ],
             )
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -1776,7 +2036,8 @@ class TestSharingCommands:
 
     def test_share_project_add_missing_user_id(self) -> None:
         result = runner.invoke(
-            main_app, [*_GLOBAL, "share", "project", "add", "proj_1"],
+            main_app,
+            [*_GLOBAL, "share", "project", "add", "proj_1"],
         )
         assert result.exit_code != 0
 
@@ -1791,7 +2052,8 @@ class TestSharingCommands:
         mock_client.sharing.list_project_shares.return_value = [self._make_share()]
         with patch("querri.cli.sharing.get_client", return_value=mock_client):
             result = runner.invoke(
-                main_app, [*_GLOBAL, "share", "project", "list", "proj_1"],
+                main_app,
+                [*_GLOBAL, "share", "project", "list", "proj_1"],
             )
         assert result.exit_code == 0
         assert "usr_1" in result.output
@@ -1801,7 +2063,8 @@ class TestSharingCommands:
         mock_client.sharing.list_project_shares.return_value = [self._make_share()]
         with patch("querri.cli.sharing.get_client", return_value=mock_client):
             result = runner.invoke(
-                main_app, [*_GLOBAL, *_JSON, "share", "project", "list", "proj_1"],
+                main_app,
+                [*_GLOBAL, *_JSON, "share", "project", "list", "proj_1"],
             )
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -1817,11 +2080,14 @@ class TestSharingCommands:
         mock_client = MagicMock()
         with patch("querri.cli.sharing.get_client", return_value=mock_client):
             result = runner.invoke(
-                main_app, [*_GLOBAL, "share", "project", "remove", "proj_1", "usr_1"],
+                main_app,
+                [*_GLOBAL, "share", "project", "remove", "proj_1", "usr_1"],
             )
         assert result.exit_code == 0
         assert "Revoked" in result.output
-        mock_client.sharing.revoke_project_share.assert_called_once_with("proj_1", "usr_1")
+        mock_client.sharing.revoke_project_share.assert_called_once_with(
+            "proj_1", "usr_1"
+        )
 
     def test_share_project_remove_json(self) -> None:
         mock_client = MagicMock()
@@ -1836,6 +2102,7 @@ class TestSharingCommands:
 
     def test_share_project_remove_missing_user_id(self) -> None:
         result = runner.invoke(
-            main_app, [*_GLOBAL, "share", "project", "remove", "proj_1"],
+            main_app,
+            [*_GLOBAL, "share", "project", "remove", "proj_1"],
         )
         assert result.exit_code != 0

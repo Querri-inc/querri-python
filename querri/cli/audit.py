@@ -22,10 +22,16 @@ audit_app = typer.Typer(
 def list_events(
     ctx: typer.Context,
     actor_id: str | None = typer.Option(None, "--actor-id", help="Filter by actor ID."),
-    target_id: str | None = typer.Option(None, "--target-id", help="Filter by target ID."),
+    target_id: str | None = typer.Option(
+        None, "--target-id", help="Filter by target ID."
+    ),
     action: str | None = typer.Option(None, "--action", help="Filter by action type."),
-    start_date: str | None = typer.Option(None, "--start-date", help="Start date (ISO 8601)."),
-    end_date: str | None = typer.Option(None, "--end-date", help="End date (ISO 8601)."),
+    start_date: str | None = typer.Option(
+        None, "--start-date", help="Start date (ISO 8601)."
+    ),
+    end_date: str | None = typer.Option(
+        None, "--end-date", help="End date (ISO 8601)."
+    ),
     limit: int = typer.Option(25, "--limit", "-l", help="Max results to return."),
     after: str | None = typer.Option(None, "--after", help="Cursor for pagination."),
 ) -> None:
@@ -43,7 +49,7 @@ def list_events(
             after=after,
         )
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json([e.model_dump(mode="json") for e in items])

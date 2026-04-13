@@ -72,7 +72,7 @@ class AsyncUsage:
         self,
         *,
         period: str = "current_month",
-    ) -> UsageReport:
+    ) -> OrgUsageReport:
         """Get organization-level usage summary.
 
         Args:
@@ -82,7 +82,7 @@ class AsyncUsage:
             UsageReport with period, totals, and details.
         """
         resp = await self._http.get("/usage", params={"period": period})
-        return UserUsageReport.model_validate(resp.json())
+        return OrgUsageReport.model_validate(resp.json())
 
     async def user_usage(
         self,

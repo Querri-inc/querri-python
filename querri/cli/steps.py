@@ -31,14 +31,17 @@ def list_steps(
         if sys.stdin.isatty():
             project_id = input("Project ID: ").strip()
         else:
-            print_error("Missing required argument <PROJECT_ID>. Usage: querri step list <PROJECT_ID>")
+            print_error(
+                "Missing required argument <PROJECT_ID>."
+                " Usage: querri step list <PROJECT_ID>"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         steps = client.projects.list_steps(project_id)
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json([s.model_dump(mode="json") for s in steps])
@@ -70,22 +73,33 @@ def step_data(
         if sys.stdin.isatty():
             project_id = input("Project ID: ").strip()
         else:
-            print_error("Missing required argument <PROJECT_ID>. Usage: querri step data <PROJECT_ID> <STEP_ID>")
+            print_error(
+                "Missing required argument <PROJECT_ID>."
+                " Usage: querri step data"
+                " <PROJECT_ID> <STEP_ID>"
+            )
             raise typer.Exit(code=1)
     if step_id is None:
         if sys.stdin.isatty():
             step_id = input("Step ID: ").strip()
         else:
-            print_error("Missing required argument <STEP_ID>. Usage: querri step data <PROJECT_ID> <STEP_ID>")
+            print_error(
+                "Missing required argument <STEP_ID>."
+                " Usage: querri step data"
+                " <PROJECT_ID> <STEP_ID>"
+            )
             raise typer.Exit(code=1)
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
         result = client.projects.get_step_data(
-            project_id, step_id, page=page, page_size=page_size,
+            project_id,
+            step_id,
+            page=page,
+            page_size=page_size,
         )
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
     if obj.get("json"):
         print_json(result)
@@ -102,7 +116,8 @@ def step_data(
             )
             if result.total_rows:
                 print(
-                    f"\nShowing page {result.page}/{(result.total_rows + page_size - 1) // page_size} "
+                    f"\nShowing page {result.page}/"
+                    f"{(result.total_rows + page_size - 1) // page_size} "
                     f"({result.total_rows} total rows)",
                     file=sys.stderr,
                 )

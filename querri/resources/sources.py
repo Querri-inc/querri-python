@@ -16,7 +16,10 @@ class Sources:
 
         connectors = client.sources.list_connectors()
         sources = client.sources.list()
-        result = client.sources.query(sql="SELECT * FROM data LIMIT 10", source_id="src_...")
+        result = client.sources.query(
+            sql="SELECT * FROM data LIMIT 10",
+            source_id="src_...",
+        )
     """
 
     def __init__(self, http: SyncHTTPClient) -> None:
@@ -216,7 +219,9 @@ class Sources:
         )
         return DataPage.model_validate(resp.json())
 
-    def append_rows(self, source_id: str, *, rows: builtins.list[dict[str, Any]]) -> DataWriteResult:
+    def append_rows(
+        self, source_id: str, *, rows: builtins.list[dict[str, Any]]
+    ) -> DataWriteResult:
         """Append rows to an existing data source.
 
         Args:
@@ -226,7 +231,9 @@ class Sources:
         resp = self._http.post(f"/sources/{source_id}/rows", json={"rows": rows})
         return DataWriteResult.model_validate(resp.json())
 
-    def replace_data(self, source_id: str, *, rows: builtins.list[dict[str, Any]]) -> DataWriteResult:
+    def replace_data(
+        self, source_id: str, *, rows: builtins.list[dict[str, Any]]
+    ) -> DataWriteResult:
         """Replace all data in a source with new rows.
 
         Args:
@@ -260,7 +267,10 @@ class AsyncSources:
 
         connectors = await client.sources.list_connectors()
         sources = await client.sources.list()
-        result = await client.sources.query(sql="SELECT * FROM data LIMIT 10", source_id="src_...")
+        result = await client.sources.query(
+            sql="SELECT * FROM data LIMIT 10",
+            source_id="src_...",
+        )
     """
 
     def __init__(self, http: AsyncHTTPClient) -> None:
@@ -460,7 +470,9 @@ class AsyncSources:
         )
         return DataPage.model_validate(resp.json())
 
-    async def append_rows(self, source_id: str, *, rows: builtins.list[dict[str, Any]]) -> DataWriteResult:
+    async def append_rows(
+        self, source_id: str, *, rows: builtins.list[dict[str, Any]]
+    ) -> DataWriteResult:
         """Append rows to an existing data source.
 
         Args:
@@ -470,7 +482,9 @@ class AsyncSources:
         resp = await self._http.post(f"/sources/{source_id}/rows", json={"rows": rows})
         return DataWriteResult.model_validate(resp.json())
 
-    async def replace_data(self, source_id: str, *, rows: builtins.list[dict[str, Any]]) -> DataWriteResult:
+    async def replace_data(
+        self, source_id: str, *, rows: builtins.list[dict[str, Any]]
+    ) -> DataWriteResult:
         """Replace all data in a source with new rows.
 
         Args:

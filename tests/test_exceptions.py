@@ -84,7 +84,9 @@ class TestRaiseForStatus:
     """Test the raise_for_status() mapping function."""
 
     def test_400_raises_validation_error(self):
-        body = {"error": {"type": "invalid_request", "code": "bad_param", "message": "bad"}}
+        body = {
+            "error": {"type": "invalid_request", "code": "bad_param", "message": "bad"}
+        }
         with pytest.raises(ValidationError) as exc_info:
             raise_for_status(400, body)
         assert exc_info.value.status == 400
@@ -146,13 +148,15 @@ class TestRaiseForStatus:
         assert exc_info.value.request_id == "req_xyz"
 
     def test_empty_body_uses_fallback_message(self):
-        """Verify that a missing error body produces a fallback message containing the HTTP status."""
+        """Verify that a missing error body produces a
+        fallback message containing the HTTP status."""
         with pytest.raises(APIError) as exc_info:
             raise_for_status(500, {})
         assert "HTTP 500" in exc_info.value.message
 
     def test_non_dict_error_field(self):
-        """Verify that a non-dict error field (e.g., plain string) is handled without crashing."""
+        """Verify that a non-dict error field (e.g.,
+        plain string) is handled without crashing."""
         body = {"error": "string error"}
         with pytest.raises(APIError):
             raise_for_status(500, body)
