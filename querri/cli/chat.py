@@ -606,7 +606,7 @@ def chat_cancel(ctx: typer.Context) -> None:
     Sends a cancel signal to the server to stop any running execution.
 
     Example:
-        querri chat cancel
+        querri project chat cancel
     """
     obj = ctx.ensure_object(dict)
     is_json = obj.get("json", False)
@@ -653,8 +653,8 @@ def chat_show(
     charts. Use --top or --bottom to slice.
 
     Examples:
-        querri chat show
-        querri chat show --bottom 2
+        querri project chat show
+        querri project chat show --bottom 2
     """
     obj = ctx.ensure_object(dict)
     is_json = obj.get("json", False)
@@ -670,7 +670,7 @@ def chat_show(
 
     chat_data = _fetch_project_chat(client, project_id)
     if not chat_data:
-        print_error("No conversation history. Send a message with: querri chat -p \"hello\"")
+        print_error("No conversation history. Send a message with: querri project chat -m \"hello\"")
         raise typer.Exit(code=EXIT_SUCCESS)
 
     messages = chat_data.get("messages", [])

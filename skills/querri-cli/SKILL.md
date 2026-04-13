@@ -119,13 +119,15 @@ Chat responses include `message_id`, `text` (the AI response), `tool_calls` (ana
 
 ### Managing chat sessions
 
+All `querri chat` commands default to the active project and chat. Pass explicit IDs to override.
+
 ```bash
-querri chat list                                           # list all chats
-querri chat get <chat_id>                                  # chat detail
-querri chat new                                            # create a new chat session
-querri chat stream <chat_id> --message "..."               # stream to a specific chat
-querri chat cancel <chat_id>                               # cancel a specific chat
-querri chat delete <chat_id>                               # delete
+querri chat list [project_id]                              # list chats (default: active project)
+querri chat get [project_id] [chat_id]                     # chat detail
+querri chat new [project_id]                               # create a new chat session
+querri chat stream [project_id] [chat_id] --message "..."  # stream to a specific chat
+querri chat cancel [project_id] [chat_id]                  # cancel a specific chat
+querri chat delete [project_id] [chat_id]                  # delete
 ```
 
 ## Views
@@ -165,7 +167,7 @@ querri view list                                   # list all views
 querri view get <uuid>                             # view details
 querri view update <uuid> --sql "..."              # update SQL definition
 querri view preview <uuid>                         # preview rows without materializing
-querri view run [--view-uuids <uuid,uuid>]         # materialize (omit for full DAG)
+querri view run [--view-ids <uuid,uuid>]         # materialize (omit for full DAG)
 querri view delete <uuid>                          # delete
 ```
 
@@ -180,14 +182,14 @@ querri source describe <source_id>                # schema: columns, types, row 
 querri source data <source_id>                    # preview paginated row data
 querri source query --source-id ID --sql SQL      # run SQL against source
 querri source ask <source_id> "question"          # NL question on source
-querri source create-data --name "X" --file f.json # create source from JSON file
+querri source new --name "X" --file f.json          # create source from JSON file
 querri source update <source_id> --name "..."     # update config
 querri source sync <source_id>                    # trigger sync
 querri source delete <source_id>                  # delete
 querri source connectors                          # list available connector types
 ```
 
-`source create-data` reads a JSON array of objects from `--file` or stdin.
+`source new` reads a JSON array of objects from `--file` or stdin.
 
 ## Dashboards
 
@@ -242,6 +244,7 @@ Scopes follow `admin:<resource>:<action>` pattern. Common scopes:
 querri user list
 querri user get <user_id>
 querri user new --email "user@example.com" --first-name "..." --last-name "..."
+querri user update <user_id> --role admin --first-name "..."
 querri user delete <user_id>
 ```
 
@@ -250,12 +253,12 @@ querri user delete <user_id>
 ```bash
 querri policy list
 querri policy get <policy_id>
-querri policy new --name "Region Filter" --source <source_id> --condition "region = '{user.email}'"
-querri policy update <id> --condition "..."
-querri policy assign <policy_id> <user_id>
+querri policy new --name "Region Filter" --source-ids <source_id> --row-filters '[...]'
+querri policy update <id> --name "..." --source-ids "..." --row-filters '[...]'
+querri policy assign <policy_id> --user-ids <user_id1,user_id2>
 querri policy remove <policy_id> <user_id>
-querri policy resolve <user_id> <source_id>       # effective access for a user
-querri policy columns <source_id>                  # available columns for policy
+querri policy resolve --user-id <user_id> --source-id <source_id>  # effective access
+querri policy columns [--source-id <source_id>]                    # available columns
 querri policy delete <id>
 ```
 

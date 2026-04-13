@@ -28,7 +28,7 @@ users_app = typer.Typer(
 @users_app.command("list")
 def list_users(
     ctx: typer.Context,
-    limit: int = typer.Option(50, "--limit", "-n", help="Max results."),
+    limit: int = typer.Option(50, "--limit", "-l", help="Max results."),
     after: Optional[str] = typer.Option(None, "--after", help="Cursor for pagination."),
     external_id: Optional[str] = typer.Option(None, "--external-id", help="Filter by external ID."),
 ) -> None:
@@ -139,11 +139,9 @@ def new_user(
 def update_user(
     ctx: typer.Context,
     user_id: Optional[str] = typer.Argument(None, help="User ID."),
-    email: Optional[str] = typer.Option(None, "--email", "-e", help="New email."),
     role: Optional[str] = typer.Option(None, "--role", "-r", help="New role (member, admin)."),
     first_name: Optional[str] = typer.Option(None, "--first-name", help="New first name."),
     last_name: Optional[str] = typer.Option(None, "--last-name", help="New last name."),
-    external_id: Optional[str] = typer.Option(None, "--external-id", help="New external ID."),
 ) -> None:
     """Update a user."""
     obj = ctx.ensure_object(dict)
@@ -158,14 +156,14 @@ def update_user(
             raise typer.Exit(code=1)
     client = get_client(ctx)
     try:
-        user = client.users.update(
-            user_id,
-            email=email,
-            role=role,
-            first_name=first_name,
-            last_name=last_name,
-            external_id=external_id,
-        )
+        kwargs: dict[str, str] = {}
+        if role is not None:
+            kwargs["role"] = role
+        if first_name is not None:
+            kwargs["first_name"] = first_name
+        if last_name is not None:
+            kwargs["last_name"] = last_name
+        user = client.users.update(user_id, **kwargs)
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
 

@@ -28,7 +28,7 @@ def list_events(
     action: Optional[str] = typer.Option(None, "--action", help="Filter by action type."),
     start_date: Optional[str] = typer.Option(None, "--start-date", help="Start date (ISO 8601)."),
     end_date: Optional[str] = typer.Option(None, "--end-date", help="End date (ISO 8601)."),
-    limit: int = typer.Option(50, "--limit", "-n", help="Max results to return."),
+    limit: int = typer.Option(50, "--limit", "-l", help="Max results to return."),
     after: Optional[str] = typer.Option(None, "--after", help="Cursor for pagination."),
 ) -> None:
     """List audit log events."""

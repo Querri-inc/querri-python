@@ -45,10 +45,10 @@ def new_view(
     optional. Provide at least a prompt or SQL definition.
 
     Examples:
-        querri view new                                          # interactive
-        querri view new -p "monthly revenue by product line"   # AI agent
-        querri view new --name "Orders" --sql "SELECT * FROM orders"  # direct
-        querri view new -n "Revenue" -p "revenue by region"    # AI + custom name
+        querri view new                                                   # interactive
+        querri view new --prompt "monthly revenue by product line"       # AI agent
+        querri view new --name "Orders" --sql "SELECT * FROM orders"    # direct
+        querri view new -n "Revenue" --prompt "revenue by region"       # AI + custom name
     """
     is_interactive = sys.stdin.isatty()
 
@@ -166,7 +166,7 @@ def list_views(
 @view_app.command("get")
 def get_view(
     ctx: typer.Context,
-    view_id: Optional[str] = typer.Argument(default=None, help="View UUID."),
+    view_id: Optional[str] = typer.Argument(default=None, help="View ID."),
 ) -> None:
     """Get view details."""
     if view_id is None:
@@ -196,7 +196,7 @@ def get_view(
 @view_app.command("update")
 def update_view(
     ctx: typer.Context,
-    view_id: Optional[str] = typer.Argument(default=None, help="View UUID."),
+    view_id: Optional[str] = typer.Argument(default=None, help="View ID."),
     sql: Optional[str] = typer.Option(None, "--sql", "-s", help="Updated SQL definition."),
     description: Optional[str] = typer.Option(None, "--description", "-d", help="Updated description."),
 ) -> None:
@@ -224,7 +224,7 @@ def update_view(
 @view_app.command("delete")
 def delete_view(
     ctx: typer.Context,
-    view_id: Optional[str] = typer.Argument(default=None, help="View UUID."),
+    view_id: Optional[str] = typer.Argument(default=None, help="View ID."),
 ) -> None:
     """Delete a view."""
     if view_id is None:
@@ -249,11 +249,11 @@ def delete_view(
 @view_app.command("run")
 def run_views(
     ctx: typer.Context,
-    view_ids: Optional[str] = typer.Option(None, "--view-uuids", help="Comma-separated view UUIDs to materialize."),
+    view_ids: Optional[str] = typer.Option(None, "--view-ids", help="Comma-separated view IDs to materialize."),
 ) -> None:
     """Run view materialization.
 
-    Omit --view-uuids to materialize the full DAG.
+    Omit --view-ids to materialize the full DAG.
     """
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -263,7 +263,7 @@ def run_views(
         uuids = [u.strip() for u in view_ids.split(",") if u.strip()]
 
     try:
-        result = client.views.run(view_ids=uuids)
+        result = client.views.run(view_uuids=uuids)
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json")))
 
@@ -278,7 +278,7 @@ def run_views(
 @view_app.command("preview")
 def preview_view(
     ctx: typer.Context,
-    view_id: Optional[str] = typer.Argument(default=None, help="View UUID."),
+    view_id: Optional[str] = typer.Argument(default=None, help="View ID."),
     limit: int = typer.Option(100, "--limit", "-l", help="Max rows to return."),
 ) -> None:
     """Preview view results without materializing."""
@@ -355,7 +355,7 @@ def _print_sse_stream(stream) -> None:
 @view_app.command("chat")
 def chat_with_view(
     ctx: typer.Context,
-    view_id: Optional[str] = typer.Argument(default=None, help="View UUID."),
+    view_id: Optional[str] = typer.Argument(default=None, help="View ID."),
     message: Optional[str] = typer.Option(None, "--message", "-m", help="Message for the view agent."),
 ) -> None:
     """Chat with the view authoring agent to create or refine SQL.

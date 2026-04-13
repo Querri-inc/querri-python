@@ -251,7 +251,7 @@ def select_project(
 @projects_app.command("list")
 def list_projects(
     ctx: typer.Context,
-    limit: int = typer.Option(25, "--limit", "-n", help="Max results to return."),
+    limit: int = typer.Option(25, "--limit", "-l", help="Max results to return."),
     after: Optional[str] = typer.Option(None, "--after", help="Cursor for pagination."),
 ) -> None:
     """List projects in the organization."""
@@ -761,7 +761,14 @@ def _render_project_show(
     if desc:
         header.append(f"\n{desc}")
     header.append(f"\n\nStatus: ", style="bold")
-    status_style = "green" if status == "idle" else "yellow" if status == "running" else "red"
+    if status in ("idle", "complete", "completed"):
+        status_style = "green"
+    elif status in ("running", "queued"):
+        status_style = "yellow"
+    elif status in ("new", "pending"):
+        status_style = "dim"
+    else:
+        status_style = "red"
     header.append(status, style=status_style)
     header.append(f"   Steps: {step_count}   Chats: {chat_count}", style="dim")
 

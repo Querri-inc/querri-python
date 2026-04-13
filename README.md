@@ -42,14 +42,14 @@ querri --json project new "My Analysis"
 querri --json project add-source <file_id>
 
 # Ask a question
-querri --json chat -p "What are the top 5 products by revenue?"
+querri --json project chat -m "What are the top 5 products by revenue?"
 ```
 
 For scripting, add `--no-interactive` to prevent prompts and `--json` for parseable output. Note that `--json` and other global flags must come **before** the subcommand:
 
 ```bash
-querri --json --no-interactive chat -p "Summarize the data"   # correct
-querri chat -p "Summarize the data" --json                    # WRONG
+querri --json --no-interactive project chat -m "Summarize the data"   # correct
+querri project chat -m "Summarize the data" --json                    # WRONG
 ```
 
 ### Self-documenting
@@ -198,8 +198,9 @@ See **[docs/server-sdk.md](docs/server-sdk.md#user-scoped-client-as_user)** for 
 | `client.projects` | Analysis projects | `list`, `create`, `get`, `run`, `run_status`, `list_steps` |
 | `client.projects.chats` | Chats within projects | `create`, `list`, `stream`, `cancel`, `delete` |
 | `client.sources` | Sources, connectors & data | `list`, `create`, `create_data_source`, `query`, `source_data`, `append_rows`, `replace_data`, `ask`, `sync`, `list_connectors` |
-| `client.views` | SQL-defined views | `list`, `create`, `get`, `update`, `delete`, `run`, `preview` |
+| `client.views` | SQL-defined views | `list`, `create`, `get`, `update`, `delete`, `run`, `preview`, `chat` |
 | `client.files` | File management | `upload`, `list`, `get`, `delete` |
+| `client.users` | User management | `list`, `create`, `get`, `update`, `delete` |
 | `client.keys` | API key management | `create`, `list`, `get`, `delete` |
 | `client.audit` | Audit log | `list` |
 | `client.usage` | Usage metrics | `org_usage`, `user_usage` |

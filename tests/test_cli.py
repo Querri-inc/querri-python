@@ -88,7 +88,7 @@ class TestOutputFormatting:
         assert data["auth_type"] == "api_key"
         assert data["org_id"] == "org_1"
         # API key must be masked
-        assert "test123456" not in data.get("api_key_prefix", "")
+        assert "test123456" not in data.get("credential", "")
 
     def test_tty_detection_module(self) -> None:
         """IS_INTERACTIVE constant exists in _output module."""
@@ -216,7 +216,7 @@ class TestWhoamiCommand:
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert "api_key_prefix" in data
+        assert "credential" in data
         assert "test123456" not in json.dumps(data)
 
 
@@ -397,15 +397,15 @@ class TestEntryPointGuard:
 
 
 class TestSubAppRegistration:
-    """Verify all 15 sub-apps are registered and reachable."""
+    """Verify all sub-apps are registered and reachable."""
 
     EXPECTED_SUBCOMMANDS = [
         "whoami", "project", "step", "chat", "file", "source", "view",
         "user", "dashboard", "key", "policy", "share",
-        "embed", "usage", "audit",
+        "session", "usage", "audit",
     ]
 
-    def test_all_15_subcommands_in_help(self) -> None:
+    def test_all_subcommands_in_help(self) -> None:
         """Every sub-app name should appear in top-level help."""
         result = runner.invoke(main_app, ["--help"])
         assert result.exit_code == 0
@@ -420,13 +420,13 @@ class TestSubAppRegistration:
         assert "Traceback" not in result.output
 
     def test_subcommand_count(self) -> None:
-        """Exactly 17 sub-apps must be registered (including auth and hidden chats)."""
+        """Exactly 16 sub-apps must be registered (including auth)."""
         # Count registered Typer sub-apps (not the main app callback)
         registered = [
             group.name or group.typer_instance.info.name
             for group in main_app.registered_groups
         ]
-        assert len(registered) == 17, f"Expected 17 sub-apps, got {len(registered)}: {registered}"
+        assert len(registered) == 16, f"Expected 16 sub-apps, got {len(registered)}: {registered}"
 
 
 # ---------------------------------------------------------------------------

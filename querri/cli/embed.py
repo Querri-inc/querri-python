@@ -101,7 +101,7 @@ def list_sessions(
     ctx: typer.Context,
     limit: int = typer.Option(100, "--limit", "-l", help="Max results."),
 ) -> None:
-    """List active embed sessions."""
+    """List active sessions."""
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:

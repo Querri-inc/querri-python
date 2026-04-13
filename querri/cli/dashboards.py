@@ -29,7 +29,7 @@ dashboards_app = typer.Typer(
 @dashboards_app.command("list")
 def list_dashboards(
     ctx: typer.Context,
-    limit: int = typer.Option(25, "--limit", "-n", help="Max results."),
+    limit: int = typer.Option(25, "--limit", "-l", help="Max results."),
     after: Optional[str] = typer.Option(None, "--after", help="Cursor for pagination."),
 ) -> None:
     """List dashboards."""
