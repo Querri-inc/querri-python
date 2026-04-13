@@ -18,7 +18,6 @@ import pytest
 from querri import Querri
 from querri._exceptions import (
     NotFoundError,
-    ValidationError,
 )
 
 pytestmark = pytest.mark.integration

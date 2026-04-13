@@ -13,14 +13,12 @@ import pytest
 
 from querri._exceptions import StreamError
 from querri._streaming import (
-    AsyncChatStream,
     ChatStream,
     ChatStreamEvent,
     _build_event,
     _parse_sse_line,
     _unquote_text,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from .._pagination import AsyncCursorPage, SyncCursorPage
@@ -26,9 +26,9 @@ class Users:
         self,
         *,
         email: str,
-        external_id: Optional[str] = None,
-        first_name: Optional[str] = None,
-        last_name: Optional[str] = None,
+        external_id: str | None = None,
+        first_name: str | None = None,
+        last_name: str | None = None,
         role: str = "member",
     ) -> User:
         """Create a user in the organization.
@@ -63,8 +63,8 @@ class Users:
         self,
         *,
         limit: int = 50,
-        after: Optional[str] = None,
-        external_id: Optional[str] = None,
+        after: str | None = None,
+        external_id: str | None = None,
     ) -> SyncCursorPage[User]:
         """List organization users with cursor pagination.
 
@@ -84,9 +84,9 @@ class Users:
         self,
         user_id: str,
         *,
-        role: Optional[str] = None,
-        first_name: Optional[str] = None,
-        last_name: Optional[str] = None,
+        role: str | None = None,
+        first_name: str | None = None,
+        last_name: str | None = None,
     ) -> User:
         """Update a user's role or profile fields.
 
@@ -119,9 +119,9 @@ class Users:
         self,
         *,
         external_id: str,
-        email: Optional[str] = None,
-        first_name: Optional[str] = None,
-        last_name: Optional[str] = None,
+        email: str | None = None,
+        first_name: str | None = None,
+        last_name: str | None = None,
         role: str = "member",
     ) -> User:
         """Idempotent get-or-create by external ID.
@@ -175,9 +175,9 @@ class AsyncUsers:
         self,
         *,
         email: str,
-        external_id: Optional[str] = None,
-        first_name: Optional[str] = None,
-        last_name: Optional[str] = None,
+        external_id: str | None = None,
+        first_name: str | None = None,
+        last_name: str | None = None,
         role: str = "member",
     ) -> User:
         """Create a user in the organization.
@@ -212,8 +212,8 @@ class AsyncUsers:
         self,
         *,
         limit: int = 50,
-        after: Optional[str] = None,
-        external_id: Optional[str] = None,
+        after: str | None = None,
+        external_id: str | None = None,
     ) -> AsyncCursorPage[User]:
         """List organization users with cursor pagination.
 
@@ -233,9 +233,9 @@ class AsyncUsers:
         self,
         user_id: str,
         *,
-        role: Optional[str] = None,
-        first_name: Optional[str] = None,
-        last_name: Optional[str] = None,
+        role: str | None = None,
+        first_name: str | None = None,
+        last_name: str | None = None,
     ) -> User:
         """Update a user's role or profile fields.
 
@@ -268,9 +268,9 @@ class AsyncUsers:
         self,
         *,
         external_id: str,
-        email: Optional[str] = None,
-        first_name: Optional[str] = None,
-        last_name: Optional[str] = None,
+        email: str | None = None,
+        first_name: str | None = None,
+        last_name: str | None = None,
         role: str = "member",
     ) -> User:
         """Idempotent get-or-create by external ID.

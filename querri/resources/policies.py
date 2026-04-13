@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+import builtins
+from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from .._convenience import async_setup_policy, sync_setup_policy
 from .._pagination import AsyncCursorPage, SyncCursorPage
 from ..types.policy import (
-    ColumnInfo,
     Policy,
     PolicyAssignResponse,
     PolicyDeleteResponse,
@@ -16,7 +16,6 @@ from ..types.policy import (
     PolicyReplaceResponse,
     PolicyUpdateResponse,
     ResolvedAccess,
-    RowFilter,
     SourceColumns,
 )
 
@@ -40,9 +39,9 @@ class Policies:
         self,
         *,
         name: str,
-        description: Optional[str] = None,
-        source_ids: Optional[List[str]] = None,
-        row_filters: Optional[List[Dict[str, Any]]] = None,
+        description: str | None = None,
+        source_ids: builtins.list[str] | None = None,
+        row_filters: builtins.list[dict[str, Any]] | None = None,
     ) -> Policy:
         """Create an access policy.
 
@@ -74,9 +73,9 @@ class Policies:
     def list(
         self,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
         limit: int = 25,
-        after: Optional[str] = None,
+        after: str | None = None,
     ) -> SyncCursorPage[Policy]:
         """List access policies for the organization with cursor pagination.
 
@@ -96,10 +95,10 @@ class Policies:
         self,
         policy_id: str,
         *,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        source_ids: Optional[List[str]] = None,
-        row_filters: Optional[List[Dict[str, Any]]] = None,
+        name: str | None = None,
+        description: str | None = None,
+        source_ids: builtins.list[str] | None = None,
+        row_filters: builtins.list[dict[str, Any]] | None = None,
     ) -> PolicyUpdateResponse:
         """Update an access policy.
 
@@ -135,7 +134,7 @@ class Policies:
         self,
         policy_id: str,
         *,
-        user_ids: List[str],
+        user_ids: builtins.list[str],
     ) -> PolicyAssignResponse:
         """Assign users to a policy.
 
@@ -191,8 +190,8 @@ class Policies:
     def columns(
         self,
         *,
-        source_id: Optional[str] = None,
-    ) -> List[SourceColumns]:
+        source_id: str | None = None,
+    ) -> builtins.list[SourceColumns]:
         """Discover filterable columns for RLS rule building.
 
         Returns column names and types from data sources so you can
@@ -210,7 +209,7 @@ class Policies:
 
 
     def replace_user_policies(
-        self, user_id: str, *, policy_ids: List[str]
+        self, user_id: str, *, policy_ids: builtins.list[str]
     ) -> PolicyReplaceResponse:
         """Atomically replace all policy assignments for a user.
 
@@ -233,10 +232,10 @@ class Policies:
         self,
         *,
         name: str,
-        sources: Optional[List[str]] = None,
-        row_filters: Optional[Dict[str, Any]] = None,
-        users: Optional[List[str]] = None,
-        description: Optional[str] = None,
+        sources: builtins.list[str] | None = None,
+        row_filters: dict[str, Any] | None = None,
+        users: builtins.list[str] | None = None,
+        description: str | None = None,
     ) -> Policy:
         """Create a policy and assign users in one call.
 
@@ -275,9 +274,9 @@ class AsyncPolicies:
         self,
         *,
         name: str,
-        description: Optional[str] = None,
-        source_ids: Optional[List[str]] = None,
-        row_filters: Optional[List[Dict[str, Any]]] = None,
+        description: str | None = None,
+        source_ids: builtins.list[str] | None = None,
+        row_filters: builtins.list[dict[str, Any]] | None = None,
     ) -> Policy:
         """Create an access policy.
 
@@ -309,9 +308,9 @@ class AsyncPolicies:
     def list(
         self,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
         limit: int = 25,
-        after: Optional[str] = None,
+        after: str | None = None,
     ) -> AsyncCursorPage[Policy]:
         """List access policies for the organization with cursor pagination.
 
@@ -331,10 +330,10 @@ class AsyncPolicies:
         self,
         policy_id: str,
         *,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        source_ids: Optional[List[str]] = None,
-        row_filters: Optional[List[Dict[str, Any]]] = None,
+        name: str | None = None,
+        description: str | None = None,
+        source_ids: builtins.list[str] | None = None,
+        row_filters: builtins.list[dict[str, Any]] | None = None,
     ) -> PolicyUpdateResponse:
         """Update an access policy.
 
@@ -370,7 +369,7 @@ class AsyncPolicies:
         self,
         policy_id: str,
         *,
-        user_ids: List[str],
+        user_ids: builtins.list[str],
     ) -> PolicyAssignResponse:
         """Assign users to a policy.
 
@@ -426,8 +425,8 @@ class AsyncPolicies:
     async def columns(
         self,
         *,
-        source_id: Optional[str] = None,
-    ) -> List[SourceColumns]:
+        source_id: str | None = None,
+    ) -> builtins.list[SourceColumns]:
         """Discover filterable columns for RLS rule building.
 
         Returns column names and types from data sources so you can
@@ -444,7 +443,7 @@ class AsyncPolicies:
         return [SourceColumns.model_validate(s) for s in body.get("data", [])]
 
     async def replace_user_policies(
-        self, user_id: str, *, policy_ids: List[str]
+        self, user_id: str, *, policy_ids: builtins.list[str]
     ) -> PolicyReplaceResponse:
         """Atomically replace all policy assignments for a user.
 
@@ -467,10 +466,10 @@ class AsyncPolicies:
         self,
         *,
         name: str,
-        sources: Optional[List[str]] = None,
-        row_filters: Optional[Dict[str, Any]] = None,
-        users: Optional[List[str]] = None,
-        description: Optional[str] = None,
+        sources: builtins.list[str] | None = None,
+        row_filters: dict[str, Any] | None = None,
+        users: builtins.list[str] | None = None,
+        description: str | None = None,
     ) -> Policy:
         """Create a policy and assign users in one call.
 

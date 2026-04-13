@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from ..types.sharing import ShareEntry
@@ -49,7 +49,7 @@ class Sharing:
         self,
         project_id: str,
         user_id: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Revoke a user's access to a project.
 
         Args:
@@ -62,7 +62,7 @@ class Sharing:
         resp = self._http.delete(f"/projects/{project_id}/shares/{user_id}")
         return resp.json()
 
-    def list_project_shares(self, project_id: str) -> List[ShareEntry]:
+    def list_project_shares(self, project_id: str) -> list[ShareEntry]:
         """List who has access to a project.
 
         Args:
@@ -104,7 +104,7 @@ class Sharing:
         self,
         dashboard_id: str,
         user_id: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Revoke a user's access to a dashboard.
 
         Args:
@@ -117,7 +117,7 @@ class Sharing:
         resp = self._http.delete(f"/dashboards/{dashboard_id}/shares/{user_id}")
         return resp.json()
 
-    def list_dashboard_shares(self, dashboard_id: str) -> List[ShareEntry]:
+    def list_dashboard_shares(self, dashboard_id: str) -> list[ShareEntry]:
         """List who has access to a dashboard.
 
         Args:
@@ -150,7 +150,7 @@ class Sharing:
 
     def org_share_source(
         self, source_id: str, *, enabled: bool, permission: str = "view"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Enable or disable org-wide sharing for a data source.
 
         Args:
@@ -206,7 +206,7 @@ class AsyncSharing:
         self,
         project_id: str,
         user_id: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Revoke a user's access to a project.
 
         Args:
@@ -219,7 +219,7 @@ class AsyncSharing:
         resp = await self._http.delete(f"/projects/{project_id}/shares/{user_id}")
         return resp.json()
 
-    async def list_project_shares(self, project_id: str) -> List[ShareEntry]:
+    async def list_project_shares(self, project_id: str) -> list[ShareEntry]:
         """List who has access to a project.
 
         Args:
@@ -261,7 +261,7 @@ class AsyncSharing:
         self,
         dashboard_id: str,
         user_id: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Revoke a user's access to a dashboard.
 
         Args:
@@ -274,7 +274,7 @@ class AsyncSharing:
         resp = await self._http.delete(f"/dashboards/{dashboard_id}/shares/{user_id}")
         return resp.json()
 
-    async def list_dashboard_shares(self, dashboard_id: str) -> List[ShareEntry]:
+    async def list_dashboard_shares(self, dashboard_id: str) -> list[ShareEntry]:
         """List who has access to a dashboard.
 
         Args:
@@ -307,7 +307,7 @@ class AsyncSharing:
 
     async def org_share_source(
         self, source_id: str, *, enabled: bool, permission: str = "view"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Enable or disable org-wide sharing for a data source.
 
         Args:

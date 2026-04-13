@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
-
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from ..types.usage import OrgUsageReport, UserUsageReport
 

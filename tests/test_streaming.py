@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import httpx
 import pytest
 
+from querri._exceptions import StreamCancelledError, StreamError
 from querri._streaming import ChatStream, _parse_sse_line
-from querri._exceptions import StreamError, StreamCancelledError
 
 
 class TestParseSSELine:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Any, Optional
+from typing import Any
 
 import typer
 
@@ -124,7 +124,7 @@ def _handle_config_error(obj: dict[str, Any], exc: ConfigError) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _get_profile(ctx: typer.Context) -> Optional["TokenProfile"]:  # noqa: F821
+def _get_profile(ctx: typer.Context) -> TokenProfile | None:  # noqa: F821
     """Load the active TokenProfile (or None)."""
     from querri._auth import TokenStore
 
@@ -134,7 +134,7 @@ def _get_profile(ctx: typer.Context) -> Optional["TokenProfile"]:  # noqa: F821
     return store.profiles.get(profile_name)
 
 
-def _save_profile(ctx: typer.Context, profile: "TokenProfile") -> None:  # noqa: F821
+def _save_profile(ctx: typer.Context, profile: TokenProfile) -> None:  # noqa: F821
     """Persist updates to the active TokenProfile."""
     from querri._auth import TokenStore
 

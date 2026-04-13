@@ -7,14 +7,14 @@ Resources are automatically filtered by the session user's access policies.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 
 from ._base_client import AsyncHTTPClient, SyncHTTPClient
 from ._config import ClientConfig
 
 
 def _session_config(
-    session: Dict[str, Any], parent_config: ClientConfig
+    session: dict[str, Any], parent_config: ClientConfig
 ) -> ClientConfig:
     """Build a config for session-mode HTTP clients.
 
@@ -49,7 +49,7 @@ class UserQuerri:
     Create via :meth:`Querri.as_user`.
     """
 
-    def __init__(self, session: Dict[str, Any], parent_config: ClientConfig) -> None:
+    def __init__(self, session: dict[str, Any], parent_config: ClientConfig) -> None:
         """Initialize with session token and parent client config.
 
         Args:
@@ -61,34 +61,34 @@ class UserQuerri:
 
         # Resource namespaces — lazily initialized on first access.
         # Deferred imports keep client creation fast and avoid circular imports.
-        self._projects: Optional[object] = None
-        self._dashboards: Optional[object] = None
-        self._sources: Optional[object] = None
-        self._chats: Optional[object] = None
+        self._projects: object | None = None
+        self._dashboards: object | None = None
+        self._sources: object | None = None
+        self._chats: object | None = None
 
     @property
-    def projects(self) -> "Projects":
+    def projects(self) -> Projects:
         if self._projects is None:
             from .resources.projects import Projects
             self._projects = Projects(self._http)
         return self._projects  # type: ignore[return-value]
 
     @property
-    def dashboards(self) -> "Dashboards":
+    def dashboards(self) -> Dashboards:
         if self._dashboards is None:
             from .resources.dashboards import Dashboards
             self._dashboards = Dashboards(self._http)
         return self._dashboards  # type: ignore[return-value]
 
     @property
-    def sources(self) -> "Sources":
+    def sources(self) -> Sources:
         if self._sources is None:
             from .resources.sources import Sources
             self._sources = Sources(self._http)
         return self._sources  # type: ignore[return-value]
 
     @property
-    def chats(self) -> "Chats":
+    def chats(self) -> Chats:
         if self._chats is None:
             from .resources.projects import Chats
             self._chats = Chats(self._http)
@@ -98,7 +98,7 @@ class UserQuerri:
         """Close the underlying HTTP client."""
         self._http.close()
 
-    def __enter__(self) -> "UserQuerri":
+    def __enter__(self) -> UserQuerri:
         """Enter context manager for automatic resource cleanup."""
         return self
 
@@ -123,7 +123,7 @@ class AsyncUserQuerri:
     Create via :meth:`AsyncQuerri.as_user`.
     """
 
-    def __init__(self, session: Dict[str, Any], parent_config: ClientConfig) -> None:
+    def __init__(self, session: dict[str, Any], parent_config: ClientConfig) -> None:
         """Initialize with session token and parent client config.
 
         Args:
@@ -134,34 +134,34 @@ class AsyncUserQuerri:
         self._http = AsyncHTTPClient(self._config)
 
         # Resource namespaces — lazily initialized on first access.
-        self._projects: Optional[object] = None
-        self._dashboards: Optional[object] = None
-        self._sources: Optional[object] = None
-        self._chats: Optional[object] = None
+        self._projects: object | None = None
+        self._dashboards: object | None = None
+        self._sources: object | None = None
+        self._chats: object | None = None
 
     @property
-    def projects(self) -> "AsyncProjects":
+    def projects(self) -> AsyncProjects:
         if self._projects is None:
             from .resources.projects import AsyncProjects
             self._projects = AsyncProjects(self._http)
         return self._projects  # type: ignore[return-value]
 
     @property
-    def dashboards(self) -> "AsyncDashboards":
+    def dashboards(self) -> AsyncDashboards:
         if self._dashboards is None:
             from .resources.dashboards import AsyncDashboards
             self._dashboards = AsyncDashboards(self._http)
         return self._dashboards  # type: ignore[return-value]
 
     @property
-    def sources(self) -> "AsyncSources":
+    def sources(self) -> AsyncSources:
         if self._sources is None:
             from .resources.sources import AsyncSources
             self._sources = AsyncSources(self._http)
         return self._sources  # type: ignore[return-value]
 
     @property
-    def chats(self) -> "AsyncChats":
+    def chats(self) -> AsyncChats:
         if self._chats is None:
             from .resources.projects import AsyncChats
             self._chats = AsyncChats(self._http)
@@ -171,7 +171,7 @@ class AsyncUserQuerri:
         """Close the underlying HTTP client."""
         await self._http.close()
 
-    async def __aenter__(self) -> "AsyncUserQuerri":
+    async def __aenter__(self) -> AsyncUserQuerri:
         """Enter async context manager for automatic resource cleanup."""
         return self
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-from typing import Optional
 
 import typer
 
@@ -129,7 +128,7 @@ def list_keys(
 @keys_app.command("get")
 def get_key(
     ctx: typer.Context,
-    key_id: Optional[str] = typer.Argument(None, help="API key ID."),
+    key_id: str | None = typer.Argument(None, help="API key ID."),
 ) -> None:
     """Get API key details."""
     obj = ctx.ensure_object(dict)
@@ -176,12 +175,12 @@ def get_key(
 @keys_app.command("new")
 def new_key(
     ctx: typer.Context,
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="Key name."),
-    scopes: Optional[str] = typer.Option(None, "--scopes", "-s", help="Comma-separated scopes."),
-    expires_in_days: Optional[int] = typer.Option(None, "--expires-in-days", help="Days until expiry."),
-    bound_user_id: Optional[str] = typer.Option(None, "--bound-user-id", help="Bind key to a user ID."),
-    rate_limit: Optional[int] = typer.Option(None, "--rate-limit", help="Requests per minute."),
-    ip_allowlist: Optional[str] = typer.Option(None, "--ip-allowlist", help="Comma-separated IP allowlist."),
+    name: str | None = typer.Option(None, "--name", "-n", help="Key name."),
+    scopes: str | None = typer.Option(None, "--scopes", "-s", help="Comma-separated scopes."),
+    expires_in_days: int | None = typer.Option(None, "--expires-in-days", help="Days until expiry."),
+    bound_user_id: str | None = typer.Option(None, "--bound-user-id", help="Bind key to a user ID."),
+    rate_limit: int | None = typer.Option(None, "--rate-limit", help="Requests per minute."),
+    ip_allowlist: str | None = typer.Option(None, "--ip-allowlist", help="Comma-separated IP allowlist."),
 ) -> None:
     """Create a new API key.
 
@@ -257,7 +256,7 @@ def new_key(
 @keys_app.command("delete")
 def delete_key(
     ctx: typer.Context,
-    key_id: Optional[str] = typer.Argument(None, help="API key ID."),
+    key_id: str | None = typer.Argument(None, help="API key ID."),
 ) -> None:
     """Delete an API key."""
     obj = ctx.ensure_object(dict)

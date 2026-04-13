@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Iterator, Optional
+from collections.abc import Iterator
+from dataclasses import dataclass
+from typing import Any
 
 import httpx
 
@@ -66,7 +67,7 @@ class ChatStreamEvent:
 # ---------------------------------------------------------------------------
 
 
-def _parse_sse_line(line: str) -> Optional[tuple[str, str]]:
+def _parse_sse_line(line: str) -> tuple[str, str] | None:
     """Parse a single SSE line into (type_prefix, data).
 
     Returns None for empty lines and unparseable lines.
@@ -183,7 +184,7 @@ def _build_event(event_type: str, data: str) -> ChatStreamEvent:
             return ChatStreamEvent(event_type=event_type, raw_data=data)
 
 
-def _build_event_from_json(data: str) -> Optional[ChatStreamEvent]:
+def _build_event_from_json(data: str) -> ChatStreamEvent | None:
     """Build a ChatStreamEvent from a JSON SSE payload.
 
     Handles the server's native JSON SSE format where each line is:
@@ -329,7 +330,7 @@ class ChatStream:
         self._message_id = response.headers.get("x-message-id")
 
     @property
-    def message_id(self) -> Optional[str]:
+    def message_id(self) -> str | None:
         """Server-assigned message ID from the ``x-message-id`` response header."""
         return self._message_id
 
@@ -520,7 +521,7 @@ class AsyncChatStream:
         self._message_id = response.headers.get("x-message-id")
 
     @property
-    def message_id(self) -> Optional[str]:
+    def message_id(self) -> str | None:
         """Server-assigned message ID from the ``x-message-id`` response header."""
         return self._message_id
 

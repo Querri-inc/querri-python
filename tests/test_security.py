@@ -231,11 +231,11 @@ class TestOutputModule:
 
     def test_print_json_with_pydantic_model(self) -> None:
         """print_json handles Pydantic models."""
-        from querri.types.project import Project
-        from querri.cli._output import print_json
-
         import io
         import sys
+
+        from querri.cli._output import print_json
+        from querri.types.project import Project
 
         captured = io.StringIO()
         old_stdout = sys.stdout
@@ -251,10 +251,10 @@ class TestOutputModule:
 
     def test_print_json_with_dict(self) -> None:
         """print_json handles plain dicts."""
-        from querri.cli._output import print_json
-
         import io
         import sys
+
+        from querri.cli._output import print_json
 
         captured = io.StringIO()
         old_stdout = sys.stdout
@@ -282,14 +282,13 @@ class TestImportDiscipline:
         This ensures ``pip install querri`` (without [cli]) works even when
         Typer/Rich are not installed.
         """
-        import importlib
-        import querri
-
         # After importing the core SDK, querri.cli should NOT be in sys.modules
         # unless the test runner already imported it. We check that the core
         # __init__.py doesn't eagerly import cli.
         import ast
         import inspect
+
+        import querri
 
         source = inspect.getsource(querri)
         tree = ast.parse(source)
@@ -308,6 +307,7 @@ class TestImportDiscipline:
         """Core SDK must not import querri.tui."""
         import ast
         import inspect
+
         import querri
 
         source = inspect.getsource(querri)
@@ -331,6 +331,7 @@ class TestEntryPointSecurity:
         """ImportError handler must not reveal file system paths."""
         import importlib
         import sys as _sys
+
         import querri.cli as cli_mod
 
         original = _sys.modules.get("querri.cli._app")

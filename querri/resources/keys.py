@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+import builtins
+from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from ..types.key import ApiKey, ApiKeyCreated
@@ -24,13 +25,13 @@ class Keys:
         self,
         *,
         name: str,
-        scopes: List[str],
-        expires_in_days: Optional[int] = None,
-        source_scope: Optional[Dict[str, Any]] = None,
-        access_policy_ids: Optional[List[str]] = None,
-        bound_user_id: Optional[str] = None,
-        rate_limit_per_minute: Optional[int] = None,
-        ip_allowlist: Optional[List[str]] = None,
+        scopes: builtins.list[str],
+        expires_in_days: int | None = None,
+        source_scope: dict[str, Any] | None = None,
+        access_policy_ids: builtins.list[str] | None = None,
+        bound_user_id: str | None = None,
+        rate_limit_per_minute: int | None = None,
+        ip_allowlist: builtins.list[str] | None = None,
     ) -> ApiKeyCreated:
         """Create a new API key. Returns the plaintext secret once.
 
@@ -48,7 +49,7 @@ class Keys:
             ApiKeyCreated with id, name, key_prefix, secret, scopes, status, etc.
             The ``secret`` field is only returned on creation.
         """
-        payload: Dict[str, Any] = {"name": name, "scopes": scopes}
+        payload: dict[str, Any] = {"name": name, "scopes": scopes}
         if expires_in_days is not None:
             payload["expires_in_days"] = expires_in_days
         if source_scope is not None:
@@ -76,7 +77,7 @@ class Keys:
         resp = self._http.get(f"/keys/{key_id}")
         return ApiKey.model_validate(resp.json())
 
-    def list(self) -> List[ApiKey]:
+    def list(self) -> builtins.list[ApiKey]:
         """List API keys for the organization.
 
         Returns:
@@ -86,7 +87,7 @@ class Keys:
         body = resp.json()
         return [ApiKey.model_validate(k) for k in body.get("data", [])]
 
-    def delete(self, key_id: str) -> Dict[str, Any]:
+    def delete(self, key_id: str) -> dict[str, Any]:
         """Revoke an API key.
 
         Args:
@@ -115,13 +116,13 @@ class AsyncKeys:
         self,
         *,
         name: str,
-        scopes: List[str],
-        expires_in_days: Optional[int] = None,
-        source_scope: Optional[Dict[str, Any]] = None,
-        access_policy_ids: Optional[List[str]] = None,
-        bound_user_id: Optional[str] = None,
-        rate_limit_per_minute: Optional[int] = None,
-        ip_allowlist: Optional[List[str]] = None,
+        scopes: builtins.list[str],
+        expires_in_days: int | None = None,
+        source_scope: dict[str, Any] | None = None,
+        access_policy_ids: builtins.list[str] | None = None,
+        bound_user_id: str | None = None,
+        rate_limit_per_minute: int | None = None,
+        ip_allowlist: builtins.list[str] | None = None,
     ) -> ApiKeyCreated:
         """Create a new API key. Returns the plaintext secret once.
 
@@ -139,7 +140,7 @@ class AsyncKeys:
             ApiKeyCreated with id, name, key_prefix, secret, scopes, status, etc.
             The ``secret`` field is only returned on creation.
         """
-        payload: Dict[str, Any] = {"name": name, "scopes": scopes}
+        payload: dict[str, Any] = {"name": name, "scopes": scopes}
         if expires_in_days is not None:
             payload["expires_in_days"] = expires_in_days
         if source_scope is not None:
@@ -167,7 +168,7 @@ class AsyncKeys:
         resp = await self._http.get(f"/keys/{key_id}")
         return ApiKey.model_validate(resp.json())
 
-    async def list(self) -> List[ApiKey]:
+    async def list(self) -> builtins.list[ApiKey]:
         """List API keys for the organization.
 
         Returns:
@@ -177,7 +178,7 @@ class AsyncKeys:
         body = resp.json()
         return [ApiKey.model_validate(k) for k in body.get("data", [])]
 
-    async def delete(self, key_id: str) -> Dict[str, Any]:
+    async def delete(self, key_id: str) -> dict[str, Any]:
         """Revoke an API key.
 
         Args:

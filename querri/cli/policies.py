@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import Optional
 
 import typer
 
@@ -29,7 +28,7 @@ policies_app = typer.Typer(
 @policies_app.command("list")
 def list_policies(
     ctx: typer.Context,
-    name: Optional[str] = typer.Option(None, "--name", help="Filter by name."),
+    name: str | None = typer.Option(None, "--name", help="Filter by name."),
 ) -> None:
     """List access policies."""
     obj = ctx.ensure_object(dict)
@@ -55,7 +54,7 @@ def list_policies(
 @policies_app.command("get")
 def get_policy(
     ctx: typer.Context,
-    policy_id: Optional[str] = typer.Argument(default=None, help="Policy ID."),
+    policy_id: str | None = typer.Argument(default=None, help="Policy ID."),
 ) -> None:
     """Get policy details."""
     if not policy_id:
@@ -98,10 +97,10 @@ def get_policy(
 @policies_app.command("new")
 def new_policy(
     ctx: typer.Context,
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="Policy name."),
-    description: Optional[str] = typer.Option(None, "--description", "-d", help="Description."),
-    source_ids: Optional[str] = typer.Option(None, "--source-ids", help="Comma-separated source IDs."),
-    row_filters: Optional[str] = typer.Option(None, "--row-filters", help="JSON array of row filter objects."),
+    name: str | None = typer.Option(None, "--name", "-n", help="Policy name."),
+    description: str | None = typer.Option(None, "--description", "-d", help="Description."),
+    source_ids: str | None = typer.Option(None, "--source-ids", help="Comma-separated source IDs."),
+    row_filters: str | None = typer.Option(None, "--row-filters", help="JSON array of row filter objects."),
 ) -> None:
     """Create a new access policy."""
     if not name:
@@ -146,11 +145,11 @@ def new_policy(
 @policies_app.command("update")
 def update_policy(
     ctx: typer.Context,
-    policy_id: Optional[str] = typer.Argument(default=None, help="Policy ID."),
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="New name."),
-    description: Optional[str] = typer.Option(None, "--description", "-d", help="New description."),
-    source_ids: Optional[str] = typer.Option(None, "--source-ids", help="Comma-separated source IDs."),
-    row_filters: Optional[str] = typer.Option(None, "--row-filters", help="JSON array of row filter objects."),
+    policy_id: str | None = typer.Argument(default=None, help="Policy ID."),
+    name: str | None = typer.Option(None, "--name", "-n", help="New name."),
+    description: str | None = typer.Option(None, "--description", "-d", help="New description."),
+    source_ids: str | None = typer.Option(None, "--source-ids", help="Comma-separated source IDs."),
+    row_filters: str | None = typer.Option(None, "--row-filters", help="JSON array of row filter objects."),
 ) -> None:
     """Update an access policy."""
     if not policy_id:
@@ -194,7 +193,7 @@ def update_policy(
 @policies_app.command("delete")
 def delete_policy(
     ctx: typer.Context,
-    policy_id: Optional[str] = typer.Argument(default=None, help="Policy ID."),
+    policy_id: str | None = typer.Argument(default=None, help="Policy ID."),
 ) -> None:
     """Delete an access policy."""
     if not policy_id:
@@ -222,8 +221,8 @@ def delete_policy(
 @policies_app.command("assign")
 def assign_users(
     ctx: typer.Context,
-    policy_id: Optional[str] = typer.Argument(default=None, help="Policy ID."),
-    user_ids: Optional[str] = typer.Option(None, "--user-ids", help="Comma-separated user IDs."),
+    policy_id: str | None = typer.Argument(default=None, help="Policy ID."),
+    user_ids: str | None = typer.Option(None, "--user-ids", help="Comma-separated user IDs."),
 ) -> None:
     """Assign users to an access policy."""
     if not policy_id:
@@ -262,8 +261,8 @@ def assign_users(
 @policies_app.command("remove")
 def remove_user(
     ctx: typer.Context,
-    policy_id: Optional[str] = typer.Argument(default=None, help="Policy ID."),
-    user_id: Optional[str] = typer.Argument(default=None, help="User ID to remove."),
+    policy_id: str | None = typer.Argument(default=None, help="Policy ID."),
+    user_id: str | None = typer.Argument(default=None, help="User ID to remove."),
 ) -> None:
     """Remove a user from an access policy."""
     if not policy_id:
@@ -300,8 +299,8 @@ def remove_user(
 @policies_app.command("resolve")
 def resolve_access(
     ctx: typer.Context,
-    user_id: Optional[str] = typer.Option(None, "--user-id", help="User ID."),
-    source_id: Optional[str] = typer.Option(None, "--source-id", help="Source ID."),
+    user_id: str | None = typer.Option(None, "--user-id", help="User ID."),
+    source_id: str | None = typer.Option(None, "--source-id", help="Source ID."),
 ) -> None:
     """Resolve effective access for a user on a source."""
     if not user_id:
@@ -347,7 +346,7 @@ def resolve_access(
 @policies_app.command("columns")
 def list_columns(
     ctx: typer.Context,
-    source_id: Optional[str] = typer.Option(None, "--source-id", help="Filter by source ID."),
+    source_id: str | None = typer.Option(None, "--source-id", help="Filter by source ID."),
 ) -> None:
     """List columns available for access policies."""
     obj = ctx.ensure_object(dict)

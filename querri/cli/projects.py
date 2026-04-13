@@ -5,21 +5,19 @@ from __future__ import annotations
 import logging
 import sys
 import time
-from typing import Optional
 
 logger = logging.getLogger("querri.cli")
 
 import typer
 
 from querri.cli._context import (
+    _get_profile,
+    _save_profile,
     get_client,
     resolve_project_id,
     resolve_user_id,
-    _get_profile,
-    _save_profile,
 )
 from querri.cli._output import (
-    EXIT_SUCCESS,
     IS_INTERACTIVE,
     handle_api_error,
     print_detail,
@@ -39,6 +37,7 @@ projects_app = typer.Typer(
 
 # Register project chat subgroup (querri project chat -m "...")
 from querri.cli.chat import project_chat_app  # noqa: E402
+
 projects_app.add_typer(project_chat_app, name="chat", rich_help_panel="Chat")
 
 
@@ -50,8 +49,8 @@ projects_app.add_typer(project_chat_app, name="chat", rich_help_panel="Chat")
 @projects_app.command("new")
 def new_project(
     ctx: typer.Context,
-    name: Optional[str] = typer.Argument(None, help="Project name."),
-    description: Optional[str] = typer.Option(None, "--description", "-d", help="Description."),
+    name: str | None = typer.Argument(None, help="Project name."),
+    description: str | None = typer.Option(None, "--description", "-d", help="Description."),
 ) -> None:
     """Create a new project and set it as active.
 
@@ -106,7 +105,7 @@ def new_project(
 @projects_app.command("select")
 def select_project(
     ctx: typer.Context,
-    name_or_id: Optional[str] = typer.Argument(None, help="Project name (fuzzy) or UUID."),
+    name_or_id: str | None = typer.Argument(None, help="Project name (fuzzy) or UUID."),
 ) -> None:
     """Set the active project for subsequent commands.
 
@@ -252,7 +251,7 @@ def select_project(
 def list_projects(
     ctx: typer.Context,
     limit: int = typer.Option(25, "--limit", "-l", help="Max results to return."),
-    after: Optional[str] = typer.Option(None, "--after", help="Cursor for pagination."),
+    after: str | None = typer.Option(None, "--after", help="Cursor for pagination."),
 ) -> None:
     """List projects in the organization."""
     obj = ctx.ensure_object(dict)
@@ -306,7 +305,7 @@ def list_projects(
 @projects_app.command("get")
 def get_project(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
 ) -> None:
     """Get project details."""
     obj = ctx.ensure_object(dict)
@@ -347,9 +346,9 @@ def get_project(
 @projects_app.command("update")
 def update_project(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(None, help="Project ID (default: active project)."),
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="New name."),
-    description: Optional[str] = typer.Option(None, "--description", "-d", help="New description."),
+    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    name: str | None = typer.Option(None, "--name", "-n", help="New name."),
+    description: str | None = typer.Option(None, "--description", "-d", help="New description."),
 ) -> None:
     """Update a project."""
     obj = ctx.ensure_object(dict)
@@ -415,8 +414,8 @@ def delete_project(
 @projects_app.command("run")
 def run_project(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(None, help="Project ID (default: active project)."),
-    user_id: Optional[str] = typer.Option(None, "--user-id", help="User ID to run as."),
+    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    user_id: str | None = typer.Option(None, "--user-id", help="User ID to run as."),
     wait: bool = typer.Option(False, "--wait", "-w", help="Block until run completes."),
     timeout: int = typer.Option(600, "--timeout", help="Max seconds to wait (with --wait)."),
 ) -> None:
@@ -482,7 +481,7 @@ def run_project(
 @projects_app.command("run-status")
 def run_status(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
 ) -> None:
     """Check the run status of a project."""
     obj = ctx.ensure_object(dict)
@@ -505,7 +504,7 @@ def run_status(
 @projects_app.command("run-cancel")
 def run_cancel(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
 ) -> None:
     """Cancel a running project."""
     obj = ctx.ensure_object(dict)
@@ -531,7 +530,7 @@ def run_cancel(
 def add_source(
     ctx: typer.Context,
     source_id: str = typer.Argument(help="Source UUID to add to the project."),
-    project_id: Optional[str] = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
 ) -> None:
     """Add a data source to the active project.
 
@@ -604,9 +603,9 @@ def add_source(
 @projects_app.command("show")
 def show_project(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(None, help="Project ID (default: active project)."),
-    top: Optional[int] = typer.Option(None, "--top", help="Show only the first N steps."),
-    bottom: Optional[int] = typer.Option(None, "--bottom", help="Show only the last N steps."),
+    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    top: int | None = typer.Option(None, "--top", help="Show only the first N steps."),
+    bottom: int | None = typer.Option(None, "--bottom", help="Show only the last N steps."),
 ) -> None:
     """Show a visual overview of the project and its step pipeline.
 
@@ -723,7 +722,7 @@ def _render_project_show(
     header.append(f"\n{project.id}", style="dim")
     if desc:
         header.append(f"\n{desc}")
-    header.append(f"\n\nStatus: ", style="bold")
+    header.append("\n\nStatus: ", style="bold")
     if status in ("idle", "complete", "completed"):
         status_style = "green"
     elif status in ("running", "queued"):

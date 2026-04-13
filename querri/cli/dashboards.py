@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import sys
 import time
-from typing import Optional
 
 import typer
 
@@ -30,7 +29,7 @@ dashboards_app = typer.Typer(
 def list_dashboards(
     ctx: typer.Context,
     limit: int = typer.Option(25, "--limit", "-l", help="Max results."),
-    after: Optional[str] = typer.Option(None, "--after", help="Cursor for pagination."),
+    after: str | None = typer.Option(None, "--after", help="Cursor for pagination."),
 ) -> None:
     """List dashboards."""
     obj = ctx.ensure_object(dict)
@@ -56,7 +55,7 @@ def list_dashboards(
 @dashboards_app.command("get")
 def get_dashboard(
     ctx: typer.Context,
-    dashboard_id: Optional[str] = typer.Argument(None, help="Dashboard ID."),
+    dashboard_id: str | None = typer.Argument(None, help="Dashboard ID."),
 ) -> None:
     """Get dashboard details."""
     if not dashboard_id:
@@ -97,8 +96,8 @@ def get_dashboard(
 @dashboards_app.command("new")
 def new_dashboard(
     ctx: typer.Context,
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="Dashboard name."),
-    description: Optional[str] = typer.Option(None, "--description", "-d", help="Description."),
+    name: str | None = typer.Option(None, "--name", "-n", help="Dashboard name."),
+    description: str | None = typer.Option(None, "--description", "-d", help="Description."),
 ) -> None:
     """Create a new dashboard."""
     if not name:
@@ -128,9 +127,9 @@ def new_dashboard(
 @dashboards_app.command("update")
 def update_dashboard(
     ctx: typer.Context,
-    dashboard_id: Optional[str] = typer.Argument(None, help="Dashboard ID."),
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="New name."),
-    description: Optional[str] = typer.Option(None, "--description", "-d", help="New description."),
+    dashboard_id: str | None = typer.Argument(None, help="Dashboard ID."),
+    name: str | None = typer.Option(None, "--name", "-n", help="New name."),
+    description: str | None = typer.Option(None, "--description", "-d", help="New description."),
 ) -> None:
     """Update a dashboard."""
     if not dashboard_id:
@@ -158,7 +157,7 @@ def update_dashboard(
 @dashboards_app.command("delete")
 def delete_dashboard(
     ctx: typer.Context,
-    dashboard_id: Optional[str] = typer.Argument(None, help="Dashboard ID."),
+    dashboard_id: str | None = typer.Argument(None, help="Dashboard ID."),
 ) -> None:
     """Delete a dashboard."""
     if not dashboard_id:
@@ -186,7 +185,7 @@ def delete_dashboard(
 @dashboards_app.command("refresh")
 def refresh_dashboard(
     ctx: typer.Context,
-    dashboard_id: Optional[str] = typer.Argument(None, help="Dashboard ID."),
+    dashboard_id: str | None = typer.Argument(None, help="Dashboard ID."),
     wait: bool = typer.Option(False, "--wait", "-w", help="Block until refresh completes."),
 ) -> None:
     """Trigger a dashboard refresh."""
@@ -230,7 +229,7 @@ def refresh_dashboard(
 @dashboards_app.command("refresh-status")
 def refresh_status(
     ctx: typer.Context,
-    dashboard_id: Optional[str] = typer.Argument(None, help="Dashboard ID."),
+    dashboard_id: str | None = typer.Argument(None, help="Dashboard ID."),
 ) -> None:
     """Check dashboard refresh status."""
     if not dashboard_id:

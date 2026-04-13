@@ -6,23 +6,22 @@ Chats are nested under projects and support streaming AI responses.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+import builtins
+from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from .._pagination import AsyncCursorPage, SyncCursorPage
 from .._streaming import AsyncChatStream, ChatStream
-from ..types.chat import Chat, ChatCancelResponse, ChatDeleteResponse
+from ..types.chat import Chat, ChatCancelResponse
 from ..types.data import DataPage
 from ..types.project import (
     AddSourceResponse,
     Project,
     ProjectCancelResponse,
-    ProjectDeleteResponse,
     ProjectRunResponse,
     ProjectRunStatus,
     StepSummary,
 )
-
 
 # ---------------------------------------------------------------------------
 # Chats (sync)
@@ -44,7 +43,7 @@ class Chats:
         self,
         project_id: str,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> Chat:
         """Create a new chat on a project.
 
@@ -55,7 +54,7 @@ class Chats:
         Returns:
             Chat object with id, project_id, name, created_at.
         """
-        body: Dict[str, Any] = {}
+        body: dict[str, Any] = {}
         if name is not None:
             body["name"] = name
         response = self._http.post(f"/projects/{project_id}/chats", json=body)
@@ -83,7 +82,7 @@ class Chats:
         project_id: str,
         *,
         limit: int = 25,
-    ) -> List[Chat]:
+    ) -> builtins.list[Chat]:
         """List chats on a project.
 
         Note: The server returns a flat list (no cursor pagination for chats).
@@ -111,7 +110,7 @@ class Chats:
         *,
         prompt: str,
         user_id: str,
-        model: Optional[str] = None,
+        model: str | None = None,
         experimental_v2: bool = False,
     ) -> ChatStream:
         """Send a message and stream the AI response via SSE.
@@ -137,7 +136,7 @@ class Chats:
             for chunk in stream:
                 print(chunk, end="", flush=True)
         """
-        body: Dict[str, Any] = {
+        body: dict[str, Any] = {
             "prompt": prompt,
             "user_id": user_id,
         }
@@ -203,7 +202,7 @@ class AsyncChats:
         self,
         project_id: str,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> Chat:
         """Create a new chat on a project.
 
@@ -214,7 +213,7 @@ class AsyncChats:
         Returns:
             Chat object with id, project_id, name, created_at.
         """
-        body: Dict[str, Any] = {}
+        body: dict[str, Any] = {}
         if name is not None:
             body["name"] = name
         response = await self._http.post(f"/projects/{project_id}/chats", json=body)
@@ -242,7 +241,7 @@ class AsyncChats:
         project_id: str,
         *,
         limit: int = 25,
-    ) -> List[Chat]:
+    ) -> builtins.list[Chat]:
         """List chats on a project.
 
         Note: The server returns a flat list (no cursor pagination for chats).
@@ -268,7 +267,7 @@ class AsyncChats:
         *,
         prompt: str,
         user_id: str,
-        model: Optional[str] = None,
+        model: str | None = None,
         experimental_v2: bool = False,
     ) -> AsyncChatStream:
         """Send a message and stream the AI response via SSE.
@@ -294,7 +293,7 @@ class AsyncChats:
             async for chunk in stream:
                 print(chunk, end="", flush=True)
         """
-        body: Dict[str, Any] = {
+        body: dict[str, Any] = {
             "prompt": prompt,
             "user_id": user_id,
         }
@@ -383,7 +382,7 @@ class Projects:
         *,
         name: str,
         user_id: str,
-        description: Optional[str] = None,
+        description: str | None = None,
     ) -> Project:
         """Create a new project.
 
@@ -395,7 +394,7 @@ class Projects:
         Returns:
             Created Project object.
         """
-        body: Dict[str, Any] = {"name": name, "user_id": user_id}
+        body: dict[str, Any] = {"name": name, "user_id": user_id}
         if description is not None:
             body["description"] = description
         response = self._http.post("/projects", json=body)
@@ -417,8 +416,8 @@ class Projects:
         self,
         *,
         limit: int = 25,
-        after: Optional[str] = None,
-        user_id: Optional[str] = None,
+        after: str | None = None,
+        user_id: str | None = None,
     ) -> SyncCursorPage[Project]:
         """List projects with cursor pagination.
 
@@ -430,7 +429,7 @@ class Projects:
         Returns:
             Auto-paginating iterator of Project objects.
         """
-        params: Dict[str, Any] = {"limit": limit}
+        params: dict[str, Any] = {"limit": limit}
         if after is not None:
             params["after"] = after
         if user_id is not None:
@@ -441,8 +440,8 @@ class Projects:
         self,
         project_id: str,
         *,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
+        name: str | None = None,
+        description: str | None = None,
     ) -> Project:
         """Update project name and/or description.
 
@@ -454,7 +453,7 @@ class Projects:
         Returns:
             Updated Project object.
         """
-        body: Dict[str, Any] = {}
+        body: dict[str, Any] = {}
         if name is not None:
             body["name"] = name
         if description is not None:
@@ -489,7 +488,7 @@ class Projects:
         Returns:
             Response with step_id, project_id, and status.
         """
-        body: Dict[str, Any] = {"file_id": file_id, "run": run}
+        body: dict[str, Any] = {"file_id": file_id, "run": run}
         response = self._http.post(f"/projects/{project_id}/sources", json=body)
         return AddSourceResponse.model_validate(response.json())
 
@@ -510,7 +509,7 @@ class Projects:
         Returns:
             Response with id, run_id, and status ("submitted").
         """
-        body: Dict[str, Any] = {"user_id": user_id}
+        body: dict[str, Any] = {"user_id": user_id}
         response = self._http.post(f"/projects/{project_id}/run", json=body)
         return ProjectRunResponse.model_validate(response.json())
 
@@ -540,7 +539,7 @@ class Projects:
 
     # -- Steps --------------------------------------------------------------
 
-    def list_steps(self, project_id: str) -> List[StepSummary]:
+    def list_steps(self, project_id: str) -> builtins.list[StepSummary]:
         """List steps in a project with summary metadata.
 
         Args:
@@ -622,7 +621,7 @@ class AsyncProjects:
         *,
         name: str,
         user_id: str,
-        description: Optional[str] = None,
+        description: str | None = None,
     ) -> Project:
         """Create a new project.
 
@@ -634,7 +633,7 @@ class AsyncProjects:
         Returns:
             Created Project object.
         """
-        body: Dict[str, Any] = {"name": name, "user_id": user_id}
+        body: dict[str, Any] = {"name": name, "user_id": user_id}
         if description is not None:
             body["description"] = description
         response = await self._http.post("/projects", json=body)
@@ -656,8 +655,8 @@ class AsyncProjects:
         self,
         *,
         limit: int = 25,
-        after: Optional[str] = None,
-        user_id: Optional[str] = None,
+        after: str | None = None,
+        user_id: str | None = None,
     ) -> AsyncCursorPage[Project]:
         """List projects with cursor pagination.
 
@@ -669,7 +668,7 @@ class AsyncProjects:
         Returns:
             Auto-paginating iterator of Project objects.
         """
-        params: Dict[str, Any] = {"limit": limit}
+        params: dict[str, Any] = {"limit": limit}
         if after is not None:
             params["after"] = after
         if user_id is not None:
@@ -680,8 +679,8 @@ class AsyncProjects:
         self,
         project_id: str,
         *,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
+        name: str | None = None,
+        description: str | None = None,
     ) -> Project:
         """Update project name and/or description.
 
@@ -693,7 +692,7 @@ class AsyncProjects:
         Returns:
             Updated Project object.
         """
-        body: Dict[str, Any] = {}
+        body: dict[str, Any] = {}
         if name is not None:
             body["name"] = name
         if description is not None:
@@ -719,7 +718,7 @@ class AsyncProjects:
         run: bool = True,
     ) -> AddSourceResponse:
         """Add a file as a data source to a project."""
-        body: Dict[str, Any] = {"file_id": file_id, "run": run}
+        body: dict[str, Any] = {"file_id": file_id, "run": run}
         response = await self._http.post(f"/projects/{project_id}/sources", json=body)
         return AddSourceResponse.model_validate(response.json())
 
@@ -740,7 +739,7 @@ class AsyncProjects:
         Returns:
             Response with id, run_id, and status ("submitted").
         """
-        body: Dict[str, Any] = {"user_id": user_id}
+        body: dict[str, Any] = {"user_id": user_id}
         response = await self._http.post(f"/projects/{project_id}/run", json=body)
         return ProjectRunResponse.model_validate(response.json())
 
@@ -770,7 +769,7 @@ class AsyncProjects:
 
     # -- Steps --------------------------------------------------------------
 
-    async def list_steps(self, project_id: str) -> List[StepSummary]:
+    async def list_steps(self, project_id: str) -> builtins.list[StepSummary]:
         """List steps in a project with summary metadata.
 
         Args:

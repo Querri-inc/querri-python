@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import sys
-from typing import Optional
 
 import typer
 
 from querri._auth import (
-    TokenStore,
     TokenProfile,
+    TokenStore,
     needs_refresh,
     refresh_tokens,
     start_oauth_flow,
@@ -19,7 +18,6 @@ from querri.cli._output import (
     print_error,
     print_json,
     print_success,
-    exit_auth_error,
 )
 
 _PICK_ORG_HINT = (
@@ -101,11 +99,11 @@ def _pick_organization(
 @auth_app.command()
 def login(
     ctx: typer.Context,
-    host: Optional[str] = typer.Option(
+    host: str | None = typer.Option(
         None, "--host", "-h",
         help="Querri server URL (default: from global --host or QUERRI_HOST).",
     ),
-    organization: Optional[str] = typer.Option(
+    organization: str | None = typer.Option(
         None, "--organization", "--org",
         help="WorkOS organization ID to scope the login to (e.g. org_01J...).",
     ),
@@ -456,7 +454,7 @@ def switch(
 @auth_app.command("switch-org")
 def switch_org(
     ctx: typer.Context,
-    org: Optional[str] = typer.Argument(
+    org: str | None = typer.Argument(
         None,
         help="Organization ID to switch to (omit for interactive picker).",
     ),

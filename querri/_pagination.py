@@ -6,7 +6,8 @@ pagination patterns transparently.
 
 from __future__ import annotations
 
-from typing import Any, Generic, Iterator, List, Optional, TypeVar
+from collections.abc import Iterator
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
@@ -20,10 +21,10 @@ class SyncPage(Generic[T]):
 
     def __init__(
         self,
-        data: List[T],
+        data: list[T],
         has_more: bool,
-        next_cursor: Optional[str] = None,
-        total: Optional[int] = None,
+        next_cursor: str | None = None,
+        total: int | None = None,
     ) -> None:
         self.data = data
         self.has_more = has_more
@@ -55,7 +56,7 @@ class SyncCursorPage(Generic[T]):
         http: SyncHTTPClient,
         path: str,
         model: type[T],
-        params: Optional[dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
         data_key: str = "data",
     ) -> None:
         self._http = http
@@ -63,7 +64,7 @@ class SyncCursorPage(Generic[T]):
         self._model = model
         self._params = params or {}
         self._data_key = data_key
-        self._first_page: Optional[SyncPage[T]] = None
+        self._first_page: SyncPage[T] | None = None
 
     def _fetch_page(self, params: dict[str, Any]) -> SyncPage[T]:
         """Fetch one page from the API and parse the response body.
@@ -114,7 +115,7 @@ class SyncCursorPage(Generic[T]):
         return self._first_page
 
     @property
-    def data(self) -> List[T]:
+    def data(self) -> list[T]:
         """Items from the first page."""
         return self._ensure_first_page().data
 
@@ -124,16 +125,16 @@ class SyncCursorPage(Generic[T]):
         return self._ensure_first_page().has_more
 
     @property
-    def next_cursor(self) -> Optional[str]:
+    def next_cursor(self) -> str | None:
         """Opaque cursor for fetching the next page, or None."""
         return self._ensure_first_page().next_cursor
 
-    def first(self) -> Optional[T]:
+    def first(self) -> T | None:
         """Get the first item, or None if empty."""
         data = self.data
         return data[0] if data else None
 
-    def to_list(self) -> List[T]:
+    def to_list(self) -> list[T]:
         """Consume all pages and return items as a flat list."""
         return list(self)
 
@@ -154,10 +155,10 @@ class AsyncPage(Generic[T]):
 
     def __init__(
         self,
-        data: List[T],
+        data: list[T],
         has_more: bool,
-        next_cursor: Optional[str] = None,
-        total: Optional[int] = None,
+        next_cursor: str | None = None,
+        total: int | None = None,
     ) -> None:
         self.data = data
         self.has_more = has_more
@@ -183,7 +184,7 @@ class AsyncCursorPage(Generic[T]):
         http: AsyncHTTPClient,
         path: str,
         model: type[T],
-        params: Optional[dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
         data_key: str = "data",
     ) -> None:
         self._http = http
@@ -191,7 +192,7 @@ class AsyncCursorPage(Generic[T]):
         self._model = model
         self._params = params or {}
         self._data_key = data_key
-        self._first_page: Optional[AsyncPage[T]] = None
+        self._first_page: AsyncPage[T] | None = None
 
     async def _fetch_page(self, params: dict[str, Any]) -> AsyncPage[T]:
         """Fetch one page from the API and parse the response body.
@@ -240,7 +241,7 @@ class AsyncCursorPage(Generic[T]):
             self._first_page = await self._fetch_page(self._params)
         return self._first_page
 
-    async def get_data(self) -> List[T]:
+    async def get_data(self) -> list[T]:
         """Items from the first page.
 
         Unlike ``SyncCursorPage.data`` (a property), this must be awaited::
@@ -250,11 +251,11 @@ class AsyncCursorPage(Generic[T]):
         page = await self._ensure_first_page()
         return page.data
 
-    async def first(self) -> Optional[T]:
+    async def first(self) -> T | None:
         page = await self._ensure_first_page()
         return page.data[0] if page.data else None
 
-    async def to_list(self) -> List[T]:
+    async def to_list(self) -> list[T]:
         """Consume all pages and return items as a flat list."""
         return [item async for item in self]
 

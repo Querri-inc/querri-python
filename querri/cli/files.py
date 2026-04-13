@@ -5,7 +5,6 @@ from __future__ import annotations
 import glob as globmod
 import sys
 from pathlib import Path
-from typing import Optional
 
 import typer
 
@@ -55,7 +54,7 @@ def list_files(
 @files_app.command("get")
 def get_file(
     ctx: typer.Context,
-    file_id: Optional[str] = typer.Argument(default=None, help="File ID."),
+    file_id: str | None = typer.Argument(default=None, help="File ID."),
 ) -> None:
     """Get file details."""
     if file_id is None:
@@ -97,8 +96,8 @@ def get_file(
 @files_app.command("upload")
 def upload_file(
     ctx: typer.Context,
-    path: Optional[str] = typer.Argument(default=None, help="File path or glob pattern (e.g. '*.csv')."),
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="Override file name."),
+    path: str | None = typer.Argument(default=None, help="File path or glob pattern (e.g. '*.csv')."),
+    name: str | None = typer.Option(None, "--name", "-n", help="Override file name."),
 ) -> None:
     """Upload a file (supports glob patterns for batch upload).
 
@@ -172,7 +171,7 @@ def upload_file(
 @files_app.command("delete")
 def delete_file(
     ctx: typer.Context,
-    file_id: Optional[str] = typer.Argument(default=None, help="File ID."),
+    file_id: str | None = typer.Argument(default=None, help="File ID."),
 ) -> None:
     """Delete a file."""
     if file_id is None:

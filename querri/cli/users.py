@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-from typing import Optional
 
 import typer
 
@@ -29,8 +28,8 @@ users_app = typer.Typer(
 def list_users(
     ctx: typer.Context,
     limit: int = typer.Option(25, "--limit", "-l", help="Max results."),
-    after: Optional[str] = typer.Option(None, "--after", help="Cursor for pagination."),
-    external_id: Optional[str] = typer.Option(None, "--external-id", help="Filter by external ID."),
+    after: str | None = typer.Option(None, "--after", help="Cursor for pagination."),
+    external_id: str | None = typer.Option(None, "--external-id", help="Filter by external ID."),
 ) -> None:
     """List users in the organization."""
     obj = ctx.ensure_object(dict)
@@ -57,7 +56,7 @@ def list_users(
 @users_app.command("get")
 def get_user(
     ctx: typer.Context,
-    user_id: Optional[str] = typer.Argument(None, help="User ID."),
+    user_id: str | None = typer.Argument(None, help="User ID."),
 ) -> None:
     """Get user details."""
     obj = ctx.ensure_object(dict)
@@ -98,11 +97,11 @@ def get_user(
 @users_app.command("new")
 def new_user(
     ctx: typer.Context,
-    email: Optional[str] = typer.Option(None, "--email", "-e", help="User email."),
+    email: str | None = typer.Option(None, "--email", "-e", help="User email."),
     role: str = typer.Option("member", "--role", "-r", help="Role (member, admin)."),
-    external_id: Optional[str] = typer.Option(None, "--external-id", help="External ID."),
-    first_name: Optional[str] = typer.Option(None, "--first-name", help="First name."),
-    last_name: Optional[str] = typer.Option(None, "--last-name", help="Last name."),
+    external_id: str | None = typer.Option(None, "--external-id", help="External ID."),
+    first_name: str | None = typer.Option(None, "--first-name", help="First name."),
+    last_name: str | None = typer.Option(None, "--last-name", help="Last name."),
 ) -> None:
     """Create a new user."""
     obj = ctx.ensure_object(dict)
@@ -138,10 +137,10 @@ def new_user(
 @users_app.command("update")
 def update_user(
     ctx: typer.Context,
-    user_id: Optional[str] = typer.Argument(None, help="User ID."),
-    role: Optional[str] = typer.Option(None, "--role", "-r", help="New role (member, admin)."),
-    first_name: Optional[str] = typer.Option(None, "--first-name", help="New first name."),
-    last_name: Optional[str] = typer.Option(None, "--last-name", help="New last name."),
+    user_id: str | None = typer.Argument(None, help="User ID."),
+    role: str | None = typer.Option(None, "--role", "-r", help="New role (member, admin)."),
+    first_name: str | None = typer.Option(None, "--first-name", help="New first name."),
+    last_name: str | None = typer.Option(None, "--last-name", help="New last name."),
 ) -> None:
     """Update a user."""
     obj = ctx.ensure_object(dict)
@@ -178,7 +177,7 @@ def update_user(
 @users_app.command("delete")
 def delete_user(
     ctx: typer.Context,
-    user_id: Optional[str] = typer.Argument(None, help="User ID."),
+    user_id: str | None = typer.Argument(None, help="User ID."),
 ) -> None:
     """Delete a user."""
     obj = ctx.ensure_object(dict)

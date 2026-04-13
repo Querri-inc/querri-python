@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-from typing import Optional
 
 import typer
 
@@ -60,28 +59,28 @@ def _version_callback(value: bool) -> None:
 @main_app.callback()
 def _global_options(
     ctx: typer.Context,
-    host: Optional[str] = typer.Option(
+    host: str | None = typer.Option(
         None,
         "--host",
         envvar="QUERRI_HOST",
         help="Querri server host (default: https://app.querri.com).",
         show_default=False,
     ),
-    api_key: Optional[str] = typer.Option(
+    api_key: str | None = typer.Option(
         None,
         "--api-key",
         envvar="QUERRI_API_KEY",
         help="API key (prefer QUERRI_API_KEY env var).",
         show_default=False,
     ),
-    org_id: Optional[str] = typer.Option(
+    org_id: str | None = typer.Option(
         None,
         "--org-id",
         envvar="QUERRI_ORG_ID",
         help="Organization ID.",
         show_default=False,
     ),
-    profile: Optional[str] = typer.Option(
+    profile: str | None = typer.Option(
         None,
         "--profile",
         help="Named auth profile (v0.2.1+).",
@@ -102,20 +101,20 @@ def _global_options(
         "--verbose", "-v",
         help="Verbose output.",
     ),
-    interactive: Optional[bool] = typer.Option(
+    interactive: bool | None = typer.Option(
         None,
         "--interactive/--no-interactive",
         help="Force interactive/non-interactive mode.",
         show_default=False,
     ),
-    project: Optional[str] = typer.Option(
+    project: str | None = typer.Option(
         None,
         "--project", "-p",
         envvar="QUERRI_PROJECT_ID",
         help="Project ID (overrides active project).",
         show_default=False,
     ),
-    chat: Optional[str] = typer.Option(
+    chat: str | None = typer.Option(
         None,
         "--chat",
         envvar="QUERRI_CHAT_ID",
@@ -169,11 +168,11 @@ main_app.add_typer(auth_app, name="auth", rich_help_panel="[#f15a24]Getting Star
 main_app.add_typer(whoami_app, name="whoami", rich_help_panel="[#f15a24]Getting Started[/#f15a24]")
 
 # ── Projects & Data ─────────────────────────────────────────────────────
-from querri.cli.projects import projects_app
-from querri.cli.steps import steps_app
 from querri.cli.chats import chats_app
 from querri.cli.files import files_app
+from querri.cli.projects import projects_app
 from querri.cli.sources import sources_app
+from querri.cli.steps import steps_app
 from querri.cli.views import view_app
 
 main_app.add_typer(projects_app, name="project", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
@@ -184,13 +183,14 @@ main_app.add_typer(sources_app, name="source", rich_help_panel="[#f15a24]Project
 main_app.add_typer(view_app, name="view", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
 
 from querri.cli.dashboards import dashboards_app
+
 main_app.add_typer(dashboards_app, name="dashboard", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]")
 
 # ── Administration ──────────────────────────────────────────────────────
-from querri.cli.users import users_app
 from querri.cli.keys import keys_app
 from querri.cli.policies import policies_app
 from querri.cli.sharing import sharing_app
+from querri.cli.users import users_app
 
 main_app.add_typer(users_app, name="user", rich_help_panel="[#f15a24]Administration[/#f15a24]")
 main_app.add_typer(keys_app, name="key", rich_help_panel="[#f15a24]Administration[/#f15a24]")
@@ -198,9 +198,9 @@ main_app.add_typer(policies_app, name="policy", rich_help_panel="[#f15a24]Admini
 main_app.add_typer(sharing_app, name="share", rich_help_panel="[#f15a24]Administration[/#f15a24]")
 
 # ── Advanced ────────────────────────────────────────────────────────────
+from querri.cli.audit import audit_app
 from querri.cli.embed import embed_app
 from querri.cli.usage import usage_app
-from querri.cli.audit import audit_app
 
 main_app.add_typer(embed_app, name="session", rich_help_panel="[#f15a24]Advanced[/#f15a24]")
 main_app.add_typer(usage_app, name="usage", rich_help_panel="[#f15a24]Advanced[/#f15a24]")

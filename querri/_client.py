@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from ._base_client import AsyncHTTPClient, SyncHTTPClient
 from ._config import resolve_config
@@ -27,13 +27,13 @@ class Querri:
     def __init__(
         self,
         *,
-        api_key: Optional[str] = None,
-        access_token: Optional[str] = None,
-        org_id: Optional[str] = None,
-        host: Optional[str] = None,
-        timeout: Optional[float] = None,
-        max_retries: Optional[int] = None,
-        profile: Optional[str] = None,
+        api_key: str | None = None,
+        access_token: str | None = None,
+        org_id: str | None = None,
+        host: str | None = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
+        profile: str | None = None,
     ) -> None:
         """Initialize the synchronous Querri client.
 
@@ -59,18 +59,18 @@ class Querri:
 
         # Resource namespaces — lazily initialized on first access.
         # Deferred imports keep client creation fast and avoid circular imports.
-        self._users: Optional[object] = None
-        self._embed: Optional[object] = None
-        self._policies: Optional[object] = None
-        self._projects: Optional[object] = None
-        self._dashboards: Optional[object] = None
-        self._files: Optional[object] = None
-        self._sources: Optional[object] = None
-        self._views: Optional[object] = None
-        self._keys: Optional[object] = None
-        self._sharing: Optional[object] = None
-        self._usage: Optional[object] = None
-        self._audit: Optional[object] = None
+        self._users: object | None = None
+        self._embed: object | None = None
+        self._policies: object | None = None
+        self._projects: object | None = None
+        self._dashboards: object | None = None
+        self._files: object | None = None
+        self._sources: object | None = None
+        self._views: object | None = None
+        self._keys: object | None = None
+        self._sharing: object | None = None
+        self._usage: object | None = None
+        self._audit: object | None = None
 
     @property
     def users(self) -> "Users":
@@ -156,7 +156,7 @@ class Querri:
             self._audit = Audit(self._http)
         return self._audit  # type: ignore[return-value]
 
-    def as_user(self, session: Dict[str, Any]) -> "UserQuerri":
+    def as_user(self, session: dict[str, Any]) -> "UserQuerri":
         """Create a user-scoped client from a ``get_session()`` result.
 
         The returned client uses the embed session token for auth and
@@ -198,13 +198,13 @@ class AsyncQuerri:
     def __init__(
         self,
         *,
-        api_key: Optional[str] = None,
-        access_token: Optional[str] = None,
-        org_id: Optional[str] = None,
-        host: Optional[str] = None,
-        timeout: Optional[float] = None,
-        max_retries: Optional[int] = None,
-        profile: Optional[str] = None,
+        api_key: str | None = None,
+        access_token: str | None = None,
+        org_id: str | None = None,
+        host: str | None = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
+        profile: str | None = None,
     ) -> None:
         """Initialize the asynchronous Querri client.
 
@@ -228,18 +228,18 @@ class AsyncQuerri:
         )
         self._http = AsyncHTTPClient(self._config)
 
-        self._users: Optional[object] = None
-        self._embed: Optional[object] = None
-        self._policies: Optional[object] = None
-        self._projects: Optional[object] = None
-        self._dashboards: Optional[object] = None
-        self._files: Optional[object] = None
-        self._sources: Optional[object] = None
-        self._views: Optional[object] = None
-        self._keys: Optional[object] = None
-        self._sharing: Optional[object] = None
-        self._usage: Optional[object] = None
-        self._audit: Optional[object] = None
+        self._users: object | None = None
+        self._embed: object | None = None
+        self._policies: object | None = None
+        self._projects: object | None = None
+        self._dashboards: object | None = None
+        self._files: object | None = None
+        self._sources: object | None = None
+        self._views: object | None = None
+        self._keys: object | None = None
+        self._sharing: object | None = None
+        self._usage: object | None = None
+        self._audit: object | None = None
 
     @property
     def users(self) -> "AsyncUsers":
@@ -325,7 +325,7 @@ class AsyncQuerri:
             self._audit = AsyncAudit(self._http)
         return self._audit  # type: ignore[return-value]
 
-    def as_user(self, session: Dict[str, Any]) -> "AsyncUserQuerri":
+    def as_user(self, session: dict[str, Any]) -> "AsyncUserQuerri":
         """Create a user-scoped async client from a ``get_session()`` result.
 
         The returned client uses the embed session token for auth and

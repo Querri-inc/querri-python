@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import typer
 
 from querri.cli._context import get_client
@@ -23,13 +21,13 @@ audit_app = typer.Typer(
 @audit_app.command("list")
 def list_events(
     ctx: typer.Context,
-    actor_id: Optional[str] = typer.Option(None, "--actor-id", help="Filter by actor ID."),
-    target_id: Optional[str] = typer.Option(None, "--target-id", help="Filter by target ID."),
-    action: Optional[str] = typer.Option(None, "--action", help="Filter by action type."),
-    start_date: Optional[str] = typer.Option(None, "--start-date", help="Start date (ISO 8601)."),
-    end_date: Optional[str] = typer.Option(None, "--end-date", help="End date (ISO 8601)."),
+    actor_id: str | None = typer.Option(None, "--actor-id", help="Filter by actor ID."),
+    target_id: str | None = typer.Option(None, "--target-id", help="Filter by target ID."),
+    action: str | None = typer.Option(None, "--action", help="Filter by action type."),
+    start_date: str | None = typer.Option(None, "--start-date", help="Start date (ISO 8601)."),
+    end_date: str | None = typer.Option(None, "--end-date", help="End date (ISO 8601)."),
     limit: int = typer.Option(25, "--limit", "-l", help="Max results to return."),
-    after: Optional[str] = typer.Option(None, "--after", help="Cursor for pagination."),
+    after: str | None = typer.Option(None, "--after", help="Cursor for pagination."),
 ) -> None:
     """List audit log events."""
     obj = ctx.ensure_object(dict)

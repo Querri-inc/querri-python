@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -12,13 +12,13 @@ class Dashboard(BaseModel):
 
     id: str  #: Unique dashboard identifier.
     name: str  #: Dashboard display name.
-    description: Optional[str] = None  #: Optional dashboard description.
+    description: str | None = None  #: Optional dashboard description.
     widget_count: int = 0  #: Number of widgets on the dashboard.
-    widgets: Optional[List[Dict[str, Any]]] = None  #: Only on detail responses.
-    filters: Optional[List[Dict[str, Any]]] = None  #: Only on detail responses.
-    created_by: Optional[str] = None  #: User ID of the dashboard creator.
-    created_at: Optional[str] = None  #: ISO-8601 creation timestamp.
-    updated_at: Optional[str] = None  #: ISO-8601 last-update timestamp.
+    widgets: list[dict[str, Any]] | None = None  #: Only on detail responses.
+    filters: list[dict[str, Any]] | None = None  #: Only on detail responses.
+    created_by: str | None = None  #: User ID of the dashboard creator.
+    created_at: str | None = None  #: ISO-8601 creation timestamp.
+    updated_at: str | None = None  #: ISO-8601 last-update timestamp.
 
 
 class DashboardUpdateResponse(BaseModel):
@@ -48,4 +48,4 @@ class DashboardRefreshStatus(BaseModel):
 
     id: str  #: Dashboard identifier.
     status: str = "idle"  #: Current status, e.g. ``"idle"`` or ``"refreshing"``.
-    project_count: Optional[int] = None  #: Number of projects in the refresh.
+    project_count: int | None = None  #: Number of projects in the refresh.

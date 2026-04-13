@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Optional
 
 from ._exceptions import ConfigError
 
@@ -23,13 +22,13 @@ class ClientConfig:
     3. Defaults
     """
 
-    api_key: Optional[str] = None  #: Querri API key (``qk_`` prefix).
-    access_token: Optional[str] = None  #: JWT access token (from OAuth or env).
-    org_id: Optional[str] = None  #: Organization ID for tenant isolation.
+    api_key: str | None = None  #: Querri API key (``qk_`` prefix).
+    access_token: str | None = None  #: JWT access token (from OAuth or env).
+    org_id: str | None = None  #: Organization ID for tenant isolation.
     base_url: str = DEFAULT_HOST + "/api/v1"  #: Fully resolved API base URL.
     timeout: float = DEFAULT_TIMEOUT  #: Request timeout in seconds.
     max_retries: int = DEFAULT_MAX_RETRIES  #: Max retry attempts for retryable errors.
-    session_token: Optional[str] = None  #: Embed session token for user-scoped clients.
+    session_token: str | None = None  #: Embed session token for user-scoped clients.
     _user_agent: str = field(init=False)  #: Auto-generated User-Agent header value.
 
     def __post_init__(self) -> None:
@@ -58,12 +57,12 @@ class ClientConfig:
 
 def resolve_config(
     *,
-    api_key: Optional[str] = None,
-    access_token: Optional[str] = None,
-    org_id: Optional[str] = None,
-    host: Optional[str] = None,
-    timeout: Optional[float] = None,
-    max_retries: Optional[int] = None,
+    api_key: str | None = None,
+    access_token: str | None = None,
+    org_id: str | None = None,
+    host: str | None = None,
+    timeout: float | None = None,
+    max_retries: int | None = None,
 ) -> ClientConfig:
     """Resolve configuration from arguments, env vars, and defaults.
 
@@ -90,7 +89,7 @@ def resolve_config(
     # 3rd priority: token store (~/.querri/tokens.json)
     if not resolved_key and not resolved_token:
         try:
-            from ._auth import TokenStore, needs_refresh
+            from ._auth import TokenStore
 
             store = TokenStore.load()
             profile = store.get_active_profile()

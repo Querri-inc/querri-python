@@ -346,6 +346,7 @@ class TestEntryPointGuard:
     def test_entry_point_without_typer_exits_1(self) -> None:
         """When querri.cli._app cannot be imported, exit code 1 with clean message."""
         import importlib
+
         import querri.cli as cli_mod
 
         original_app_mod = sys.modules.get("querri.cli._app")
@@ -367,6 +368,7 @@ class TestEntryPointGuard:
     def test_entry_point_error_message_is_clean(self, capsys) -> None:
         """Error output must not leak tracebacks, file paths, or module names."""
         import importlib
+
         import querri.cli as cli_mod
 
         original_app_mod = sys.modules.get("querri.cli._app")

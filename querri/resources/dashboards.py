@@ -6,18 +6,16 @@ trigger re-execution of the underlying projects and report progress.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from .._pagination import AsyncCursorPage, SyncCursorPage
 from ..types.dashboard import (
     Dashboard,
-    DashboardDeleteResponse,
     DashboardRefreshResponse,
     DashboardRefreshStatus,
     DashboardUpdateResponse,
 )
-
 
 # ---------------------------------------------------------------------------
 # Dashboards (sync)
@@ -48,7 +46,7 @@ class Dashboards:
         self,
         *,
         name: str,
-        description: Optional[str] = None,
+        description: str | None = None,
     ) -> Dashboard:
         """Create a new dashboard.
 
@@ -59,7 +57,7 @@ class Dashboards:
         Returns:
             Created Dashboard object.
         """
-        body: Dict[str, Any] = {"name": name}
+        body: dict[str, Any] = {"name": name}
         if description is not None:
             body["description"] = description
         response = self._http.post("/dashboards", json=body)
@@ -81,8 +79,8 @@ class Dashboards:
         self,
         *,
         limit: int = 25,
-        after: Optional[str] = None,
-        user_id: Optional[str] = None,
+        after: str | None = None,
+        user_id: str | None = None,
     ) -> SyncCursorPage[Dashboard]:
         """List dashboards for the organization with cursor pagination.
 
@@ -91,7 +89,7 @@ class Dashboards:
             after: Cursor for the next page.
             user_id: Filter dashboards by owner user ID.
         """
-        params: Dict[str, Any] = {"limit": limit}
+        params: dict[str, Any] = {"limit": limit}
         if after is not None:
             params["after"] = after
         if user_id is not None:
@@ -102,8 +100,8 @@ class Dashboards:
         self,
         dashboard_id: str,
         *,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
+        name: str | None = None,
+        description: str | None = None,
     ) -> DashboardUpdateResponse:
         """Update dashboard metadata.
 
@@ -115,7 +113,7 @@ class Dashboards:
         Returns:
             Response with id and updated flag.
         """
-        body: Dict[str, Any] = {}
+        body: dict[str, Any] = {}
         if name is not None:
             body["name"] = name
         if description is not None:
@@ -187,7 +185,7 @@ class AsyncDashboards:
         self,
         *,
         name: str,
-        description: Optional[str] = None,
+        description: str | None = None,
     ) -> Dashboard:
         """Create a new dashboard.
 
@@ -198,7 +196,7 @@ class AsyncDashboards:
         Returns:
             Created Dashboard object.
         """
-        body: Dict[str, Any] = {"name": name}
+        body: dict[str, Any] = {"name": name}
         if description is not None:
             body["description"] = description
         response = await self._http.post("/dashboards", json=body)
@@ -220,8 +218,8 @@ class AsyncDashboards:
         self,
         *,
         limit: int = 25,
-        after: Optional[str] = None,
-        user_id: Optional[str] = None,
+        after: str | None = None,
+        user_id: str | None = None,
     ) -> AsyncCursorPage[Dashboard]:
         """List dashboards for the organization with cursor pagination.
 
@@ -230,7 +228,7 @@ class AsyncDashboards:
             after: Cursor for the next page.
             user_id: Filter dashboards by owner user ID.
         """
-        params: Dict[str, Any] = {"limit": limit}
+        params: dict[str, Any] = {"limit": limit}
         if after is not None:
             params["after"] = after
         if user_id is not None:
@@ -241,8 +239,8 @@ class AsyncDashboards:
         self,
         dashboard_id: str,
         *,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
+        name: str | None = None,
+        description: str | None = None,
     ) -> DashboardUpdateResponse:
         """Update dashboard metadata.
 
@@ -254,7 +252,7 @@ class AsyncDashboards:
         Returns:
             Response with id and updated flag.
         """
-        body: Dict[str, Any] = {}
+        body: dict[str, Any] = {}
         if name is not None:
             body["name"] = name
         if description is not None:

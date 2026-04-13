@@ -11,7 +11,6 @@ from __future__ import annotations
 import hashlib
 import logging
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger("querri")
 
@@ -62,7 +61,7 @@ def download_image(
     *,
     headers: dict[str, str] | None = None,
     retries: int = 2,
-) -> Optional[Path]:
+) -> Path | None:
     """Download an image to the local cache. Returns the path or None on error.
 
     Retries on failure (useful when the file was just created and may
@@ -112,7 +111,7 @@ def render_image(
     *,
     max_width: int = 60,
     max_height: int = 30,
-) -> Optional[str]:
+) -> str | None:
     """Render an image file as ANSI-colored Unicode half-block art.
 
     Each character cell uses upper-half-block (``\\u2580``) with foreground for
@@ -201,7 +200,6 @@ def render_image_rich(
     Returns:
         A Rich renderable (Panel or Text).
     """
-    from rich.panel import Panel
     from rich.text import Text
 
     path = download_image(url, headers=headers)

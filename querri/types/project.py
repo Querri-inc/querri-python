@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -17,15 +17,15 @@ class StepSummary(BaseModel):
     order: int = 0  #: Zero-based position of the step in the project.
     has_data: bool = False  #: ``True`` if the step produced tabular data.
     has_figure: bool = False  #: ``True`` if the step produced a figure.
-    parent: Optional[str] = None  #: Parent step UUID in the DAG.
-    children: Optional[List[str]] = None  #: Child step UUIDs.
-    dependencies: Optional[List[str]] = None  #: Dependency step UUIDs (data inputs).
-    dependents: Optional[List[str]] = None  #: Dependent step UUIDs (who uses this step's output).
-    figure_url: Optional[str] = None  #: URL of the step's figure, if any.
-    message: Optional[str] = None  #: Result message from step execution.
-    num_rows: Optional[int] = None  #: Number of rows in the step's data.
-    num_cols: Optional[int] = None  #: Number of columns in the step's data.
-    headers: Optional[List[str]] = None  #: Column headers for the step's data.
+    parent: str | None = None  #: Parent step UUID in the DAG.
+    children: list[str] | None = None  #: Child step UUIDs.
+    dependencies: list[str] | None = None  #: Dependency step UUIDs (data inputs).
+    dependents: list[str] | None = None  #: Dependent step UUIDs (who uses this step's output).
+    figure_url: str | None = None  #: URL of the step's figure, if any.
+    message: str | None = None  #: Result message from step execution.
+    num_rows: int | None = None  #: Number of rows in the step's data.
+    num_cols: int | None = None  #: Number of columns in the step's data.
+    headers: list[str] | None = None  #: Column headers for the step's data.
 
 
 class Project(BaseModel):
@@ -35,15 +35,15 @@ class Project(BaseModel):
 
     id: str  #: Unique project identifier.
     name: str  #: Project display name.
-    description: Optional[str] = None  #: Optional project description.
+    description: str | None = None  #: Optional project description.
     status: str = "idle"  #: Current status, e.g. ``"idle"`` or ``"running"``.
-    step_count: Optional[int] = None  #: Number of steps in the project.
-    chat_count: Optional[int] = None  #: Number of chats on the project.
-    created_by: Optional[str] = None  #: User ID of the project creator.
-    created_at: Optional[str] = None  #: ISO-8601 creation timestamp.
-    updated_at: Optional[str] = None  #: ISO-8601 last-update timestamp.
-    steps: Optional[List[StepSummary]] = None  #: Only on detail responses.
-    chats_store: Optional[Dict[str, Any]] = None  #: Raw chatsStore stashed from internal API.
+    step_count: int | None = None  #: Number of steps in the project.
+    chat_count: int | None = None  #: Number of chats on the project.
+    created_by: str | None = None  #: User ID of the project creator.
+    created_at: str | None = None  #: ISO-8601 creation timestamp.
+    updated_at: str | None = None  #: ISO-8601 last-update timestamp.
+    steps: list[StepSummary] | None = None  #: Only on detail responses.
+    chats_store: dict[str, Any] | None = None  #: Raw chatsStore stashed from internal API.
 
     @model_validator(mode="before")
     @classmethod
@@ -60,16 +60,16 @@ class Project(BaseModel):
         if "uuid" in data and "id" not in data:
             data["id"] = data["uuid"]
 
-        step_store: Dict[str, Any] | None = data.get("stepStore")
+        step_store: dict[str, Any] | None = data.get("stepStore")
         if step_store is None or not isinstance(step_store, dict):
             # Also populate step_count from num_steps if available
             if "num_steps" in data and "step_count" not in data:
                 data["step_count"] = data["num_steps"]
             return data
 
-        step_order: List[str] = data.get("stepOrder", list(step_store.keys()))
+        step_order: list[str] = data.get("stepOrder", list(step_store.keys()))
 
-        steps: List[Dict[str, Any]] = []
+        steps: list[dict[str, Any]] = []
         for idx, uid in enumerate(step_order):
             raw = step_store.get(uid)
             if raw is None or not isinstance(raw, dict):

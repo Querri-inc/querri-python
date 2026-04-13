@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import typer
 
-from querri.cli._context import get_client, _get_profile
+from querri.cli._context import _get_profile, get_client
 from querri.cli._output import (
-    EXIT_AUTH_ERROR,
-    handle_api_error,
     print_detail,
     print_json,
 )

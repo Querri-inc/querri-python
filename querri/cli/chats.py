@@ -5,11 +5,10 @@ from __future__ import annotations
 import os
 import signal
 import sys
-from typing import Optional
 
 import typer
 
-from querri.cli._context import get_client, resolve_project_id, _get_profile
+from querri.cli._context import _get_profile, get_client, resolve_project_id
 from querri.cli._output import (
     EXIT_SUCCESS,
     handle_api_error,
@@ -96,7 +95,7 @@ def _resolve_chat(ctx: typer.Context, chat_id: str | None) -> str:
 @chats_app.command("list")
 def list_chats(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(None, help="Project ID (default: active project)."),
+    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
     limit: int = typer.Option(25, "--limit", "-l", help="Max chats to return."),
 ) -> None:
     """List chats on a project."""
@@ -126,8 +125,8 @@ def list_chats(
 @chats_app.command("get")
 def get_chat(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(None, help="Project ID (default: active project)."),
-    chat_id: Optional[str] = typer.Argument(None, help="Chat ID (default: active chat)."),
+    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    chat_id: str | None = typer.Argument(None, help="Chat ID (default: active chat)."),
 ) -> None:
     """Get chat details with message history."""
     project_id = _resolve_project(ctx, project_id)
@@ -157,8 +156,8 @@ def get_chat(
 @chats_app.command("new")
 def new_chat(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(None, help="Project ID (default: active project)."),
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="Chat display name."),
+    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    name: str | None = typer.Option(None, "--name", "-n", help="Chat display name."),
 ) -> None:
     """Create a new chat on a project."""
     project_id = _resolve_project(ctx, project_id)
@@ -182,8 +181,8 @@ def new_chat(
 @chats_app.command("delete")
 def delete_chat(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(None, help="Project ID (default: active project)."),
-    chat_id: Optional[str] = typer.Argument(None, help="Chat ID (default: active chat)."),
+    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    chat_id: str | None = typer.Argument(None, help="Chat ID (default: active chat)."),
 ) -> None:
     """Delete a chat from a project."""
     project_id = _resolve_project(ctx, project_id)
@@ -206,8 +205,8 @@ def delete_chat(
 @chats_app.command("cancel")
 def cancel_chat(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(None, help="Project ID (default: active project)."),
-    chat_id: Optional[str] = typer.Argument(None, help="Chat ID (default: active chat)."),
+    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    chat_id: str | None = typer.Argument(None, help="Chat ID (default: active chat)."),
 ) -> None:
     """Cancel an active chat stream."""
     project_id = _resolve_project(ctx, project_id)
@@ -230,14 +229,14 @@ def cancel_chat(
 @chats_app.command("stream")
 def stream_chat(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(None, help="Project ID (default: active project)."),
-    chat_id: Optional[str] = typer.Argument(None, help="Chat ID (default: active chat)."),
-    message: Optional[str] = typer.Option(None, "--message", "-m", help="Message to send."),
-    user_id: Optional[str] = typer.Option(
+    project_id: str | None = typer.Argument(None, help="Project ID (default: active project)."),
+    chat_id: str | None = typer.Argument(None, help="Chat ID (default: active chat)."),
+    message: str | None = typer.Option(None, "--message", "-m", help="Message to send."),
+    user_id: str | None = typer.Option(
         None, "--user-id", "-u",
         help="User ID (or set QUERRI_USER_ID env var).",
     ),
-    model: Optional[str] = typer.Option(None, "--model", help="Model selection."),
+    model: str | None = typer.Option(None, "--model", help="Model selection."),
     reasoning: bool = typer.Option(False, "--reasoning", help="Show reasoning traces."),
 ) -> None:
     """Send a message and stream the AI response.

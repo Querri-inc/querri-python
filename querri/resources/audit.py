@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+import builtins
+from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from ..types.audit import AuditEvent
@@ -23,14 +24,14 @@ class Audit:
     def list(
         self,
         *,
-        actor_id: Optional[str] = None,
-        target_id: Optional[str] = None,
-        action: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
+        actor_id: str | None = None,
+        target_id: str | None = None,
+        action: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
         limit: int = 50,
-        after: Optional[str] = None,
-    ) -> List[AuditEvent]:
+        after: str | None = None,
+    ) -> builtins.list[AuditEvent]:
         """Query audit events for the organization.
 
         Args:
@@ -45,7 +46,7 @@ class Audit:
         Returns:
             List of AuditEvent objects.
         """
-        params: Dict[str, Any] = {"limit": limit}
+        params: dict[str, Any] = {"limit": limit}
         if after is not None:
             params["after"] = after
         if actor_id is not None:
@@ -78,14 +79,14 @@ class AsyncAudit:
     async def list(
         self,
         *,
-        actor_id: Optional[str] = None,
-        target_id: Optional[str] = None,
-        action: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
+        actor_id: str | None = None,
+        target_id: str | None = None,
+        action: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
         limit: int = 50,
-        after: Optional[str] = None,
-    ) -> List[AuditEvent]:
+        after: str | None = None,
+    ) -> builtins.list[AuditEvent]:
         """Query audit events for the organization.
 
         Args:
@@ -100,7 +101,7 @@ class AsyncAudit:
         Returns:
             List of AuditEvent objects.
         """
-        params: Dict[str, Any] = {"limit": limit}
+        params: dict[str, Any] = {"limit": limit}
         if after is not None:
             params["after"] = after
         if actor_id is not None:

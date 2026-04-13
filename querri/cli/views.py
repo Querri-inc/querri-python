@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import Optional
 
 import typer
 
@@ -29,10 +28,10 @@ view_app = typer.Typer(
 @view_app.command("new")
 def new_view(
     ctx: typer.Context,
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="View name."),
-    sql: Optional[str] = typer.Option(None, "--sql", "-s", help="SQL definition."),
-    description: Optional[str] = typer.Option(None, "--description", "-d", help="View description."),
-    prompt: Optional[str] = typer.Option(None, "--prompt", help="Describe the view with AI (optional)."),
+    name: str | None = typer.Option(None, "--name", "-n", help="View name."),
+    sql: str | None = typer.Option(None, "--sql", "-s", help="SQL definition."),
+    description: str | None = typer.Option(None, "--description", "-d", help="View description."),
+    prompt: str | None = typer.Option(None, "--prompt", help="Describe the view with AI (optional)."),
 ) -> None:
     """Create a new view — directly with SQL or via the AI authoring agent.
 
@@ -166,7 +165,7 @@ def list_views(
 @view_app.command("get")
 def get_view(
     ctx: typer.Context,
-    view_id: Optional[str] = typer.Argument(default=None, help="View ID."),
+    view_id: str | None = typer.Argument(default=None, help="View ID."),
 ) -> None:
     """Get view details."""
     if view_id is None:
@@ -196,9 +195,9 @@ def get_view(
 @view_app.command("update")
 def update_view(
     ctx: typer.Context,
-    view_id: Optional[str] = typer.Argument(default=None, help="View ID."),
-    sql: Optional[str] = typer.Option(None, "--sql", "-s", help="Updated SQL definition."),
-    description: Optional[str] = typer.Option(None, "--description", "-d", help="Updated description."),
+    view_id: str | None = typer.Argument(default=None, help="View ID."),
+    sql: str | None = typer.Option(None, "--sql", "-s", help="Updated SQL definition."),
+    description: str | None = typer.Option(None, "--description", "-d", help="Updated description."),
 ) -> None:
     """Update a view's SQL definition or description."""
     if view_id is None:
@@ -224,7 +223,7 @@ def update_view(
 @view_app.command("delete")
 def delete_view(
     ctx: typer.Context,
-    view_id: Optional[str] = typer.Argument(default=None, help="View ID."),
+    view_id: str | None = typer.Argument(default=None, help="View ID."),
 ) -> None:
     """Delete a view."""
     if view_id is None:
@@ -249,7 +248,7 @@ def delete_view(
 @view_app.command("run")
 def run_views(
     ctx: typer.Context,
-    view_ids: Optional[str] = typer.Option(None, "--view-ids", help="Comma-separated view IDs to materialize."),
+    view_ids: str | None = typer.Option(None, "--view-ids", help="Comma-separated view IDs to materialize."),
 ) -> None:
     """Run view materialization.
 
@@ -278,7 +277,7 @@ def run_views(
 @view_app.command("preview")
 def preview_view(
     ctx: typer.Context,
-    view_id: Optional[str] = typer.Argument(default=None, help="View ID."),
+    view_id: str | None = typer.Argument(default=None, help="View ID."),
     limit: int = typer.Option(25, "--limit", "-l", help="Max rows to return."),
 ) -> None:
     """Preview view results without materializing."""
@@ -338,7 +337,7 @@ def _print_sse_stream(stream) -> None:
                 rows = output.get("rows", "?")
                 print(f" → materialized ✓ ({rows} rows)", file=sys.stderr, flush=True)
             elif output.get("saved"):
-                print(f" → saved ✓", file=sys.stderr, flush=True)
+                print(" → saved ✓", file=sys.stderr, flush=True)
             elif output.get("status") == "ok" and "total_rows" in output:
                 print(f" → {output['total_rows']} rows, {len(output.get('columns', []))} cols", file=sys.stderr, flush=True)
             elif "sources" in output:
@@ -355,8 +354,8 @@ def _print_sse_stream(stream) -> None:
 @view_app.command("chat")
 def chat_with_view(
     ctx: typer.Context,
-    view_id: Optional[str] = typer.Argument(default=None, help="View ID."),
-    message: Optional[str] = typer.Option(None, "--message", "-m", help="Message for the view agent."),
+    view_id: str | None = typer.Argument(default=None, help="View ID."),
+    message: str | None = typer.Option(None, "--message", "-m", help="Message for the view agent."),
 ) -> None:
     """Chat with the view authoring agent to create or refine SQL.
 

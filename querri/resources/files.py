@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import builtins
 import os
-from typing import Any, Dict, List, Optional
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from ..types.file import File
@@ -25,7 +25,7 @@ class Files:
         self,
         file_path: str,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> File:
         """Upload a file.
 
@@ -58,7 +58,7 @@ class Files:
         resp = self._http.get(f"/files/{file_id}")
         return File.model_validate(resp.json())
 
-    def list(self) -> List[File]:
+    def list(self) -> builtins.list[File]:
         """List files for the organization.
 
         Returns:
@@ -93,7 +93,7 @@ class AsyncFiles:
         self,
         file_path: str,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> File:
         """Upload a file.
 
@@ -126,7 +126,7 @@ class AsyncFiles:
         resp = await self._http.get(f"/files/{file_id}")
         return File.model_validate(resp.json())
 
-    async def list(self) -> List[File]:
+    async def list(self) -> builtins.list[File]:
         """List files for the organization.
 
         Returns:

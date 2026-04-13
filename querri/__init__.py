@@ -1,7 +1,6 @@
 """Querri Python SDK — API client for the Querri data analysis platform."""
 
 from ._client import AsyncQuerri, Querri
-from ._user_client import AsyncUserQuerri, UserQuerri
 from ._exceptions import (
     APIError,
     AuthenticationError,
@@ -19,6 +18,7 @@ from ._exceptions import (
 )
 from ._pagination import AsyncCursorPage, SyncCursorPage
 from ._streaming import AsyncChatStream, ChatStream, ChatStreamEvent
+from ._user_client import AsyncUserQuerri, UserQuerri
 from ._version import __version__
 
 __all__ = [

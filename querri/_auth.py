@@ -9,16 +9,14 @@ import secrets
 import stat
 import sys
 import webbrowser
-from dataclasses import dataclass, asdict, field
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from dataclasses import asdict, dataclass, field
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from threading import Thread
-from typing import Any, Optional
-from urllib.parse import urlencode, urlparse, parse_qs
+from typing import Any
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import httpx
-
-from ._config import DEFAULT_HOST
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -99,7 +97,7 @@ class TokenStore:
     # -- Persistence --------------------------------------------------------
 
     @classmethod
-    def load(cls) -> "TokenStore":
+    def load(cls) -> TokenStore:
         """Load the token store from disk.
 
         Returns an empty store (without crashing) if the file is missing,
@@ -205,7 +203,7 @@ class TokenStore:
 
     # -- Profile management -------------------------------------------------
 
-    def get_active_profile(self) -> Optional[TokenProfile]:
+    def get_active_profile(self) -> TokenProfile | None:
         """Return the active profile, or ``None`` if not found."""
         return self.profiles.get(self.active_profile)
 
@@ -268,7 +266,7 @@ def refresh_tokens(
     profile: TokenProfile,
     host: str,
     *,
-    organization_id: Optional[str] = None,
+    organization_id: str | None = None,
 ) -> TokenProfile:
     """Refresh an expired access token using the refresh token.
 
@@ -306,7 +304,7 @@ def refresh_tokens(
     # Update expiry — try expires_in first, fall back to JWT exp claim
     expires_in = data.get("expires_in")
     if expires_in is not None:
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
 
         expires = datetime.now(timezone.utc) + timedelta(seconds=int(expires_in))
         profile.expires_at = expires.isoformat()
@@ -661,7 +659,7 @@ def start_oauth_flow(
     host: str,
     callback: Any = None,
     *,
-    organization_id: Optional[str] = None,
+    organization_id: str | None = None,
 ) -> dict[str, Any]:
     """Run the browser-based OAuth login flow.
 
@@ -713,7 +711,7 @@ def start_oauth_flow(
     authorize_url = f"{WORKOS_AUTHORIZE_URL}?{authorize_params}"
 
     # Open browser
-    print(f"Opening browser for authentication...", file=sys.stderr)
+    print("Opening browser for authentication...", file=sys.stderr)
     webbrowser.open(authorize_url)
     print(
         f"If your browser didn't open, visit:\n  {authorize_url}",
@@ -768,7 +766,7 @@ def start_oauth_flow(
     expires_at = ""
     expires_in = data.get("expires_in")
     if expires_in is not None:
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
 
         expires = datetime.now(timezone.utc) + timedelta(seconds=int(expires_in))
         expires_at = expires.isoformat()

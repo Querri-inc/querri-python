@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import Optional
 
 import typer
 
@@ -13,7 +12,6 @@ from querri.cli._output import (
     handle_api_error,
     print_detail,
     print_error,
-    print_id,
     print_json,
     print_success,
     print_table,
@@ -29,8 +27,8 @@ embed_app = typer.Typer(
 @embed_app.command("new")
 def new_session(
     ctx: typer.Context,
-    user_id: Optional[str] = typer.Option(None, "--user-id", help="User ID for the session."),
-    origin: Optional[str] = typer.Option(None, "--origin", help="Allowed origin URL."),
+    user_id: str | None = typer.Option(None, "--user-id", help="User ID for the session."),
+    origin: str | None = typer.Option(None, "--origin", help="Allowed origin URL."),
     ttl: int = typer.Option(3600, "--ttl", help="Session TTL in seconds."),
 ) -> None:
     """Create a new embedded analytics session."""
@@ -65,7 +63,7 @@ def new_session(
 @embed_app.command("refresh")
 def refresh_session(
     ctx: typer.Context,
-    session_token: Optional[str] = typer.Option(None, "--token", help="Session token to refresh."),
+    session_token: str | None = typer.Option(None, "--token", help="Session token to refresh."),
 ) -> None:
     """Refresh an embedded analytics session."""
     if not session_token:
@@ -128,8 +126,8 @@ def list_sessions(
 @embed_app.command("revoke")
 def revoke_session(
     ctx: typer.Context,
-    session_id: Optional[str] = typer.Option(None, "--session-id", help="Session ID."),
-    session_token: Optional[str] = typer.Option(None, "--token", help="Session token."),
+    session_id: str | None = typer.Option(None, "--session-id", help="Session ID."),
+    session_token: str | None = typer.Option(None, "--token", help="Session token."),
 ) -> None:
     """Revoke a session (by ID or token)."""
     obj = ctx.ensure_object(dict)
@@ -153,10 +151,10 @@ def revoke_session(
 @embed_app.command("get")
 def get_session(
     ctx: typer.Context,
-    user: Optional[str] = typer.Option(None, "--user", help="User ID or JSON user object."),
-    origin: Optional[str] = typer.Option(None, "--origin", help="Allowed origin."),
+    user: str | None = typer.Option(None, "--user", help="User ID or JSON user object."),
+    origin: str | None = typer.Option(None, "--origin", help="Allowed origin."),
     ttl: int = typer.Option(3600, "--ttl", help="Session TTL in seconds."),
-    access: Optional[str] = typer.Option(None, "--access", help="JSON access config."),
+    access: str | None = typer.Option(None, "--access", help="JSON access config."),
 ) -> None:
     """Get or create a session using the convenience method."""
     if not user:

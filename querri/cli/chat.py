@@ -15,18 +15,17 @@ import os
 import re
 import signal
 import sys
-from typing import Optional
 
 logger = logging.getLogger("querri.cli")
 
 import typer
 
 from querri.cli._context import (
+    _get_profile,
+    _save_profile,
     get_client,
     resolve_project_id,
     resolve_user_id,
-    _get_profile,
-    _save_profile,
 )
 from querri.cli._output import (
     EXIT_SUCCESS,
@@ -52,9 +51,8 @@ def _strip_html(text: str) -> str:
 
 def _setup_debug_log() -> object:
     """Set up debug logging to ``~/.querri/debug.log``. Returns the file handle."""
-    import logging
-    from pathlib import Path
     from datetime import datetime
+    from pathlib import Path
 
     log_dir = Path.home() / ".querri"
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -89,8 +87,8 @@ project_chat_app = typer.Typer(
 @project_chat_app.callback(invoke_without_command=True)
 def chat_command(
     ctx: typer.Context,
-    prompt: Optional[str] = typer.Option(None, "--message", "-m", help="Message to send."),
-    model: Optional[str] = typer.Option(None, "--model", help="Model selection."),
+    prompt: str | None = typer.Option(None, "--message", "-m", help="Message to send."),
+    model: str | None = typer.Option(None, "--model", help="Model selection."),
     new: bool = typer.Option(False, "--new", help="Force a new chat session."),
     reasoning: bool = typer.Option(False, "--reasoning", help="Show reasoning traces."),
     experimental_v2: bool = typer.Option(False, "--experimental-v2", "--v2", help="Use experimental v2 agent (faster, direct SQL execution)."),
@@ -162,6 +160,7 @@ def chat_command(
         from rich.console import Console
         from rich.panel import Panel
         from rich.text import Text
+
         from querri.cli._output import QUERRI_ORANGE
         _console = Console()
         _console.print(Panel(
@@ -643,8 +642,8 @@ def chat_cancel(ctx: typer.Context) -> None:
 @project_chat_app.command("show")
 def chat_show(
     ctx: typer.Context,
-    top: Optional[int] = typer.Option(None, "--top", help="Show only the first N messages."),
-    bottom: Optional[int] = typer.Option(None, "--bottom", help="Show only the last N messages."),
+    top: int | None = typer.Option(None, "--top", help="Show only the first N messages."),
+    bottom: int | None = typer.Option(None, "--bottom", help="Show only the last N messages."),
 ) -> None:
     """Show the conversation with inline step results (tables, charts).
 
@@ -792,13 +791,11 @@ def _render_messages_with_parts(
     total: int | None = None,
 ) -> None:
     """Render messages with inline step results from parts[]."""
-    from rich.console import Console, Group
+    from rich.console import Console
     from rich.markdown import Markdown
     from rich.panel import Panel
-    from rich.table import Table
     from rich.text import Text
 
-    from querri.cli._image import render_image_rich
     from querri.cli._output import QUERRI_ORANGE
 
     console = Console()
@@ -849,7 +846,7 @@ def _render_messages_with_parts(
                     if text:
                         console.print(Panel(
                             Markdown(text),
-                            title=f"[bold dim]Querri[/bold dim]",
+                            title="[bold dim]Querri[/bold dim]",
                             title_align="left", border_style="dim",
                             padding=(0, 1),
                         ))

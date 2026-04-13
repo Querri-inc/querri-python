@@ -5,8 +5,6 @@ Maps Stripe-style API error responses to typed Python exceptions.
 
 from __future__ import annotations
 
-from typing import Optional
-
 
 class QuerriError(Exception):
     """Base exception for all SDK errors."""
@@ -32,10 +30,10 @@ class APIError(QuerriError):
         message: str,
         *,
         status: int,
-        type: Optional[str] = None,
-        code: Optional[str] = None,
-        doc_url: Optional[str] = None,
-        request_id: Optional[str] = None,
+        type: str | None = None,
+        code: str | None = None,
+        doc_url: str | None = None,
+        request_id: str | None = None,
     ) -> None:
         super().__init__(message)
         self.status = status
@@ -87,7 +85,7 @@ class RateLimitError(APIError):
         message: str,
         *,
         status: int = 429,
-        retry_after: Optional[float] = None,
+        retry_after: float | None = None,
         **kwargs: object,
     ) -> None:
         # Extract only the kwargs that APIError accepts
@@ -138,8 +136,8 @@ def raise_for_status(
     status: int,
     body: dict[str, object],
     *,
-    request_id: Optional[str] = None,
-    retry_after: Optional[float] = None,
+    request_id: str | None = None,
+    retry_after: float | None = None,
 ) -> None:
     """Raise the appropriate exception for an error response.
 

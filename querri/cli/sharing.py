@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-from typing import Optional
 
 import typer
 
@@ -34,7 +33,7 @@ sharing_app.add_typer(share_source_app, name="source")
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
 
-def _resolve_arg(value: Optional[str], name: str, prompt: str, usage: str) -> str:
+def _resolve_arg(value: str | None, name: str, prompt: str, usage: str) -> str:
     """Resolve a possibly-missing CLI argument via interactive prompt or error."""
     if value:
         return value
@@ -55,8 +54,8 @@ def _resolve_arg(value: Optional[str], name: str, prompt: str, usage: str) -> st
 @share_project_app.command("add")
 def add_project_share(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(None, help="Project ID."),
-    user_id: Optional[str] = typer.Option(None, "--user-id", help="User ID to share with."),
+    project_id: str | None = typer.Argument(None, help="Project ID."),
+    user_id: str | None = typer.Option(None, "--user-id", help="User ID to share with."),
     permission: str = typer.Option("view", "--permission", help="Permission: view or edit."),
 ) -> None:
     """Share a project with a user."""
@@ -84,8 +83,8 @@ def add_project_share(
 @share_project_app.command("remove")
 def remove_project_share(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(None, help="Project ID."),
-    user_id: Optional[str] = typer.Argument(None, help="User ID to remove."),
+    project_id: str | None = typer.Argument(None, help="Project ID."),
+    user_id: str | None = typer.Argument(None, help="User ID to remove."),
 ) -> None:
     """Revoke a user's access to a project."""
     project_id = _resolve_arg(
@@ -112,7 +111,7 @@ def remove_project_share(
 @share_project_app.command("list")
 def list_project_shares(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(None, help="Project ID."),
+    project_id: str | None = typer.Argument(None, help="Project ID."),
 ) -> None:
     """List users who have access to a project."""
     project_id = _resolve_arg(
@@ -142,8 +141,8 @@ def list_project_shares(
 @share_dashboard_app.command("add")
 def add_dashboard_share(
     ctx: typer.Context,
-    dashboard_id: Optional[str] = typer.Argument(None, help="Dashboard ID."),
-    user_id: Optional[str] = typer.Option(None, "--user-id", help="User ID to share with."),
+    dashboard_id: str | None = typer.Argument(None, help="Dashboard ID."),
+    user_id: str | None = typer.Option(None, "--user-id", help="User ID to share with."),
     permission: str = typer.Option("view", "--permission", help="Permission: view or edit."),
 ) -> None:
     """Share a dashboard with a user."""
@@ -171,8 +170,8 @@ def add_dashboard_share(
 @share_dashboard_app.command("remove")
 def remove_dashboard_share(
     ctx: typer.Context,
-    dashboard_id: Optional[str] = typer.Argument(None, help="Dashboard ID."),
-    user_id: Optional[str] = typer.Argument(None, help="User ID to remove."),
+    dashboard_id: str | None = typer.Argument(None, help="Dashboard ID."),
+    user_id: str | None = typer.Argument(None, help="User ID to remove."),
 ) -> None:
     """Revoke a user's access to a dashboard."""
     dashboard_id = _resolve_arg(
@@ -199,7 +198,7 @@ def remove_dashboard_share(
 @share_dashboard_app.command("list")
 def list_dashboard_shares(
     ctx: typer.Context,
-    dashboard_id: Optional[str] = typer.Argument(None, help="Dashboard ID."),
+    dashboard_id: str | None = typer.Argument(None, help="Dashboard ID."),
 ) -> None:
     """List users who have access to a dashboard."""
     dashboard_id = _resolve_arg(
@@ -231,8 +230,8 @@ def list_dashboard_shares(
 @share_source_app.command("add")
 def add_source_share(
     ctx: typer.Context,
-    source_id: Optional[str] = typer.Argument(None, help="Source ID."),
-    user_id: Optional[str] = typer.Option(None, "--user-id", help="User ID to share with."),
+    source_id: str | None = typer.Argument(None, help="Source ID."),
+    user_id: str | None = typer.Option(None, "--user-id", help="User ID to share with."),
     permission: str = typer.Option("view", "--permission", help="Permission: view or edit."),
 ) -> None:
     """Share a data source with a user."""
@@ -264,8 +263,8 @@ def add_source_share(
 @share_source_app.command("remove")
 def remove_source_share(
     ctx: typer.Context,
-    source_id: Optional[str] = typer.Argument(None, help="Source ID."),
-    user_id: Optional[str] = typer.Argument(None, help="User ID to remove."),
+    source_id: str | None = typer.Argument(None, help="Source ID."),
+    user_id: str | None = typer.Argument(None, help="User ID to remove."),
 ) -> None:
     """Revoke a user's access to a data source."""
     source_id = _resolve_arg(
@@ -292,7 +291,7 @@ def remove_source_share(
 @share_source_app.command("list")
 def list_source_shares(
     ctx: typer.Context,
-    source_id: Optional[str] = typer.Argument(None, help="Source ID."),
+    source_id: str | None = typer.Argument(None, help="Source ID."),
 ) -> None:
     """List users who have access to a data source."""
     source_id = _resolve_arg(
@@ -321,7 +320,7 @@ def list_source_shares(
 @share_source_app.command("org")
 def org_source_share(
     ctx: typer.Context,
-    source_id: Optional[str] = typer.Argument(None, help="Source ID."),
+    source_id: str | None = typer.Argument(None, help="Source ID."),
     permission: str = typer.Option("view", "--permission", help="Permission: view or edit."),
 ) -> None:
     """Share a data source with the entire organization."""

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-from typing import Optional
 
 import typer
 
@@ -25,7 +24,7 @@ steps_app = typer.Typer(
 @steps_app.command("list")
 def list_steps(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(default=None, help="Project ID."),
+    project_id: str | None = typer.Argument(default=None, help="Project ID."),
 ) -> None:
     """List steps in a project."""
     if project_id is None:
@@ -61,8 +60,8 @@ def list_steps(
 @steps_app.command("data")
 def step_data(
     ctx: typer.Context,
-    project_id: Optional[str] = typer.Argument(default=None, help="Project ID."),
-    step_id: Optional[str] = typer.Argument(default=None, help="Step ID."),
+    project_id: str | None = typer.Argument(default=None, help="Project ID."),
+    step_id: str | None = typer.Argument(default=None, help="Step ID."),
     page: int = typer.Option(1, "--page", help="Page number."),
     page_size: int = typer.Option(25, "--page-size", help="Rows per page."),
 ) -> None:

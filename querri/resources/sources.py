@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+import builtins
+from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
-from .._pagination import AsyncCursorPage, SyncCursorPage
-from ..types.data import DataPage, DataWriteResult, DeleteResult, QueryResult, Source
+from ..types.data import DataPage, DataWriteResult, QueryResult, Source
 
 
 class Sources:
@@ -24,7 +24,7 @@ class Sources:
 
     # -- Connector management -----------------------------------------------
 
-    def list_connectors(self) -> List[Dict[str, Any]]:
+    def list_connectors(self) -> builtins.list[dict[str, Any]]:
         """List available connector types with connection status.
 
         Returns:
@@ -41,8 +41,8 @@ class Sources:
         *,
         name: str,
         connector_id: str,
-        config: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Create a connector-based data source.
 
         Args:
@@ -67,7 +67,7 @@ class Sources:
         self,
         *,
         name: str,
-        rows: List[Dict[str, Any]],
+        rows: builtins.list[dict[str, Any]],
     ) -> Source:
         """Create a new data source with inline JSON data.
 
@@ -84,7 +84,7 @@ class Sources:
         )
         return Source.model_validate(resp.json())
 
-    def get(self, source_id: str) -> Dict[str, Any]:
+    def get(self, source_id: str) -> dict[str, Any]:
         """Get source details.
 
         Args:
@@ -96,7 +96,7 @@ class Sources:
         resp = self._http.get(f"/sources/{source_id}")
         return resp.json()
 
-    def list(self, *, search: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list(self, *, search: str | None = None) -> builtins.list[dict[str, Any]]:
         """List data sources for the organization.
 
         Args:
@@ -117,10 +117,10 @@ class Sources:
         self,
         source_id: str,
         *,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        config: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        name: str | None = None,
+        description: str | None = None,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Update source configuration.
 
         Args:
@@ -132,7 +132,7 @@ class Sources:
         Returns:
             Dict with id and updated status.
         """
-        payload: Dict[str, Any] = {}
+        payload: dict[str, Any] = {}
         if name is not None:
             payload["name"] = name
         if description is not None:
@@ -150,7 +150,7 @@ class Sources:
         """
         self._http.delete(f"/sources/{source_id}")
 
-    def sync(self, source_id: str) -> Dict[str, Any]:
+    def sync(self, source_id: str) -> dict[str, Any]:
         """Trigger a source sync.
 
         Args:
@@ -216,7 +216,7 @@ class Sources:
         )
         return DataPage.model_validate(resp.json())
 
-    def append_rows(self, source_id: str, *, rows: List[Dict[str, Any]]) -> DataWriteResult:
+    def append_rows(self, source_id: str, *, rows: builtins.list[dict[str, Any]]) -> DataWriteResult:
         """Append rows to an existing data source.
 
         Args:
@@ -226,7 +226,7 @@ class Sources:
         resp = self._http.post(f"/sources/{source_id}/rows", json={"rows": rows})
         return DataWriteResult.model_validate(resp.json())
 
-    def replace_data(self, source_id: str, *, rows: List[Dict[str, Any]]) -> DataWriteResult:
+    def replace_data(self, source_id: str, *, rows: builtins.list[dict[str, Any]]) -> DataWriteResult:
         """Replace all data in a source with new rows.
 
         Args:
@@ -236,7 +236,7 @@ class Sources:
         resp = self._http.put(f"/sources/{source_id}/data", json={"rows": rows})
         return DataWriteResult.model_validate(resp.json())
 
-    def ask(self, source_id: str, *, question: str) -> Dict[str, Any]:
+    def ask(self, source_id: str, *, question: str) -> dict[str, Any]:
         """Ask a natural language question about a data source.
 
         Args:
@@ -268,7 +268,7 @@ class AsyncSources:
 
     # -- Connector management -----------------------------------------------
 
-    async def list_connectors(self) -> List[Dict[str, Any]]:
+    async def list_connectors(self) -> builtins.list[dict[str, Any]]:
         """List available connector types with connection status.
 
         Returns:
@@ -285,8 +285,8 @@ class AsyncSources:
         *,
         name: str,
         connector_id: str,
-        config: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Create a connector-based data source.
 
         Args:
@@ -311,7 +311,7 @@ class AsyncSources:
         self,
         *,
         name: str,
-        rows: List[Dict[str, Any]],
+        rows: builtins.list[dict[str, Any]],
     ) -> Source:
         """Create a new data source with inline JSON data.
 
@@ -328,7 +328,7 @@ class AsyncSources:
         )
         return Source.model_validate(resp.json())
 
-    async def get(self, source_id: str) -> Dict[str, Any]:
+    async def get(self, source_id: str) -> dict[str, Any]:
         """Get source details.
 
         Args:
@@ -340,7 +340,7 @@ class AsyncSources:
         resp = await self._http.get(f"/sources/{source_id}")
         return resp.json()
 
-    async def list(self, *, search: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def list(self, *, search: str | None = None) -> builtins.list[dict[str, Any]]:
         """List data sources for the organization.
 
         Args:
@@ -361,10 +361,10 @@ class AsyncSources:
         self,
         source_id: str,
         *,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        config: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        name: str | None = None,
+        description: str | None = None,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Update source configuration.
 
         Args:
@@ -376,7 +376,7 @@ class AsyncSources:
         Returns:
             Dict with id and updated status.
         """
-        payload: Dict[str, Any] = {}
+        payload: dict[str, Any] = {}
         if name is not None:
             payload["name"] = name
         if description is not None:
@@ -394,7 +394,7 @@ class AsyncSources:
         """
         await self._http.delete(f"/sources/{source_id}")
 
-    async def sync(self, source_id: str) -> Dict[str, Any]:
+    async def sync(self, source_id: str) -> dict[str, Any]:
         """Trigger a source sync.
 
         Args:
@@ -460,7 +460,7 @@ class AsyncSources:
         )
         return DataPage.model_validate(resp.json())
 
-    async def append_rows(self, source_id: str, *, rows: List[Dict[str, Any]]) -> DataWriteResult:
+    async def append_rows(self, source_id: str, *, rows: builtins.list[dict[str, Any]]) -> DataWriteResult:
         """Append rows to an existing data source.
 
         Args:
@@ -470,7 +470,7 @@ class AsyncSources:
         resp = await self._http.post(f"/sources/{source_id}/rows", json={"rows": rows})
         return DataWriteResult.model_validate(resp.json())
 
-    async def replace_data(self, source_id: str, *, rows: List[Dict[str, Any]]) -> DataWriteResult:
+    async def replace_data(self, source_id: str, *, rows: builtins.list[dict[str, Any]]) -> DataWriteResult:
         """Replace all data in a source with new rows.
 
         Args:
@@ -480,7 +480,7 @@ class AsyncSources:
         resp = await self._http.put(f"/sources/{source_id}/data", json={"rows": rows})
         return DataWriteResult.model_validate(resp.json())
 
-    async def ask(self, source_id: str, *, question: str) -> Dict[str, Any]:
+    async def ask(self, source_id: str, *, question: str) -> dict[str, Any]:
         """Ask a natural language question about a data source.
 
         Args:

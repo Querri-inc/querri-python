@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterator, List, Optional
+import builtins
+from collections.abc import Iterator
+from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 
@@ -22,10 +24,10 @@ class Views:
     def create(
         self,
         *,
-        name: Optional[str] = None,
-        sql_definition: Optional[str] = None,
-        description: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        name: str | None = None,
+        sql_definition: str | None = None,
+        description: str | None = None,
+    ) -> dict[str, Any]:
         """Create a new SQL-defined view.
 
         All fields are optional — omit everything to create a draft view
@@ -39,7 +41,7 @@ class Views:
         Returns:
             Dict with view details including uuid, name, sql_definition.
         """
-        payload: Dict[str, Any] = {}
+        payload: dict[str, Any] = {}
         if name is not None:
             payload["name"] = name
         if sql_definition is not None:
@@ -49,7 +51,7 @@ class Views:
         resp = self._http.post("/views", json=payload)
         return resp.json()
 
-    def list(self) -> List[Dict[str, Any]]:
+    def list(self) -> builtins.list[dict[str, Any]]:
         """List all views.
 
         Returns:
@@ -59,7 +61,7 @@ class Views:
         body = resp.json()
         return body.get("data", body) if isinstance(body, dict) else body
 
-    def get(self, view_uuid: str) -> Dict[str, Any]:
+    def get(self, view_uuid: str) -> dict[str, Any]:
         """Get view details.
 
         Args:
@@ -75,9 +77,9 @@ class Views:
         self,
         view_uuid: str,
         *,
-        sql_definition: Optional[str] = None,
-        description: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        sql_definition: str | None = None,
+        description: str | None = None,
+    ) -> dict[str, Any]:
         """Update a view.
 
         Args:
@@ -88,7 +90,7 @@ class Views:
         Returns:
             Dict with updated view details.
         """
-        payload: Dict[str, Any] = {}
+        payload: dict[str, Any] = {}
         if sql_definition is not None:
             payload["sql_definition"] = sql_definition
         if description is not None:
@@ -104,7 +106,7 @@ class Views:
         """
         self._http.delete(f"/views/{view_uuid}")
 
-    def run(self, *, view_uuids: Optional[List[str]] = None) -> Dict[str, Any]:
+    def run(self, *, view_uuids: builtins.list[str] | None = None) -> dict[str, Any]:
         """Run view materialization.
 
         Args:
@@ -114,13 +116,13 @@ class Views:
         Returns:
             Dict with run status and details.
         """
-        payload: Dict[str, Any] = {}
+        payload: dict[str, Any] = {}
         if view_uuids is not None:
             payload["view_uuids"] = view_uuids
         resp = self._http.post("/views/run", json=payload)
         return resp.json()
 
-    def preview(self, view_uuid: str, *, limit: int = 100) -> Dict[str, Any]:
+    def preview(self, view_uuid: str, *, limit: int = 100) -> dict[str, Any]:
         """Preview view results without materializing.
 
         Args:
@@ -159,7 +161,7 @@ class Views:
         finally:
             resp.close()
 
-    def generate_metadata(self, view_uuid: str) -> Dict[str, Any]:
+    def generate_metadata(self, view_uuid: str) -> dict[str, Any]:
         """Generate name and description from the view's SQL and conversation.
 
         Args:
@@ -187,10 +189,10 @@ class AsyncViews:
     async def create(
         self,
         *,
-        name: Optional[str] = None,
-        sql_definition: Optional[str] = None,
-        description: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        name: str | None = None,
+        sql_definition: str | None = None,
+        description: str | None = None,
+    ) -> dict[str, Any]:
         """Create a new SQL-defined view.
 
         All fields are optional — omit everything to create a draft view
@@ -204,7 +206,7 @@ class AsyncViews:
         Returns:
             Dict with view details including uuid, name, sql_definition.
         """
-        payload: Dict[str, Any] = {}
+        payload: dict[str, Any] = {}
         if name is not None:
             payload["name"] = name
         if sql_definition is not None:
@@ -214,7 +216,7 @@ class AsyncViews:
         resp = await self._http.post("/views", json=payload)
         return resp.json()
 
-    async def list(self) -> List[Dict[str, Any]]:
+    async def list(self) -> builtins.list[dict[str, Any]]:
         """List all views.
 
         Returns:
@@ -224,7 +226,7 @@ class AsyncViews:
         body = resp.json()
         return body.get("data", body) if isinstance(body, dict) else body
 
-    async def get(self, view_uuid: str) -> Dict[str, Any]:
+    async def get(self, view_uuid: str) -> dict[str, Any]:
         """Get view details.
 
         Args:
@@ -240,9 +242,9 @@ class AsyncViews:
         self,
         view_uuid: str,
         *,
-        sql_definition: Optional[str] = None,
-        description: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        sql_definition: str | None = None,
+        description: str | None = None,
+    ) -> dict[str, Any]:
         """Update a view.
 
         Args:
@@ -253,7 +255,7 @@ class AsyncViews:
         Returns:
             Dict with updated view details.
         """
-        payload: Dict[str, Any] = {}
+        payload: dict[str, Any] = {}
         if sql_definition is not None:
             payload["sql_definition"] = sql_definition
         if description is not None:
@@ -269,7 +271,7 @@ class AsyncViews:
         """
         await self._http.delete(f"/views/{view_uuid}")
 
-    async def run(self, *, view_uuids: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def run(self, *, view_uuids: builtins.list[str] | None = None) -> dict[str, Any]:
         """Run view materialization.
 
         Args:
@@ -279,13 +281,13 @@ class AsyncViews:
         Returns:
             Dict with run status and details.
         """
-        payload: Dict[str, Any] = {}
+        payload: dict[str, Any] = {}
         if view_uuids is not None:
             payload["view_uuids"] = view_uuids
         resp = await self._http.post("/views/run", json=payload)
         return resp.json()
 
-    async def preview(self, view_uuid: str, *, limit: int = 100) -> Dict[str, Any]:
+    async def preview(self, view_uuid: str, *, limit: int = 100) -> dict[str, Any]:
         """Preview view results without materializing.
 
         Args:
@@ -324,7 +326,7 @@ class AsyncViews:
         finally:
             await resp.aclose()
 
-    async def generate_metadata(self, view_uuid: str) -> Dict[str, Any]:
+    async def generate_metadata(self, view_uuid: str) -> dict[str, Any]:
         """Generate name and description from the view's SQL and conversation.
 
         Args:

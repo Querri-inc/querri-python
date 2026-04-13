@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import BaseModel
 
 
@@ -16,6 +14,6 @@ class ShareEntry(BaseModel):
 
     user_id: str  #: User ID who has access.
     permission: str = "view"  #: Permission level: ``"view"`` or ``"edit"``.
-    resource_type: Optional[str] = None  #: Type of shared resource (grant response only).
-    resource_id: Optional[str] = None  #: ID of the shared resource (grant response only).
-    granted_by: Optional[str] = None  #: User ID who granted access (grant response only).
+    resource_type: str | None = None  #: Type of shared resource (grant response only).
+    resource_id: str | None = None  #: ID of the shared resource (grant response only).
+    granted_by: str | None = None  #: User ID who granted access (grant response only).

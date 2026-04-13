@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import csv
 import os
-import time
 import uuid
 
 import pytest

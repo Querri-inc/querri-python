@@ -9,14 +9,13 @@ from __future__ import annotations
 import logging
 import random
 import time
-from typing import Any, Optional, Union
+from typing import Any
 
 import httpx
 
 from ._config import ClientConfig
 from ._exceptions import (
     APIError,
-    RateLimitError,
     raise_for_status,
 )
 
@@ -65,7 +64,7 @@ def _should_retry(status: int, method: str) -> bool:
     return False
 
 
-def _backoff_delay(attempt: int, retry_after: Optional[float] = None) -> float:
+def _backoff_delay(attempt: int, retry_after: float | None = None) -> float:
     """Exponential backoff with jitter.
 
     Uses 2^attempt capped at 30s, plus 0-0.5s random jitter to prevent
@@ -87,7 +86,7 @@ def _parse_error_response(response: httpx.Response) -> dict[str, Any]:
         return {}
 
 
-def _get_retry_after(response: httpx.Response) -> Optional[float]:
+def _get_retry_after(response: httpx.Response) -> float | None:
     """Parse the Retry-After response header as seconds. Returns None if absent or unparseable."""
     header = response.headers.get("retry-after")
     if header is None:
@@ -120,16 +119,16 @@ class SyncHTTPClient:
         method: str,
         path: str,
         *,
-        json: Optional[Any] = None,
-        params: Optional[dict[str, Any]] = None,
-        data: Optional[dict[str, Any]] = None,
-        files: Optional[Any] = None,
-        headers: Optional[dict[str, str]] = None,
+        json: Any | None = None,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        files: Any | None = None,
+        headers: dict[str, str] | None = None,
         stream: bool = False,
     ) -> httpx.Response:
         """Make an HTTP request with automatic retry."""
         max_retries = self._config.max_retries
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
 
         for attempt in range(max_retries + 1):
             try:
@@ -240,18 +239,18 @@ class AsyncHTTPClient:
         method: str,
         path: str,
         *,
-        json: Optional[Any] = None,
-        params: Optional[dict[str, Any]] = None,
-        data: Optional[dict[str, Any]] = None,
-        files: Optional[Any] = None,
-        headers: Optional[dict[str, str]] = None,
+        json: Any | None = None,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        files: Any | None = None,
+        headers: dict[str, str] | None = None,
         stream: bool = False,
     ) -> httpx.Response:
         """Make an async HTTP request with automatic retry."""
         import asyncio
 
         max_retries = self._config.max_retries
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
 
         for attempt in range(max_retries + 1):
             try:

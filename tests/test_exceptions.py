@@ -7,8 +7,8 @@ import pytest
 from querri._exceptions import (
     APIError,
     AuthenticationError,
-    ConflictError,
     ConfigError,
+    ConflictError,
     NotFoundError,
     PermissionError,
     QuerriError,

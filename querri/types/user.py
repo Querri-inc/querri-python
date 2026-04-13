@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import BaseModel
 
 
@@ -12,12 +10,12 @@ class User(BaseModel):
 
     id: str  #: Unique user identifier.
     email: str  #: User's email address.
-    first_name: Optional[str] = None  #: User's first name.
-    last_name: Optional[str] = None  #: User's last name.
+    first_name: str | None = None  #: User's first name.
+    last_name: str | None = None  #: User's last name.
     role: str = "member"  #: Role, e.g. ``"admin"`` or ``"member"``.
-    external_id: Optional[str] = None  #: Caller-supplied external identifier.
-    created_at: Optional[str] = None  #: ISO-8601 timestamp of creation.
-    created: Optional[bool] = None  #: Only on get_or_create; ``True`` if newly created.
+    external_id: str | None = None  #: Caller-supplied external identifier.
+    created_at: str | None = None  #: ISO-8601 timestamp of creation.
+    created: bool | None = None  #: Only on get_or_create; ``True`` if newly created.
 
 
 class UserDeleteResponse(BaseModel):

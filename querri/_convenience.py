@@ -13,10 +13,9 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from ._base_client import AsyncHTTPClient, SyncHTTPClient
-from ._exceptions import ValidationError
 from .types.policy import Policy
 
 logger = logging.getLogger("querri")
@@ -27,7 +26,7 @@ logger = logging.getLogger("querri")
 # ---------------------------------------------------------------------------
 
 
-def _hash_access_spec(access: Dict[str, Any]) -> str:
+def _hash_access_spec(access: dict[str, Any]) -> str:
     """Create a deterministic 8-char hex hash from an access spec.
 
     Used to generate stable policy names (``sdk_auto_<hash8>``) so that
@@ -48,7 +47,7 @@ def _hash_access_spec(access: Dict[str, Any]) -> str:
     return hashlib.sha256(normalized.encode()).hexdigest()[:8]
 
 
-def _build_policy_body(access: Dict[str, Any], policy_name: str) -> Dict[str, Any]:
+def _build_policy_body(access: dict[str, Any], policy_name: str) -> dict[str, Any]:
     """Convert an inline access dict to a policy creation request body.
 
     Maps the user-friendly SDK format::
@@ -72,7 +71,7 @@ def _build_policy_body(access: Dict[str, Any], policy_name: str) -> Dict[str, An
             ],
         }
     """
-    body: Dict[str, Any] = {"name": policy_name}
+    body: dict[str, Any] = {"name": policy_name}
 
     sources = access.get("sources")
     if sources:
@@ -80,7 +79,7 @@ def _build_policy_body(access: Dict[str, Any], policy_name: str) -> Dict[str, An
 
     filters = access.get("filters")
     if filters and isinstance(filters, dict):
-        row_filters: List[Dict[str, Any]] = []
+        row_filters: list[dict[str, Any]] = []
         for column, values in filters.items():
             if isinstance(values, list):
                 row_filters.append({"column": column, "values": values})
@@ -92,7 +91,7 @@ def _build_policy_body(access: Dict[str, Any], policy_name: str) -> Dict[str, An
     return body
 
 
-def _resolve_user_param(user: Union[str, Dict[str, Any]]) -> tuple[str, Optional[Dict[str, Any]]]:
+def _resolve_user_param(user: str | dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
     """Normalise the ``user`` parameter into (external_id, creation_body | None).
 
     Returns:
@@ -117,7 +116,7 @@ def _resolve_user_param(user: Union[str, Dict[str, Any]]) -> tuple[str, Optional
             "Example: {'external_id': 'cust-42', 'email': 'alice@example.com'}"
         )
 
-    body: Dict[str, Any] = {"role": user.get("role", "member")}
+    body: dict[str, Any] = {"role": user.get("role", "member")}
     email = user.get("email")
     if email:
         body["email"] = email
@@ -137,11 +136,11 @@ def _resolve_user_param(user: Union[str, Dict[str, Any]]) -> tuple[str, Optional
 def sync_get_session(
     http: SyncHTTPClient,
     *,
-    user: Union[str, Dict[str, Any]],
-    access: Optional[Dict[str, Any]] = None,
-    origin: Optional[str] = None,
+    user: str | dict[str, Any],
+    access: dict[str, Any] | None = None,
+    origin: str | None = None,
     ttl: int = 3600,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Flagship convenience method — get-or-create user, apply policy, create session.
 
     This is the single most important method in the SDK. It encapsulates the
@@ -237,7 +236,7 @@ def sync_get_session(
     # ------------------------------------------------------------------
     # Step 3: Create embed session
     # ------------------------------------------------------------------
-    session_body: Dict[str, Any] = {"user_id": user_id, "ttl": ttl}
+    session_body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
     if origin is not None:
         session_body["origin"] = origin
 
@@ -258,14 +257,14 @@ def _sync_apply_access(
     http: SyncHTTPClient,
     *,
     user_id: str,
-    access: Dict[str, Any],
+    access: dict[str, Any],
 ) -> None:
     """Apply access policies to a user (sync).
 
     Handles both ``policy_ids`` references and inline specs.
     Uses atomic replace (PUT) to prevent stale policy accumulation.
     """
-    all_policy_ids: List[str] = list(access.get("policy_ids") or [])
+    all_policy_ids: list[str] = list(access.get("policy_ids") or [])
 
     # Inline spec — find-or-create a policy by deterministic content hash
     if access.get("sources") or access.get("filters"):
@@ -306,10 +305,10 @@ def sync_setup_policy(
     http: SyncHTTPClient,
     *,
     name: str,
-    sources: Optional[List[str]] = None,
-    row_filters: Optional[Dict[str, Any]] = None,
-    description: Optional[str] = None,
-    users: Optional[List[str]] = None,
+    sources: list[str] | None = None,
+    row_filters: dict[str, Any] | None = None,
+    description: str | None = None,
+    users: list[str] | None = None,
 ) -> Policy:
     """Create a policy and optionally assign users in one call.
 
@@ -334,13 +333,13 @@ def sync_setup_policy(
             users=["user-1", "user-2"],
         )
     """
-    body: Dict[str, Any] = {"name": name}
+    body: dict[str, Any] = {"name": name}
     if description is not None:
         body["description"] = description
     if sources:
         body["source_ids"] = list(sources)
     if row_filters:
-        filters: List[Dict[str, Any]] = []
+        filters: list[dict[str, Any]] = []
         for col, val in row_filters.items():
             if isinstance(val, list):
                 filters.append({"column": col, "values": val})
@@ -369,11 +368,11 @@ def sync_setup_policy(
 async def async_get_session(
     http: AsyncHTTPClient,
     *,
-    user: Union[str, Dict[str, Any]],
-    access: Optional[Dict[str, Any]] = None,
-    origin: Optional[str] = None,
+    user: str | dict[str, Any],
+    access: dict[str, Any] | None = None,
+    origin: str | None = None,
     ttl: int = 3600,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Async version of :func:`sync_get_session`.
 
     Identical logic and parameters — see :func:`sync_get_session` for full
@@ -419,7 +418,7 @@ async def async_get_session(
     # ------------------------------------------------------------------
     # Step 3: Create embed session
     # ------------------------------------------------------------------
-    session_body: Dict[str, Any] = {"user_id": user_id, "ttl": ttl}
+    session_body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
     if origin is not None:
         session_body["origin"] = origin
 
@@ -439,14 +438,14 @@ async def _async_apply_access(
     http: AsyncHTTPClient,
     *,
     user_id: str,
-    access: Dict[str, Any],
+    access: dict[str, Any],
 ) -> None:
     """Apply access policies to a user (async).
 
     Handles both ``policy_ids`` references and inline specs.
     Uses atomic replace (PUT) to prevent stale policy accumulation.
     """
-    all_policy_ids: List[str] = list(access.get("policy_ids") or [])
+    all_policy_ids: list[str] = list(access.get("policy_ids") or [])
 
     # Inline spec — find-or-create a policy by deterministic content hash
     if access.get("sources") or access.get("filters"):
@@ -485,23 +484,23 @@ async def async_setup_policy(
     http: AsyncHTTPClient,
     *,
     name: str,
-    sources: Optional[List[str]] = None,
-    row_filters: Optional[Dict[str, Any]] = None,
-    description: Optional[str] = None,
-    users: Optional[List[str]] = None,
+    sources: list[str] | None = None,
+    row_filters: dict[str, Any] | None = None,
+    description: str | None = None,
+    users: list[str] | None = None,
 ) -> Policy:
     """Async version of :func:`sync_setup_policy`.
 
     Identical logic and parameters — see :func:`sync_setup_policy` for full
     documentation.
     """
-    body: Dict[str, Any] = {"name": name}
+    body: dict[str, Any] = {"name": name}
     if description is not None:
         body["description"] = description
     if sources:
         body["source_ids"] = list(sources)
     if row_filters:
-        filters: List[Dict[str, Any]] = []
+        filters: list[dict[str, Any]] = []
         for col, val in row_filters.items():
             if isinstance(val, list):
                 filters.append({"column": col, "values": val})

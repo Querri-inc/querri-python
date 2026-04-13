@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-from typing import Optional
 
 import typer
 
@@ -55,7 +54,7 @@ def org_usage(
 @usage_app.command("user")
 def user_usage(
     ctx: typer.Context,
-    user_id: Optional[str] = typer.Argument(None, help="User ID."),
+    user_id: str | None = typer.Argument(None, help="User ID."),
     period: str = typer.Option("current_month", "--period", help="Usage period."),
 ) -> None:
     """View usage for a specific user."""

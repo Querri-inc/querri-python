@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Optional
 
 import typer
 
@@ -30,7 +29,7 @@ sources_app = typer.Typer(
 @sources_app.command("list")
 def list_sources(
     ctx: typer.Context,
-    search: Optional[str] = typer.Option(None, "--search", "-s", help="Filter by name (substring match)."),
+    search: str | None = typer.Option(None, "--search", "-s", help="Filter by name (substring match)."),
 ) -> None:
     """List data sources."""
     obj = ctx.ensure_object(dict)
@@ -56,7 +55,7 @@ def list_sources(
 @sources_app.command("get")
 def get_source(
     ctx: typer.Context,
-    source_id: Optional[str] = typer.Argument(default=None, help="Source ID."),
+    source_id: str | None = typer.Argument(default=None, help="Source ID."),
 ) -> None:
     """Get source details."""
     if source_id is None:
@@ -86,7 +85,7 @@ def get_source(
 @sources_app.command("describe")
 def describe_source(
     ctx: typer.Context,
-    source_id: Optional[str] = typer.Argument(default=None, help="Source ID."),
+    source_id: str | None = typer.Argument(default=None, help="Source ID."),
 ) -> None:
     """Show source schema: columns, types, row count, and description."""
     if source_id is None:
@@ -169,7 +168,7 @@ def describe_source(
 @sources_app.command("data")
 def source_data(
     ctx: typer.Context,
-    source_id: Optional[str] = typer.Argument(default=None, help="Source ID."),
+    source_id: str | None = typer.Argument(default=None, help="Source ID."),
     page: int = typer.Option(1, "--page", help="Page number."),
     page_size: int = typer.Option(25, "--page-size", help="Rows per page."),
 ) -> None:
@@ -206,8 +205,8 @@ def source_data(
 @sources_app.command("query")
 def query_data(
     ctx: typer.Context,
-    sql: Optional[str] = typer.Option(None, "--sql", help="SQL query string."),
-    source_id: Optional[str] = typer.Option(None, "--source-id", help="Source to query."),
+    sql: str | None = typer.Option(None, "--sql", help="SQL query string."),
+    source_id: str | None = typer.Option(None, "--source-id", help="Source to query."),
     page: int = typer.Option(1, "--page", help="Page number."),
     page_size: int = typer.Option(25, "--page-size", help="Rows per page."),
 ) -> None:
@@ -243,9 +242,9 @@ def query_data(
 @sources_app.command("ask")
 def ask_data(
     ctx: typer.Context,
-    source_id: Optional[str] = typer.Argument(default=None, help="Source ID."),
-    question_arg: Optional[str] = typer.Argument(default=None, help="Natural language question."),
-    question_opt: Optional[str] = typer.Option(None, "--question", "-q", help="Natural language question."),
+    source_id: str | None = typer.Argument(default=None, help="Source ID."),
+    question_arg: str | None = typer.Argument(default=None, help="Natural language question."),
+    question_opt: str | None = typer.Option(None, "--question", "-q", help="Natural language question."),
 ) -> None:
     """Ask a natural language question about a data source.
 
@@ -298,8 +297,8 @@ def ask_data(
 @sources_app.command("new")
 def new_data_source(
     ctx: typer.Context,
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="Source name."),
-    file: Optional[Path] = typer.Option(
+    name: str | None = typer.Option(None, "--name", "-n", help="Source name."),
+    file: Path | None = typer.Option(
         None, "--file", "-f", help="JSON file with row data.",
         exists=True, file_okay=True, dir_okay=False, resolve_path=True,
     ),
@@ -354,10 +353,10 @@ def new_data_source(
 @sources_app.command("update")
 def update_source(
     ctx: typer.Context,
-    source_id: Optional[str] = typer.Argument(default=None, help="Source ID."),
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="New name."),
-    description: Optional[str] = typer.Option(None, "--description", "-d", help="User notes about the source."),
-    config: Optional[str] = typer.Option(None, "--config", help="JSON config string."),
+    source_id: str | None = typer.Argument(default=None, help="Source ID."),
+    name: str | None = typer.Option(None, "--name", "-n", help="New name."),
+    description: str | None = typer.Option(None, "--description", "-d", help="User notes about the source."),
+    config: str | None = typer.Option(None, "--config", help="JSON config string."),
 ) -> None:
     """Update source configuration."""
     if source_id is None:
@@ -391,7 +390,7 @@ def update_source(
 @sources_app.command("delete")
 def delete_source(
     ctx: typer.Context,
-    source_id: Optional[str] = typer.Argument(default=None, help="Source ID."),
+    source_id: str | None = typer.Argument(default=None, help="Source ID."),
 ) -> None:
     """Delete a data source."""
     if source_id is None:
@@ -416,7 +415,7 @@ def delete_source(
 @sources_app.command("sync")
 def sync_source(
     ctx: typer.Context,
-    source_id: Optional[str] = typer.Argument(default=None, help="Source ID."),
+    source_id: str | None = typer.Argument(default=None, help="Source ID."),
 ) -> None:
     """Trigger a source sync."""
     if source_id is None:

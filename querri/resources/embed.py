@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from .._convenience import async_get_session, sync_get_session
@@ -29,9 +29,9 @@ class Embed:
         self,
         *,
         user_id: str,
-        origin: Optional[str] = None,
+        origin: str | None = None,
         ttl: int = 3600,
-        source_scope: Optional[list[str]] = None,
+        source_scope: list[str] | None = None,
     ) -> EmbedSession:
         """Create an embed session for a user.
 
@@ -78,9 +78,9 @@ class Embed:
 
     def revoke_session(
         self,
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
         *,
-        session_token: Optional[str] = None,
+        session_token: str | None = None,
     ) -> EmbedSessionRevokeResponse:
         """Revoke an embed session.
 
@@ -101,11 +101,11 @@ class Embed:
     def get_session(
         self,
         *,
-        user: Union[str, Dict[str, Any]],
-        access: Optional[Dict[str, Any]] = None,
-        origin: Optional[str] = None,
+        user: str | dict[str, Any],
+        access: dict[str, Any] | None = None,
+        origin: str | None = None,
         ttl: int = 3600,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Flagship convenience method: get-or-create user, apply policy, create session.
 
         Args:
@@ -153,9 +153,9 @@ class AsyncEmbed:
         self,
         *,
         user_id: str,
-        origin: Optional[str] = None,
+        origin: str | None = None,
         ttl: int = 3600,
-        source_scope: Optional[List[str]] = None,
+        source_scope: list[str] | None = None,
     ) -> EmbedSession:
         """Create an embed session for a user.
 
@@ -201,9 +201,9 @@ class AsyncEmbed:
 
     async def revoke_session(
         self,
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
         *,
-        session_token: Optional[str] = None,
+        session_token: str | None = None,
     ) -> EmbedSessionRevokeResponse:
         """Revoke an embed session.
 
@@ -224,11 +224,11 @@ class AsyncEmbed:
     async def get_session(
         self,
         *,
-        user: Union[str, Dict[str, Any]],
-        access: Optional[Dict[str, Any]] = None,
-        origin: Optional[str] = None,
+        user: str | dict[str, Any],
+        access: dict[str, Any] | None = None,
+        origin: str | None = None,
         ttl: int = 3600,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Flagship convenience method: get-or-create user, apply policy, create session.
 
         Args:
