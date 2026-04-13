@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 
@@ -22,11 +22,14 @@ class Views:
     def create(
         self,
         *,
-        name: str,
-        sql_definition: str,
+        name: Optional[str] = None,
+        sql_definition: Optional[str] = None,
         description: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create a new SQL-defined view.
+
+        All fields are optional — omit everything to create a draft view
+        for NL authoring via ``chat()``.
 
         Args:
             name: Display name for the view.
@@ -36,10 +39,11 @@ class Views:
         Returns:
             Dict with view details including uuid, name, sql_definition.
         """
-        payload: Dict[str, Any] = {
-            "name": name,
-            "sql_definition": sql_definition,
-        }
+        payload: Dict[str, Any] = {}
+        if name is not None:
+            payload["name"] = name
+        if sql_definition is not None:
+            payload["sql_definition"] = sql_definition
         if description is not None:
             payload["description"] = description
         resp = self._http.post("/views", json=payload)
@@ -132,6 +136,41 @@ class Views:
         )
         return resp.json()
 
+    def chat(self, view_uuid: str, *, message: str) -> Iterator[str]:
+        """Send a message to the view authoring agent and stream the response.
+
+        Args:
+            view_uuid: The view UUID.
+            message: Natural-language message for the agent.
+
+        Yields:
+            Raw SSE data lines from the agent response.
+        """
+        resp = self._http.request(
+            "POST",
+            f"/views/{view_uuid}/chat",
+            json={"message": message},
+            stream=True,
+        )
+        try:
+            for line in resp.iter_lines():
+                if line.startswith("data: "):
+                    yield line[6:]
+        finally:
+            resp.close()
+
+    def generate_metadata(self, view_uuid: str) -> Dict[str, Any]:
+        """Generate name and description from the view's SQL and conversation.
+
+        Args:
+            view_uuid: The view UUID.
+
+        Returns:
+            Dict with generated name and description.
+        """
+        resp = self._http.post(f"/views/{view_uuid}/generate-metadata")
+        return resp.json()
+
 
 class AsyncViews:
     """Asynchronous views resource.
@@ -148,11 +187,14 @@ class AsyncViews:
     async def create(
         self,
         *,
-        name: str,
-        sql_definition: str,
+        name: Optional[str] = None,
+        sql_definition: Optional[str] = None,
         description: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create a new SQL-defined view.
+
+        All fields are optional — omit everything to create a draft view
+        for NL authoring via ``chat()``.
 
         Args:
             name: Display name for the view.
@@ -162,10 +204,11 @@ class AsyncViews:
         Returns:
             Dict with view details including uuid, name, sql_definition.
         """
-        payload: Dict[str, Any] = {
-            "name": name,
-            "sql_definition": sql_definition,
-        }
+        payload: Dict[str, Any] = {}
+        if name is not None:
+            payload["name"] = name
+        if sql_definition is not None:
+            payload["sql_definition"] = sql_definition
         if description is not None:
             payload["description"] = description
         resp = await self._http.post("/views", json=payload)
@@ -256,4 +299,39 @@ class AsyncViews:
             f"/views/{view_uuid}/preview",
             json={"limit": limit},
         )
+        return resp.json()
+
+    async def chat(self, view_uuid: str, *, message: str):
+        """Send a message to the view authoring agent and stream the response.
+
+        Args:
+            view_uuid: The view UUID.
+            message: Natural-language message for the agent.
+
+        Yields:
+            Raw SSE data lines from the agent response.
+        """
+        resp = await self._http.request(
+            "POST",
+            f"/views/{view_uuid}/chat",
+            json={"message": message},
+            stream=True,
+        )
+        try:
+            async for line in resp.aiter_lines():
+                if line.startswith("data: "):
+                    yield line[6:]
+        finally:
+            await resp.aclose()
+
+    async def generate_metadata(self, view_uuid: str) -> Dict[str, Any]:
+        """Generate name and description from the view's SQL and conversation.
+
+        Args:
+            view_uuid: The view UUID.
+
+        Returns:
+            Dict with generated name and description.
+        """
+        resp = await self._http.post(f"/views/{view_uuid}/generate-metadata")
         return resp.json()
