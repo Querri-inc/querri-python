@@ -124,6 +124,9 @@ def login(
     ``--organization org_01JBETJ7PYNGXVMXV0BD3CFNA8``
     """
     host = host or _get_host(ctx)
+    if not host.startswith(("http://", "https://")):
+        print_error(f"--host must include a scheme (e.g. https://{host}).")
+        raise typer.Exit(code=2)
     profile_name = _get_profile_name(ctx)
     is_json = _is_json(ctx)
 

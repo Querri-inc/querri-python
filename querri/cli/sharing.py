@@ -390,8 +390,8 @@ def org_source_share(
     client = get_client(ctx)
     try:
         resp = client._http.post(
-            f"/sources/{source_id}/shares/org",
-            json={"permission": permission},
+            f"/sources/{source_id}/org-share",
+            json={"enabled": True, "permission": permission},
         )
         result = resp.json()
     except Exception as exc:

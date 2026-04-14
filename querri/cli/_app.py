@@ -159,6 +159,14 @@ def _global_options(
     # Determine interactive mode
     is_interactive = interactive if interactive is not None else IS_INTERACTIVE
 
+    # Validate --host has a scheme
+    if host and not host.startswith(("http://", "https://")):
+        print(
+            f"Error: --host must include a scheme (e.g. https://{host}).",
+            file=sys.stderr,
+        )
+        raise typer.Exit(code=2)
+
     # Warn about --api-key in shell history (only in interactive TTY mode)
     if api_key and is_interactive:
         import sys as _sys

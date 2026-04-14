@@ -213,6 +213,13 @@ def select_project(
             if obj.get("json"):
                 print_json([{"id": p.id, "name": p.name} for p in matches])
                 return
+            is_interactive = obj.get("interactive", sys.stdin.isatty())
+            if not is_interactive:
+                print_error(
+                    f"Ambiguous name '{name_or_id}' matches {len(matches)} projects. "
+                    "Use a project UUID or pass --json to list matches."
+                )
+                raise typer.Exit(code=1)
             print(f"\nMultiple projects match '{name_or_id}':\n", file=sys.stderr)
             for i, p in enumerate(matches, 1):
                 print(f"  [{i}] {p.name} ({p.id})", file=sys.stderr)
@@ -221,7 +228,8 @@ def select_project(
                 try:
                     raw = input("Select [1]: ").strip() or "1"
                 except (EOFError, KeyboardInterrupt):
-                    raw = "1"
+                    print(file=sys.stderr)
+                    raise typer.Exit(code=0) from None
                 try:
                     idx = int(raw)
                     if 1 <= idx <= len(matches):

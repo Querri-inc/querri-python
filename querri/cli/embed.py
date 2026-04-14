@@ -126,8 +126,19 @@ def list_sessions(
     if obj.get("json"):
         print_json(result)
     else:
+        from datetime import datetime, timezone
+
+        rows = []
+        for s in result.data:
+            row = dict(s) if isinstance(s, dict) else s.__dict__.copy()
+            ts = row.get("created_at")
+            if isinstance(ts, (int, float)):
+                row["created_at"] = datetime.fromtimestamp(ts, tz=timezone.utc).strftime(
+                    "%Y-%m-%d %H:%M UTC"
+                )
+            rows.append(row)
         print_table(
-            result.data,
+            rows,
             [
                 ("session_token", "Token"),
                 ("user_id", "User ID"),
