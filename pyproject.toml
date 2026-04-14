@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "querri"
-version = "1.0.2"
+version = "1.0.3"
 description = "Python SDK and CLI for the Querri data analysis platform"
 readme = "README.md"
 license = "MIT"
