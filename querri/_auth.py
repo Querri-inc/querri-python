@@ -438,7 +438,7 @@ rel="stylesheet">
     color:#c5c8cb;
     display:flex;align-items:center;justify-content:center;
     min-height:100vh;
-    overflow:hidden;
+    overflow:auto;
   }
   /* animated grid background */
   body::before{
@@ -594,8 +594,7 @@ rel="stylesheet">
       <div class="section-label typing">create &amp; upload</div>
       <div class="cmd typing">
         <span class="prompt">$</span>
-        <span class="command"> querri projects create</span>
-        <span class="flag"> --name</span>
+        <span class="command"> querri project new</span>
         <span class="string"> "Q1 Analysis"</span>
       </div>
       <div class="cmd typing">
@@ -608,14 +607,8 @@ rel="stylesheet">
       <div class="section-label typing">chat with your data</div>
       <div class="cmd typing">
         <span class="prompt">$</span>
-        <span class="command"> querri chats create</span>
-        <span class="arg"> &lt;project-id&gt;</span>
-      </div>
-      <div class="cmd typing">
-        <span class="prompt">$</span>
-        <span class="command"> querri chats stream</span>
-        <span class="arg"> &lt;project&gt; &lt;chat&gt;</span>
-        <span class="flag"> --prompt</span>
+        <span class="command"> querri project chat</span>
+        <span class="flag"> -m</span>
         <span class="string"> "summarize revenue by region"</span>
       </div>
 
