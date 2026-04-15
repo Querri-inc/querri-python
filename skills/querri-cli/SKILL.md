@@ -5,7 +5,10 @@ description: Work with the Querri data analysis platform via the querri CLI. Use
 
 # Querri CLI Skill
 
-Querri is a data analysis platform. The `querri` CLI (`~/.local/bin/querri`) talks to the Querri API. The SDK source lives at `~/paperclip/querri-python-sdk` and is installed in editable mode — code changes there take effect immediately.
+Querri is a data analysis platform. The `querri` CLI talks to the Querri API.
+
+**Install:** `pip install querri`
+**Upgrade:** `pip install --upgrade querri`
 
 The CLI is self-documenting — run `querri <command> --help` for full flag details.
 
@@ -190,6 +193,16 @@ querri source connectors                          # list available connector typ
 ```
 
 `source new` reads a JSON array of objects from `--file` or stdin.
+
+**Important — `source query` table name**: The source data is registered in DuckDB as a view
+called `data`. Always write `FROM data` in your SQL:
+
+```bash
+querri source query --source-id <ID> --sql "SELECT * FROM data LIMIT 10"
+querri source query --source-id <ID> --sql "SELECT col1, COUNT(*) FROM data GROUP BY col1"
+```
+
+Using any other table name (e.g. `FROM source`, `FROM contacts`) will return HTTP 400.
 
 ## Dashboards
 
