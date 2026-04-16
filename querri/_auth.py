@@ -23,10 +23,8 @@ import httpx
 # Constants
 # ---------------------------------------------------------------------------
 
-WORKOS_CLIENT_ID = "client_01HGV989QK3KDNN4JJNGCD87RH"
-WORKOS_AUTHORIZE_URL = "https://api.workos.com/user_management/authorize"
 OAUTH_TIMEOUT_SECONDS = 120
-OAUTH_CALLBACK_PORT = 11847  # Fixed port for WorkOS redirect URI registration
+OAUTH_CALLBACK_PORT = 11847  # Fixed port registered as allowed redirect URI on the server
 REFRESH_BUFFER_SECONDS = 300  # 5 minutes
 
 
@@ -654,6 +652,43 @@ class _OAuthCallbackServer(HTTPServer):
             self.handle_request()
 
 
+def _fetch_well_known(host: str) -> dict[str, Any]:
+    """Fetch RFC 8414 OAuth authorization server metadata from the Querri server.
+
+    Args:
+        host: The Querri server host (e.g. ``https://app.querri.com``).
+
+    Returns:
+        Parsed JSON dict with ``authorization_endpoint``, ``token_endpoint``, etc.
+
+    Raises:
+        RuntimeError: If the metadata endpoint cannot be reached or returns an error.
+    """
+    url = host.rstrip("/") + "/.well-known/oauth-authorization-server"
+    try:
+        response = httpx.get(url, timeout=10.0)
+        response.raise_for_status()
+        return response.json()  # type: ignore[no-any-return]
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to fetch server metadata from {url}: {exc}"
+        ) from exc
+
+
+def _generate_pkce() -> tuple[str, str]:
+    """Generate a PKCE code_verifier and S256 code_challenge pair.
+
+    Returns:
+        Tuple of ``(code_verifier, code_challenge)``.
+    """
+    import hashlib
+
+    code_verifier = secrets.token_urlsafe(64)
+    digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
+    code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+    return code_verifier, code_challenge
+
+
 def start_oauth_flow(
     host: str,
     callback: Any = None,
@@ -662,19 +697,21 @@ def start_oauth_flow(
 ) -> dict[str, Any]:
     """Run the browser-based OAuth login flow.
 
-    1. Starts a local HTTP server on 127.0.0.1:11847 (fixed port)
-    2. Opens the browser to the WorkOS authorize URL
-    3. Waits for the callback with the authorization code
-    4. Exchanges the code for tokens via the Querri server proxy
+    1. Fetches ``/.well-known/oauth-authorization-server`` to discover endpoints
+    2. Starts a local HTTP server on 127.0.0.1:11847 (fixed port)
+    3. Opens the browser to the Querri authorize endpoint (which proxies to WorkOS)
+    4. Waits for the server to redirect back with an ``mcp_``-prefixed code
+    5. Exchanges the code for tokens using PKCE (no client secret needed)
 
     Args:
         host: The Querri server host (e.g. ``https://app.querri.com``).
         callback: Unused — reserved for future progress callbacks.
-        organization_id: Optional WorkOS organization ID to scope the login.
+        organization_id: Optional organization ID to scope the login. Required
+            for users who belong to multiple organizations.
 
     Returns:
         Dict with ``access_token``, ``refresh_token``, ``expires_at``,
-        ``user_id``, ``org_id``, ``user_email``.
+        ``user_id``, ``org_id``, ``user_email``, ``all_organizations``.
 
     Raises:
         RuntimeError: If not in an interactive terminal, or if the flow
@@ -686,28 +723,38 @@ def start_oauth_flow(
             "For CI/scripts, use QUERRI_API_KEY instead."
         )
 
-    # Generate state for CSRF protection
+    # Discover endpoints from the server
+    well_known = _fetch_well_known(host)
+    authorize_endpoint = well_known.get("authorization_endpoint", "")
+    token_endpoint = well_known.get("token_endpoint", "")
+    if not authorize_endpoint or not token_endpoint:
+        raise RuntimeError(
+            f"Server at {host} did not return valid OAuth metadata "
+            "(missing authorization_endpoint or token_endpoint)."
+        )
+
+    # Generate PKCE and CSRF state
+    code_verifier, code_challenge = _generate_pkce()
     state = secrets.token_urlsafe(32)
 
     # Start local callback server
     server = _OAuthCallbackServer(expected_state=state)
     port = server.server_address[1]
-
     redirect_uri = f"http://127.0.0.1:{port}/callback"
 
-    # Build authorize URL
-    client_id = os.environ.get("QUERRI_WORKOS_CLIENT_ID", WORKOS_CLIENT_ID)
+    # Build authorize URL — the server proxies to WorkOS using its own client_id
     params: dict[str, str] = {
-        "client_id": client_id,
+        "client_id": "querri-cli",
         "redirect_uri": redirect_uri,
         "response_type": "code",
         "state": state,
-        "provider": "authkit",
+        "scope": "",
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
     }
     if organization_id:
         params["organization_id"] = organization_id
-    authorize_params = urlencode(params)
-    authorize_url = f"{WORKOS_AUTHORIZE_URL}?{authorize_params}"
+    authorize_url = f"{authorize_endpoint}?{urlencode(params)}"
 
     # Open browser
     print("Opening browser for authentication...", file=sys.stderr)
@@ -734,15 +781,14 @@ def start_oauth_flow(
             f"{OAUTH_TIMEOUT_SECONDS} seconds."
         )
 
-    # Exchange authorization code for tokens
-    token_url = host.rstrip("/") + "/api/v1/auth/cli/token"
+    # Exchange the mcp_ code for tokens using PKCE (no redirect_uri needed)
     try:
         response = httpx.post(
-            token_url,
+            token_endpoint,
             json={
                 "grant_type": "authorization_code",
                 "code": server.auth_code,
-                "redirect_uri": redirect_uri,
+                "code_verifier": code_verifier,
             },
             timeout=30.0,
         )
