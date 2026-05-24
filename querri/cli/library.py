@@ -370,6 +370,78 @@ def list_nodes(
     )
 
 
+@library_app.command("list-libraries")
+def list_libraries(
+    ctx: typer.Context,
+    limit: int = typer.Option(100, "--limit", "-n", min=1, max=1000),
+) -> None:
+    """Enumerate every Library node in the active tenant."""
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    try:
+        result = client.library.list_libraries(limit=limit)
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+
+    if obj.get("json"):
+        print_json(result.model_dump())
+        return
+
+    if not result.results:
+        print_error("No Library nodes in tenant. Run `querri library create-library <name>` first.")
+        return
+
+    print_table(
+        [
+            {
+                "name": item.name,
+                "summary": (item.summary[:60] + "…") if len(item.summary) > 60 else item.summary,
+                "id": item.id,
+            }
+            for item in result.results
+        ],
+        [("name", "Name"), ("summary", "Summary"), ("id", "ID")],
+    )
+
+
+@library_app.command("list-collections")
+def list_collections(
+    ctx: typer.Context,
+    library_id: str = typer.Option(
+        None, "--library-id", "-l", help="Library _id (defaults to active)."
+    ),
+    limit: int = typer.Option(100, "--limit", "-n", min=1, max=1000),
+) -> None:
+    """Enumerate every Collection in the active (or given) Library."""
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    lib_id = _resolve_library_id(library_id)
+    try:
+        result = client.library.list_collections(library_id=lib_id, limit=limit)
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+
+    if obj.get("json"):
+        print_json(result.model_dump())
+        return
+
+    if not result.results:
+        print_error(f"No Collections in library {lib_id}.")
+        return
+
+    print_table(
+        [
+            {
+                "name": item.name,
+                "summary": (item.summary[:60] + "…") if len(item.summary) > 60 else item.summary,
+                "id": item.id,
+            }
+            for item in result.results
+        ],
+        [("name", "Name"), ("summary", "Summary"), ("id", "ID")],
+    )
+
+
 # ── Refining + edges ───────────────────────────────────────────────────────
 
 

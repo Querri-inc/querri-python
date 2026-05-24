@@ -73,8 +73,12 @@ class NodeListItem(_LibraryBase):
 
 
 class NodeListResponse(_LibraryBase):
-    library_id: str
-    node_kind: str
+    # library_id + node_kind are present on /nodes + /collections responses
+    # but absent on /libraries (which lists across the tenant, not within a
+    # specific library). Optional so the same model serves all three.
+    library_id: str | None = None
+    node_kind: str | None = None
+    tenant_id: str | None = None
     results: list[NodeListItem]
 
 

@@ -195,6 +195,18 @@ class Library:
         )
         return NodeListResponse.model_validate(resp.json())
 
+    def list_libraries(self, *, limit: int = 100) -> NodeListResponse:
+        resp = self._http.get(f"/library/libraries?limit={limit}")
+        return NodeListResponse.model_validate(resp.json())
+
+    def list_collections(
+        self, *, library_id: str, limit: int = 100
+    ) -> NodeListResponse:
+        resp = self._http.get(
+            f"/library/collections?library_id={library_id}&limit={limit}"
+        )
+        return NodeListResponse.model_validate(resp.json())
+
     def seed_fixture(
         self, *, library_id: str, fixture: str
     ) -> SeedFixtureResponse:
@@ -480,6 +492,18 @@ class AsyncLibrary:
         resp = await self._http.get(
             f"/library/nodes?library_id={library_id}"
             f"&node_kind={node_kind}&limit={limit}"
+        )
+        return NodeListResponse.model_validate(resp.json())
+
+    async def list_libraries(self, *, limit: int = 100) -> NodeListResponse:
+        resp = await self._http.get(f"/library/libraries?limit={limit}")
+        return NodeListResponse.model_validate(resp.json())
+
+    async def list_collections(
+        self, *, library_id: str, limit: int = 100
+    ) -> NodeListResponse:
+        resp = await self._http.get(
+            f"/library/collections?library_id={library_id}&limit={limit}"
         )
         return NodeListResponse.model_validate(resp.json())
 
