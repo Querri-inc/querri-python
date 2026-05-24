@@ -51,6 +51,40 @@ class BackfillResponse(_LibraryBase):
     counts: dict[str, int]
 
 
+class SeedFixtureResponse(_LibraryBase):
+    library_id: str
+    tenant_id: str
+    fixture: str
+    counts: dict[str, int]
+
+
+class StatusResponse(_LibraryBase):
+    library_id: str
+    tenant_id: str
+    counts_by_kind: dict[str, int]
+    total_nodes: int
+
+
+class NodeListItem(_LibraryBase):
+    id: str
+    name: str
+    node_kind: str
+    summary: str = ""
+
+
+class NodeListResponse(_LibraryBase):
+    library_id: str
+    node_kind: str
+    results: list[NodeListItem]
+
+
+class LinkResponse(_LibraryBase):
+    a_id: str
+    b_id: str
+    relation: str
+    tenant_id: str
+
+
 class LibraryNode(_LibraryBase):
     # Permissive — we don't enforce every field server-side carries; callers
     # who need typed access to (e.g.) KPI.measurement should reach into the

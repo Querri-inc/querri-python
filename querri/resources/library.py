@@ -15,8 +15,12 @@ from ..types.library import (
     HealthResponse,
     LibraryNode,
     LibraryNodeSummary,
+    LinkResponse,
+    NodeListResponse,
     SearchHit,
     SearchResponse,
+    SeedFixtureResponse,
+    StatusResponse,
 )
 
 
@@ -56,13 +60,23 @@ class Library:
         return LibraryNodeSummary.model_validate(resp.json())
 
     def create_collection(
-        self, *, library_id: str, name: str, summary: str = ""
-    ) -> LibraryNodeSummary:
-        resp = self._http.post(
-            "/library/collections",
-            json={"library_id": library_id, "name": name, "summary": summary},
-        )
-        return LibraryNodeSummary.model_validate(resp.json())
+        self,
+        *,
+        library_id: str,
+        name: str,
+        summary: str = "",
+        anchor_question_text: str | None = None,
+        anchor_question_name: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "library_id": library_id, "name": name, "summary": summary,
+        }
+        if anchor_question_text:
+            body["anchor_question_text"] = anchor_question_text
+            if anchor_question_name:
+                body["anchor_question_name"] = anchor_question_name
+        resp = self._http.post("/library/collections", json=body)
+        return resp.json()
 
     def create_anchor_question(
         self,
@@ -71,16 +85,17 @@ class Library:
         name: str,
         question_text: str,
         summary: str = "",
+        collection_id: str | None = None,
     ) -> LibraryNodeSummary:
-        resp = self._http.post(
-            "/library/questions/anchor",
-            json={
-                "library_id": library_id,
-                "name": name,
-                "question_text": question_text,
-                "summary": summary,
-            },
-        )
+        body: dict[str, Any] = {
+            "library_id": library_id,
+            "name": name,
+            "question_text": question_text,
+            "summary": summary,
+        }
+        if collection_id:
+            body["collection_id"] = collection_id
+        resp = self._http.post("/library/questions/anchor", json=body)
         return LibraryNodeSummary.model_validate(resp.json())
 
     def create_refining_question(
@@ -90,17 +105,63 @@ class Library:
         name: str,
         question_text: str,
         summary: str = "",
+        anchor_question_id: str | None = None,
+        collection_id: str | None = None,
     ) -> LibraryNodeSummary:
+        body: dict[str, Any] = {
+            "library_id": library_id,
+            "name": name,
+            "question_text": question_text,
+            "summary": summary,
+        }
+        if anchor_question_id:
+            body["anchor_question_id"] = anchor_question_id
+        if collection_id:
+            body["collection_id"] = collection_id
+        resp = self._http.post("/library/questions/refining", json=body)
+        return LibraryNodeSummary.model_validate(resp.json())
+
+    def link(
+        self,
+        *,
+        a_id: str,
+        b_id: str,
+        relation: str,
+        weight: float = 1.0,
+        confidence: float = 1.0,
+    ) -> LinkResponse:
         resp = self._http.post(
-            "/library/questions/refining",
+            "/library/edges",
             json={
-                "library_id": library_id,
-                "name": name,
-                "question_text": question_text,
-                "summary": summary,
+                "a_id": a_id, "b_id": b_id, "relation": relation,
+                "weight": weight, "confidence": confidence,
             },
         )
-        return LibraryNodeSummary.model_validate(resp.json())
+        return LinkResponse.model_validate(resp.json())
+
+    def status(self, *, library_id: str) -> StatusResponse:
+        resp = self._http.get(
+            f"/library/status?library_id={library_id}"
+        )
+        return StatusResponse.model_validate(resp.json())
+
+    def list_nodes(
+        self, *, library_id: str, node_kind: str, limit: int = 100
+    ) -> NodeListResponse:
+        resp = self._http.get(
+            f"/library/nodes?library_id={library_id}"
+            f"&node_kind={node_kind}&limit={limit}"
+        )
+        return NodeListResponse.model_validate(resp.json())
+
+    def seed_fixture(
+        self, *, library_id: str, fixture: str
+    ) -> SeedFixtureResponse:
+        resp = self._http.post(
+            "/library/seed-fixture",
+            json={"library_id": library_id, "fixture": fixture},
+        )
+        return SeedFixtureResponse.model_validate(resp.json())
 
     # ── Read ────────────────────────────────────────────────────────────────
 
@@ -162,13 +223,23 @@ class AsyncLibrary:
         return LibraryNodeSummary.model_validate(resp.json())
 
     async def create_collection(
-        self, *, library_id: str, name: str, summary: str = ""
-    ) -> LibraryNodeSummary:
-        resp = await self._http.post(
-            "/library/collections",
-            json={"library_id": library_id, "name": name, "summary": summary},
-        )
-        return LibraryNodeSummary.model_validate(resp.json())
+        self,
+        *,
+        library_id: str,
+        name: str,
+        summary: str = "",
+        anchor_question_text: str | None = None,
+        anchor_question_name: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "library_id": library_id, "name": name, "summary": summary,
+        }
+        if anchor_question_text:
+            body["anchor_question_text"] = anchor_question_text
+            if anchor_question_name:
+                body["anchor_question_name"] = anchor_question_name
+        resp = await self._http.post("/library/collections", json=body)
+        return resp.json()
 
     async def create_anchor_question(
         self,
@@ -177,16 +248,17 @@ class AsyncLibrary:
         name: str,
         question_text: str,
         summary: str = "",
+        collection_id: str | None = None,
     ) -> LibraryNodeSummary:
-        resp = await self._http.post(
-            "/library/questions/anchor",
-            json={
-                "library_id": library_id,
-                "name": name,
-                "question_text": question_text,
-                "summary": summary,
-            },
-        )
+        body: dict[str, Any] = {
+            "library_id": library_id,
+            "name": name,
+            "question_text": question_text,
+            "summary": summary,
+        }
+        if collection_id:
+            body["collection_id"] = collection_id
+        resp = await self._http.post("/library/questions/anchor", json=body)
         return LibraryNodeSummary.model_validate(resp.json())
 
     async def create_refining_question(
@@ -196,17 +268,63 @@ class AsyncLibrary:
         name: str,
         question_text: str,
         summary: str = "",
+        anchor_question_id: str | None = None,
+        collection_id: str | None = None,
     ) -> LibraryNodeSummary:
+        body: dict[str, Any] = {
+            "library_id": library_id,
+            "name": name,
+            "question_text": question_text,
+            "summary": summary,
+        }
+        if anchor_question_id:
+            body["anchor_question_id"] = anchor_question_id
+        if collection_id:
+            body["collection_id"] = collection_id
+        resp = await self._http.post("/library/questions/refining", json=body)
+        return LibraryNodeSummary.model_validate(resp.json())
+
+    async def link(
+        self,
+        *,
+        a_id: str,
+        b_id: str,
+        relation: str,
+        weight: float = 1.0,
+        confidence: float = 1.0,
+    ) -> LinkResponse:
         resp = await self._http.post(
-            "/library/questions/refining",
+            "/library/edges",
             json={
-                "library_id": library_id,
-                "name": name,
-                "question_text": question_text,
-                "summary": summary,
+                "a_id": a_id, "b_id": b_id, "relation": relation,
+                "weight": weight, "confidence": confidence,
             },
         )
-        return LibraryNodeSummary.model_validate(resp.json())
+        return LinkResponse.model_validate(resp.json())
+
+    async def status(self, *, library_id: str) -> StatusResponse:
+        resp = await self._http.get(
+            f"/library/status?library_id={library_id}"
+        )
+        return StatusResponse.model_validate(resp.json())
+
+    async def list_nodes(
+        self, *, library_id: str, node_kind: str, limit: int = 100
+    ) -> NodeListResponse:
+        resp = await self._http.get(
+            f"/library/nodes?library_id={library_id}"
+            f"&node_kind={node_kind}&limit={limit}"
+        )
+        return NodeListResponse.model_validate(resp.json())
+
+    async def seed_fixture(
+        self, *, library_id: str, fixture: str
+    ) -> SeedFixtureResponse:
+        resp = await self._http.post(
+            "/library/seed-fixture",
+            json={"library_id": library_id, "fixture": fixture},
+        )
+        return SeedFixtureResponse.model_validate(resp.json())
 
     async def get_node(self, node_id: str) -> LibraryNode:
         resp = await self._http.get(f"/library/nodes/{node_id}")
