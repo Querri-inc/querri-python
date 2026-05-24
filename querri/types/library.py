@@ -188,16 +188,35 @@ class ZoomResponse(_LibraryBase):
     stats: ZoomStats
 
 
+class LibraryNodeEdge(_LibraryBase):
+    """Outbound edge on a LibraryNode. Mirrors the server-side `Edge`
+    model. `from` is implicitly the node carrying this edge."""
+    to: str
+    relation: str
+    weight: float = 1.0
+    confidence: float = 1.0
+    source: str = ""
+    frequency_count: int = 0
+    salience_score: float = 0.0
+    created_at: str = ""
+
+
 class LibraryNode(_LibraryBase):
-    # Permissive — we don't enforce every field server-side carries; callers
-    # who need typed access to (e.g.) KPI.measurement should reach into the
-    # `extra` payload until the codegen pass lands.
+    # Permissive — we don't enforce every kind-specific field server-side
+    # carries; callers who need typed access to (e.g.) KPI.measurement
+    # should reach into `extra` until the codegen pass lands.
     id: str
     name: str
     node_kind: str
     library_id: str
     tenant_id: str
     summary: str = ""
+    # Edges are first-class — canvas + agents both need them on every
+    # get_node hit without rummaging through `extra`.
+    edges: list[LibraryNodeEdge] = []
 
-    # Keep the raw payload around for fields we haven't strongly typed yet.
+    # Holds ONLY the fields that aren't already on this model — kind-
+    # specific stuff like Fact.statement, KPI.measurement, ViewStub.
+    # output_schema. Populated by `_node_from_get` via set-difference so
+    # we don't duplicate the typed fields on the wire.
     extra: dict[str, Any] = {}

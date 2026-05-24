@@ -31,7 +31,18 @@ from ..types.library import (
 )
 
 
+_LIBRARY_NODE_TYPED_FIELDS = frozenset({
+    "_id", "id", "name", "node_kind", "library_id", "tenant_id",
+    "summary", "edges",
+})
+
+
 def _node_from_get(payload: dict[str, Any]) -> LibraryNode:
+    # `extra` carries ONLY the kind-specific + system fields that aren't
+    # already first-class on LibraryNode. Pre-fix the SDK stuffed the
+    # ENTIRE payload into `extra`, duplicating every typed field — caught
+    # in the 2026-05-24 CLI sweep.
+    extra = {k: v for k, v in payload.items() if k not in _LIBRARY_NODE_TYPED_FIELDS}
     return LibraryNode(
         id=payload.get("_id") or payload.get("id", ""),
         name=payload.get("name", ""),
@@ -39,7 +50,8 @@ def _node_from_get(payload: dict[str, Any]) -> LibraryNode:
         library_id=payload.get("library_id", ""),
         tenant_id=payload.get("tenant_id", ""),
         summary=payload.get("summary", ""),
-        extra=payload,
+        edges=payload.get("edges", []),
+        extra=extra,
     )
 
 
