@@ -205,6 +205,52 @@ def get_node(
         )
 
 
+# ── Backfill ───────────────────────────────────────────────────────────────
+
+
+@library_app.command("backfill")
+def backfill(
+    ctx: typer.Context,
+    library_id: str = typer.Option(..., "--library-id", "-l", help="Target Library _id."),
+    include_series: bool = typer.Option(
+        True,
+        "--include-series/--no-series",
+        help="Emit one SeriesStub per source column (capped per source).",
+    ),
+) -> None:
+    """Backfill ConnectorStub/SourceStub/ViewStub/SeriesStub from the tenant's
+    legacy connectors + sources collections into the Data Library graph.
+
+    Idempotent. Safe to re-run after bulk imports until dual-write hooks ship.
+    """
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    try:
+        result = client.library.backfill(
+            library_id=library_id, include_series=include_series
+        )
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+
+    if obj.get("json"):
+        print_json(result.model_dump())
+        return
+
+    print_success(f"Backfill complete into {result.library_id}")
+    print_detail(
+        {**result.counts, "library_id": result.library_id, "tenant_id": result.tenant_id},
+        [
+            ("connectors", "Connectors"),
+            ("sources", "Sources"),
+            ("views", "Views"),
+            ("series", "Series"),
+            ("skipped", "Skipped (already present)"),
+            ("library_id", "Library"),
+            ("tenant_id", "Tenant"),
+        ],
+    )
+
+
 # ── Search ─────────────────────────────────────────────────────────────────
 
 

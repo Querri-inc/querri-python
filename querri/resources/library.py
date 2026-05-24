@@ -11,6 +11,7 @@ from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from ..types.library import (
+    BackfillResponse,
     HealthResponse,
     LibraryNode,
     LibraryNodeSummary,
@@ -129,6 +130,17 @@ class Library:
         resp = self._http.post("/library/search", json=body)
         return SearchResponse.model_validate(resp.json())
 
+    # ── Backfill ────────────────────────────────────────────────────────────
+
+    def backfill(
+        self, *, library_id: str, include_series: bool = True
+    ) -> BackfillResponse:
+        resp = self._http.post(
+            "/library/backfill",
+            json={"library_id": library_id, "include_series": include_series},
+        )
+        return BackfillResponse.model_validate(resp.json())
+
     # ── Health ──────────────────────────────────────────────────────────────
 
     def health(self) -> HealthResponse:
@@ -219,6 +231,15 @@ class AsyncLibrary:
             body["node_kinds"] = node_kinds
         resp = await self._http.post("/library/search", json=body)
         return SearchResponse.model_validate(resp.json())
+
+    async def backfill(
+        self, *, library_id: str, include_series: bool = True
+    ) -> BackfillResponse:
+        resp = await self._http.post(
+            "/library/backfill",
+            json={"library_id": library_id, "include_series": include_series},
+        )
+        return BackfillResponse.model_validate(resp.json())
 
     async def health(self) -> HealthResponse:
         resp = await self._http.get("/library/health")

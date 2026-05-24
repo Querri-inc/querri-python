@@ -45,6 +45,12 @@ class HealthResponse(_LibraryBase):
     embedding_model: str
 
 
+class BackfillResponse(_LibraryBase):
+    library_id: str
+    tenant_id: str
+    counts: dict[str, int]
+
+
 class LibraryNode(_LibraryBase):
     # Permissive — we don't enforce every field server-side carries; callers
     # who need typed access to (e.g.) KPI.measurement should reach into the
