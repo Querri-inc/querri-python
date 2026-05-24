@@ -207,6 +207,7 @@ See **[docs/server-sdk.md](docs/server-sdk.md#user-scoped-client-as_user)** for 
 | `client.projects.chats` | Chats within projects | `create`, `list`, `get`, `stream`, `cancel`, `delete` |
 | `client.sources` | Sources, connectors & data | `list`, `create`, `create_data_source`, `query`, `source_data`, `append_rows`, `replace_data`, `ask`, `sync`, `list_connectors` |
 | `client.views` | SQL-defined views | `list`, `create`, `get`, `update`, `delete`, `run`, `get_run`, `wait_for_run`, `preview`, `chat` |
+| `client.library` | Data Library — graph + librarian agent | `create_library`, `create_collection`, `create_anchor_question`, `create_refining_question`, `link`, `status`, `list_nodes`, `get_node`, `search`, `zoom`, `record_fact`, `chat`, `chat_stream`, `backfill`, `seed_fixture`, `health` |
 | `client.files` | File management | `upload`, `list`, `get`, `delete` |
 | `client.keys` | API key management | `create`, `list`, `get`, `delete` |
 | `client.sharing` | Sharing & permissions | `share_project`, `share_dashboard`, `share_source`, `list_project_shares`, `list_dashboard_shares`, `revoke_project_share`, `revoke_dashboard_share`, `org_share_source` |
