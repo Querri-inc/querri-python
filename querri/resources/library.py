@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator, Iterator
-from typing import Any
+from typing import Any, TypeVar
+
+from pydantic import BaseModel
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from ..types.library import (
@@ -39,6 +41,37 @@ def _node_from_get(payload: dict[str, Any]) -> LibraryNode:
         summary=payload.get("summary", ""),
         extra=payload,
     )
+
+
+_TModel = TypeVar("_TModel", bound=BaseModel)
+
+
+def _unwrap_envelope(
+    envelope_json: dict[str, Any], model: type[_TModel]
+) -> _TModel:
+    """Unwrap a SPEC §5.1 server envelope into a flat SDK model instance.
+
+    The wire shape is `{data: {...}, library_id, telemetry, cursor?}`. The
+    SDK keeps each response model flat (caller doesn't pay the envelope
+    cost) so this helper splats `data` into the model and adds
+    `library_id` from the envelope top-level so models like StatusResponse
+    that carry a `library_id` field land correctly.
+
+    `model_config = ConfigDict(extra="ignore")` on `_LibraryBase` lets
+    telemetry/cursor fall away cleanly when the caller doesn't model them.
+    Endpoints whose `data` is a list (paginated routes) get a different
+    helper at C2.2 sweep time — pilot is single-object only.
+    """
+    data = envelope_json.get("data")
+    if not isinstance(data, dict):
+        raise TypeError(
+            f"Envelope `data` is {type(data).__name__}, not dict. "
+            "Use a list-aware unwrap for paginated endpoints."
+        )
+    return model.model_validate({
+        "library_id": envelope_json.get("library_id"),
+        **data,
+    })
 
 
 class Library:
@@ -145,10 +178,13 @@ class Library:
         return LinkResponse.model_validate(resp.json())
 
     def status(self, *, library_id: str) -> StatusResponse:
+        # WS-C2.1 pilot: server returns SPEC §5.1 envelope `{data, library_id,
+        # telemetry}`. Unwrap to keep the caller-facing StatusResponse flat
+        # (`.counts_by_kind`, `.total_nodes`, `.tenant_id`, `.library_id`).
         resp = self._http.get(
             f"/library/status?library_id={library_id}"
         )
-        return StatusResponse.model_validate(resp.json())
+        return _unwrap_envelope(resp.json(), StatusResponse)
 
     def list_nodes(
         self, *, library_id: str, node_kind: str, limit: int = 100
@@ -432,10 +468,11 @@ class AsyncLibrary:
         return LinkResponse.model_validate(resp.json())
 
     async def status(self, *, library_id: str) -> StatusResponse:
+        # WS-C2.1 pilot: see Library.status() for the unwrap rationale.
         resp = await self._http.get(
             f"/library/status?library_id={library_id}"
         )
-        return StatusResponse.model_validate(resp.json())
+        return _unwrap_envelope(resp.json(), StatusResponse)
 
     async def list_nodes(
         self, *, library_id: str, node_kind: str, limit: int = 100
