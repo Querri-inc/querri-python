@@ -484,49 +484,82 @@ def chat_cmd(
         if last:
             resolved_chat = str(last)
 
-    try:
-        result = client.library.chat(
-            library_id=lib_id, message=message, chat_id=resolved_chat
-        )
-    except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
-
-    # Remember the chat_id for this library so the next message continues
-    # the same conversation by default.
-    ctx_data[f"chat_id::{lib_id}"] = result.chat_id
-    _write_library_context(ctx_data)
-
     if obj.get("json"):
+        # JSON mode: drain everything into one ChatResponse.
+        try:
+            result = client.library.chat(
+                library_id=lib_id, message=message, chat_id=resolved_chat
+            )
+        except Exception as exc:
+            raise typer.Exit(
+                code=handle_api_error(exc, is_json=True)
+            ) from None
+        ctx_data[f"chat_id::{lib_id}"] = result.chat_id
+        _write_library_context(ctx_data)
         print_json(result.model_dump())
         return
 
-    print_detail(
-        {
-            "chat_id": result.chat_id,
-            "turns_used": result.turns_used,
-            "total_ms": result.total_ms,
-            "stop_reason": result.stop_reason,
-            "tokens": f"in={result.input_tokens} out={result.output_tokens}",
-        },
-        [
-            ("chat_id", "Chat"),
-            ("turns_used", "Turns"),
-            ("total_ms", "ms"),
-            ("stop_reason", "Stop"),
-            ("tokens", "Tokens"),
-        ],
-    )
+    # Interactive: stream events to the terminal as they arrive.
+    import json as _json
+    final_chat_id = resolved_chat or ""
+    assistant_text = ""
+    try:
+        for ev in client.library.chat_stream(
+            library_id=lib_id, message=message, chat_id=resolved_chat
+        ):
+            etype = ev.get("type")
+            if etype == "tool_use" and show_tools:
+                inp_preview = _json.dumps(ev.get("input", {}), default=str)[:140]
+                print(f"  • {ev.get('name', '?')}({inp_preview})", flush=True)
+            elif etype == "tool_result" and show_tools:
+                dur = ev.get("duration_ms", 0)
+                res = ev.get("result", {})
+                if isinstance(res, dict) and "error" in res:
+                    print(f"    ✗ {ev.get('name', '?')} errored in {dur}ms: {res['error'][:120]}", flush=True)
+                else:
+                    keys = list(res.keys())[:5] if isinstance(res, dict) else []
+                    print(f"    ✓ {ev.get('name', '?')} → {keys} ({dur}ms)", flush=True)
+            elif etype == "tool_progress" and show_tools:
+                # Pass-through Views-agent chunk — terse marker only.
+                print(".", end="", flush=True)
+            elif etype == "assistant_text":
+                assistant_text = ev.get("text", "")
+            elif etype == "done":
+                final_chat_id = ev.get("chat_id", final_chat_id)
+                if show_tools:
+                    print()  # newline after progress dots
+                if not assistant_text:
+                    assistant_text = ev.get("assistant_message", "")
+                print()
+                print(assistant_text)
+                print()
+                print_detail(
+                    {
+                        "chat_id": final_chat_id,
+                        "turns_used": ev.get("turns_used", 0),
+                        "total_ms": ev.get("total_ms", 0),
+                        "stop_reason": ev.get("stop_reason", ""),
+                        "tokens": f"in={ev.get('input_tokens', 0)} out={ev.get('output_tokens', 0)}",
+                    },
+                    [
+                        ("chat_id", "Chat"),
+                        ("turns_used", "Turns"),
+                        ("total_ms", "ms"),
+                        ("stop_reason", "Stop"),
+                        ("tokens", "Tokens"),
+                    ],
+                )
+            elif etype == "error":
+                print_error(ev.get("message", "stream error"))
+                raise typer.Exit(code=1)
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=False)) from None
 
-    if show_tools and result.tool_calls:
-        print()
-        print_success(f"Tool calls ({len(result.tool_calls)}):")
-        for tc in result.tool_calls:
-            preview = ", ".join(f"{k}={v!r}" for k, v in tc.input.items())[:120]
-            print(f"  • {tc.name}({preview}) — {tc.duration_ms}ms")
-
-    print()
-    # The assistant message is the main payload — print it raw, no table.
-    print(result.assistant_message)
+    # Persist active chat_id so the next CLI invocation continues this chat.
+    ctx_data[f"chat_id::{lib_id}"] = final_chat_id
+    _write_library_context(ctx_data)
 
 
 # ── Facts (Phase 2) ────────────────────────────────────────────────────────

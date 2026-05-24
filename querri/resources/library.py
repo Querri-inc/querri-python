@@ -7,6 +7,8 @@ semantic search, health probe.
 
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
@@ -220,6 +222,36 @@ class Library:
         resp = self._http.post("/library/facts", json=body)
         return FactResponse.model_validate(resp.json())
 
+    def chat_stream(
+        self,
+        *,
+        library_id: str,
+        message: str,
+        chat_id: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        """Stream LibrarianAgent events. Yields parsed event dicts as they
+        arrive — typically `tool_use`, `tool_progress`, `tool_result`,
+        `assistant_text`, and finally `done`.
+        """
+        body: dict[str, Any] = {"library_id": library_id, "message": message}
+        if chat_id:
+            body["chat_id"] = chat_id
+        # httpx.Client.stream is a context manager; yield from inside it.
+        with self._http._client.stream(  # type: ignore[attr-defined]
+            "POST", "/library/chat", json=body
+        ) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line or not line.startswith("data: "):
+                    continue
+                payload = line[len("data: "):]
+                if payload == "[DONE]":
+                    break
+                try:
+                    yield json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+
     def chat(
         self,
         *,
@@ -227,11 +259,38 @@ class Library:
         message: str,
         chat_id: str | None = None,
     ) -> ChatResponse:
-        body: dict[str, Any] = {"library_id": library_id, "message": message}
-        if chat_id:
-            body["chat_id"] = chat_id
-        resp = self._http.post("/library/chat", json=body)
-        return ChatResponse.model_validate(resp.json())
+        # Drain the stream into the legacy ChatResponse shape so callers
+        # that don't care about incremental events get a single object.
+        tool_calls: list[dict[str, Any]] = []
+        final = ChatResponse(
+            chat_id=chat_id or "",
+            library_id=library_id,
+            assistant_message="",
+        )
+        for ev in self.chat_stream(
+            library_id=library_id, message=message, chat_id=chat_id
+        ):
+            etype = ev.get("type")
+            if etype == "tool_result":
+                tool_calls.append({
+                    "name": ev.get("name", ""),
+                    "input": ev.get("input", {}),
+                    "result": ev.get("result", {}),
+                    "duration_ms": ev.get("duration_ms", 0),
+                })
+            elif etype == "done":
+                final = ChatResponse(
+                    chat_id=ev.get("chat_id", chat_id or ""),
+                    library_id=ev.get("library_id", library_id),
+                    assistant_message=ev.get("assistant_message", ""),
+                    tool_calls=tool_calls,  # type: ignore[arg-type]
+                    turns_used=ev.get("turns_used", 0),
+                    stop_reason=ev.get("stop_reason", ""),
+                    input_tokens=ev.get("input_tokens", 0),
+                    output_tokens=ev.get("output_tokens", 0),
+                    total_ms=ev.get("total_ms", 0),
+                )
+        return final
 
     # ── Read ────────────────────────────────────────────────────────────────
 
@@ -450,6 +509,31 @@ class AsyncLibrary:
         resp = await self._http.post("/library/facts", json=body)
         return FactResponse.model_validate(resp.json())
 
+    async def chat_stream(
+        self,
+        *,
+        library_id: str,
+        message: str,
+        chat_id: str | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        body: dict[str, Any] = {"library_id": library_id, "message": message}
+        if chat_id:
+            body["chat_id"] = chat_id
+        async with self._http._client.stream(  # type: ignore[attr-defined]
+            "POST", "/library/chat", json=body
+        ) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if not line or not line.startswith("data: "):
+                    continue
+                payload = line[len("data: "):]
+                if payload == "[DONE]":
+                    break
+                try:
+                    yield json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+
     async def chat(
         self,
         *,
@@ -457,11 +541,36 @@ class AsyncLibrary:
         message: str,
         chat_id: str | None = None,
     ) -> ChatResponse:
-        body: dict[str, Any] = {"library_id": library_id, "message": message}
-        if chat_id:
-            body["chat_id"] = chat_id
-        resp = await self._http.post("/library/chat", json=body)
-        return ChatResponse.model_validate(resp.json())
+        tool_calls: list[dict[str, Any]] = []
+        final = ChatResponse(
+            chat_id=chat_id or "",
+            library_id=library_id,
+            assistant_message="",
+        )
+        async for ev in self.chat_stream(
+            library_id=library_id, message=message, chat_id=chat_id
+        ):
+            etype = ev.get("type")
+            if etype == "tool_result":
+                tool_calls.append({
+                    "name": ev.get("name", ""),
+                    "input": ev.get("input", {}),
+                    "result": ev.get("result", {}),
+                    "duration_ms": ev.get("duration_ms", 0),
+                })
+            elif etype == "done":
+                final = ChatResponse(
+                    chat_id=ev.get("chat_id", chat_id or ""),
+                    library_id=ev.get("library_id", library_id),
+                    assistant_message=ev.get("assistant_message", ""),
+                    tool_calls=tool_calls,  # type: ignore[arg-type]
+                    turns_used=ev.get("turns_used", 0),
+                    stop_reason=ev.get("stop_reason", ""),
+                    input_tokens=ev.get("input_tokens", 0),
+                    output_tokens=ev.get("output_tokens", 0),
+                    total_ms=ev.get("total_ms", 0),
+                )
+        return final
 
     async def get_node(self, node_id: str) -> LibraryNode:
         resp = await self._http.get(f"/library/nodes/{node_id}")
