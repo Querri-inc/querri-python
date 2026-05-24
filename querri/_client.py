@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from .resources.embed import AsyncEmbed, Embed
     from .resources.files import AsyncFiles, Files
     from .resources.keys import AsyncKeys, Keys
+    from .resources.library import AsyncLibrary, Library
     from .resources.policies import AsyncPolicies, Policies
     from .resources.projects import AsyncProjects, Projects
     from .resources.sharing import AsyncSharing, Sharing
@@ -87,6 +88,7 @@ class Querri:
         self._sharing: object | None = None
         self._usage: object | None = None
         self._audit: object | None = None
+        self._library: object | None = None
 
     @property
     def users(self) -> "Users":
@@ -184,6 +186,14 @@ class Querri:
             self._audit = Audit(self._http)
         return self._audit  # type: ignore[return-value]
 
+    @property
+    def library(self) -> "Library":
+        if self._library is None:
+            from .resources.library import Library
+
+            self._library = Library(self._http)
+        return self._library  # type: ignore[return-value]
+
     def as_user(self, session: dict[str, Any]) -> "UserQuerri":
         """Create a user-scoped client from a ``get_session()`` result.
 
@@ -270,6 +280,7 @@ class AsyncQuerri:
         self._sharing: object | None = None
         self._usage: object | None = None
         self._audit: object | None = None
+        self._library: object | None = None
 
     @property
     def users(self) -> "AsyncUsers":
@@ -366,6 +377,14 @@ class AsyncQuerri:
 
             self._audit = AsyncAudit(self._http)
         return self._audit  # type: ignore[return-value]
+
+    @property
+    def library(self) -> "AsyncLibrary":
+        if self._library is None:
+            from .resources.library import AsyncLibrary
+
+            self._library = AsyncLibrary(self._http)
+        return self._library  # type: ignore[return-value]
 
     def as_user(self, session: dict[str, Any]) -> "AsyncUserQuerri":
         """Create a user-scoped async client from a ``get_session()`` result.
