@@ -94,6 +94,12 @@ class ZoomFocalNode(_LibraryBase):
     confidence_tier: str = ""
 
 
+class EdgeStrengthFactors(_LibraryBase):
+    semantic_affinity: float = 0.0
+    base_confidence: float = 1.0
+    distance_decay: float = 1.0
+
+
 class ZoomSubgraphNode(_LibraryBase):
     node_id: str
     name: str = ""
@@ -103,12 +109,19 @@ class ZoomSubgraphNode(_LibraryBase):
     edge_path: list[str] = []
     hops: int = 0
     edge_strength: float = 0.0
+    edge_strength_factors: EdgeStrengthFactors | None = None
 
 
 class ZoomSubgraphEdge(_LibraryBase):
     from_: str = ""
     to: str = ""
     relation: str = ""
+    weight: float = 1.0
+    confidence: float = 1.0
+    source: str = ""
+    frequency_count: int = 0
+    salience_score: float = 0.0
+    created_at: str = ""
 
     # JSON key is `from` (Python reserved word) — alias the field.
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
