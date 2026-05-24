@@ -532,6 +532,158 @@ def backfill(
     )
 
 
+# ── Zoom (vector-seeded multi-focal graph zoom) ───────────────────────────
+
+
+@library_app.command("zoom")
+def zoom_cmd(
+    ctx: typer.Context,
+    query: str = typer.Argument(
+        None,
+        help="Query to embed + resolve focals from. Omit if --focal is provided.",
+    ),
+    library_id: str = typer.Option(
+        None, "--library-id", "-l", help="Library (defaults to active)."
+    ),
+    focal_ids: list[str] = typer.Option(
+        None, "--focal", "-F",
+        help="Skip ANN and zoom directly from these node IDs (repeatable).",
+    ),
+    zoom: int = typer.Option(
+        25, "--zoom", "-z", min=1, max=100,
+        help="Zoom level: 1=tight, 100=wide. distance_decay = (zoom/100)^hops.",
+    ),
+    budget_tokens: int = typer.Option(
+        2000, "--budget", "-b", min=200, max=20000,
+        help="Approximate token budget for the assembled subgraph.",
+    ),
+    top_k_focal: int = typer.Option(5, "--top-k", "-k", min=1, max=20),
+    confidence_floor: float = typer.Option(
+        0.55, "--threshold", "-t", min=0.0, max=1.0,
+        help="Drop focal candidates below this cosine similarity.",
+    ),
+    kinds: list[str] = typer.Option(
+        None, "--kind", help="Filter focal candidates by node_kind (repeatable)."
+    ),
+    explain: bool = typer.Option(
+        False, "--explain", help="Show timing breakdown + algorithm decisions.",
+    ),
+) -> None:
+    """Vector-seeded multi-focal graph zoom.
+
+    Returns the focal nodes resolved from the query embedding plus the
+    subgraph traversed outward (up to 2 hops), scored by edge_strength ×
+    distance_decay. The patent-defensible retrieval primitive.
+    """
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    lib_id = _resolve_library_id(library_id)
+    if not query and not focal_ids:
+        print_error("Pass a query argument or --focal <id> (repeatable).")
+        raise typer.Exit(code=1)
+    try:
+        result = client.library.zoom(
+            library_id=lib_id,
+            query=query,
+            focal_ids=focal_ids or None,
+            zoom=zoom,
+            budget_tokens=budget_tokens,
+            top_k_focal=top_k_focal,
+            confidence_floor=confidence_floor,
+            node_kinds=kinds or None,
+        )
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+
+    if obj.get("json"):
+        print_json(result.model_dump())
+        return
+
+    if explain:
+        s = result.stats
+        print_detail(
+            {
+                "embedding_model": result.embedding_model,
+                "embed_ms": s.embed_ms,
+                "qdrant_ann_ms": s.qdrant_ann_ms,
+                "mongo_traverse_ms": s.mongo_traverse_ms,
+                "total_ms": s.total_ms,
+                "focal_count": s.focal_count,
+                "subgraph_node_count": s.subgraph_node_count,
+                "candidates_considered": s.candidates_considered,
+                "budget_used_chars": s.budget_used_chars,
+                "budget_used_pct": s.budget_used_pct,
+                "kind_diversity_rebalance_applied":
+                    s.kind_diversity_rebalance_applied,
+                "confidence_floor": s.confidence_floor,
+                "zoom": s.zoom,
+            },
+            [
+                ("embedding_model", "Embedding model"),
+                ("embed_ms", "Embed (ms)"),
+                ("qdrant_ann_ms", "ANN (ms)"),
+                ("mongo_traverse_ms", "Traverse (ms)"),
+                ("total_ms", "Total (ms)"),
+                ("focal_count", "Focals"),
+                ("subgraph_node_count", "Subgraph size"),
+                ("candidates_considered", "Candidates"),
+                ("budget_used_pct", "Budget used (%)"),
+                ("budget_used_chars", "Budget used (chars)"),
+                ("kind_diversity_rebalance_applied", "Kind-diversity rebalance"),
+                ("confidence_floor", "Confidence floor"),
+                ("zoom", "Zoom"),
+            ],
+        )
+        print()
+
+    if not result.focal_nodes:
+        print_error(
+            "No focal nodes cleared the confidence threshold. "
+            f"Lower --threshold (current: {confidence_floor}) or refine the query."
+        )
+        raise typer.Exit(code=3)
+
+    print_success(f"Focals ({len(result.focal_nodes)}):")
+    print_table(
+        [
+            {
+                "score": f"{f.score:.3f}",
+                "tier": f.confidence_tier,
+                "kind": f.node_kind,
+                "name": f.name,
+                "id": f.node_id,
+            }
+            for f in result.focal_nodes
+        ],
+        [
+            ("score", "Score"), ("tier", "Tier"), ("kind", "Kind"),
+            ("name", "Name"), ("id", "ID"),
+        ],
+    )
+    print()
+    print_success(
+        f"Subgraph ({len(result.subgraph_nodes)} nodes, "
+        f"{result.stats.subgraph_node_count} total, "
+        f"{result.stats.budget_used_pct}% of budget):"
+    )
+    print_table(
+        [
+            {
+                "strength": f"{n.edge_strength:.3f}",
+                "hops": n.hops,
+                "kind": n.node_kind,
+                "name": n.name,
+                "path": "/".join(n.edge_path) or "(focal)",
+            }
+            for n in result.subgraph_nodes
+        ],
+        [
+            ("strength", "Strength"), ("hops", "Hops"),
+            ("kind", "Kind"), ("name", "Name"), ("path", "Path"),
+        ],
+    )
+
+
 # ── Search ─────────────────────────────────────────────────────────────────
 
 

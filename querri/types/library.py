@@ -85,6 +85,61 @@ class LinkResponse(_LibraryBase):
     tenant_id: str
 
 
+class ZoomFocalNode(_LibraryBase):
+    node_id: str
+    score: float
+    name: str = ""
+    node_kind: str = ""
+    summary: str = ""
+    confidence_tier: str = ""
+
+
+class ZoomSubgraphNode(_LibraryBase):
+    node_id: str
+    name: str = ""
+    node_kind: str = ""
+    summary: str = ""
+    from_focal: str = ""
+    edge_path: list[str] = []
+    hops: int = 0
+    edge_strength: float = 0.0
+
+
+class ZoomSubgraphEdge(_LibraryBase):
+    from_: str = ""
+    to: str = ""
+    relation: str = ""
+
+    # JSON key is `from` (Python reserved word) — alias the field.
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+
+class ZoomStats(_LibraryBase):
+    embed_ms: int = 0
+    qdrant_ann_ms: int = 0
+    mongo_traverse_ms: int = 0
+    total_ms: int = 0
+    focal_count: int = 0
+    subgraph_node_count: int = 0
+    candidates_considered: int = 0
+    budget_used_chars: int = 0
+    budget_used_pct: int = 0
+    kind_diversity_rebalance_applied: bool = False
+    confidence_floor: float = 0.0
+    zoom: int = 0
+
+
+class ZoomResponse(_LibraryBase):
+    query: str = ""
+    library_id: str
+    tenant_id: str
+    embedding_model: str = ""
+    focal_nodes: list[ZoomFocalNode] = []
+    subgraph_nodes: list[ZoomSubgraphNode] = []
+    subgraph_edges: list[dict[str, Any]] = []  # raw — `from` is reserved
+    stats: ZoomStats
+
+
 class LibraryNode(_LibraryBase):
     # Permissive — we don't enforce every field server-side carries; callers
     # who need typed access to (e.g.) KPI.measurement should reach into the

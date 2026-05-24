@@ -21,6 +21,7 @@ from ..types.library import (
     SearchResponse,
     SeedFixtureResponse,
     StatusResponse,
+    ZoomResponse,
 )
 
 
@@ -162,6 +163,36 @@ class Library:
             json={"library_id": library_id, "fixture": fixture},
         )
         return SeedFixtureResponse.model_validate(resp.json())
+
+    def zoom(
+        self,
+        *,
+        library_id: str,
+        query: str | None = None,
+        focal_ids: list[str] | None = None,
+        zoom: int = 25,
+        budget_tokens: int = 2000,
+        top_k_focal: int = 5,
+        confidence_floor: float = 0.55,
+        node_kinds: list[str] | None = None,
+    ) -> ZoomResponse:
+        if query is None and not focal_ids:
+            raise ValueError("Provide `query` or `focal_ids`.")
+        body: dict[str, Any] = {
+            "library_id": library_id,
+            "zoom": zoom,
+            "budget_tokens": budget_tokens,
+            "top_k_focal": top_k_focal,
+            "confidence_floor": confidence_floor,
+        }
+        if query is not None:
+            body["query"] = query
+        if focal_ids:
+            body["focal_ids"] = focal_ids
+        if node_kinds:
+            body["node_kinds"] = node_kinds
+        resp = self._http.post("/library/zoom", json=body)
+        return ZoomResponse.model_validate(resp.json())
 
     # ── Read ────────────────────────────────────────────────────────────────
 
@@ -325,6 +356,36 @@ class AsyncLibrary:
             json={"library_id": library_id, "fixture": fixture},
         )
         return SeedFixtureResponse.model_validate(resp.json())
+
+    async def zoom(
+        self,
+        *,
+        library_id: str,
+        query: str | None = None,
+        focal_ids: list[str] | None = None,
+        zoom: int = 25,
+        budget_tokens: int = 2000,
+        top_k_focal: int = 5,
+        confidence_floor: float = 0.55,
+        node_kinds: list[str] | None = None,
+    ) -> ZoomResponse:
+        if query is None and not focal_ids:
+            raise ValueError("Provide `query` or `focal_ids`.")
+        body: dict[str, Any] = {
+            "library_id": library_id,
+            "zoom": zoom,
+            "budget_tokens": budget_tokens,
+            "top_k_focal": top_k_focal,
+            "confidence_floor": confidence_floor,
+        }
+        if query is not None:
+            body["query"] = query
+        if focal_ids:
+            body["focal_ids"] = focal_ids
+        if node_kinds:
+            body["node_kinds"] = node_kinds
+        resp = await self._http.post("/library/zoom", json=body)
+        return ZoomResponse.model_validate(resp.json())
 
     async def get_node(self, node_id: str) -> LibraryNode:
         resp = await self._http.get(f"/library/nodes/{node_id}")
