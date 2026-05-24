@@ -129,6 +129,25 @@ class ZoomStats(_LibraryBase):
     zoom: int = 0
 
 
+class ChatToolCall(_LibraryBase):
+    name: str
+    input: dict[str, Any]
+    result: dict[str, Any]
+    duration_ms: int
+
+
+class ChatResponse(_LibraryBase):
+    chat_id: str
+    library_id: str
+    assistant_message: str
+    tool_calls: list[ChatToolCall] = []
+    turns_used: int = 0
+    stop_reason: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_ms: int = 0
+
+
 class FactResponse(_LibraryBase):
     id: str
     name: str

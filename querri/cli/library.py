@@ -443,6 +443,92 @@ def link_nodes(
     print_success(f"Linked: {a_id} ←{result.relation}→ {b_id}")
 
 
+# ── Chat (LibrarianAgent — Phase 2) ────────────────────────────────────────
+
+
+@library_app.command("chat")
+def chat_cmd(
+    ctx: typer.Context,
+    message: str = typer.Argument(..., help="Message to send to the Librarian."),
+    library_id: str = typer.Option(
+        None, "--library-id", "-l", help="Library (defaults to active)."
+    ),
+    chat_id: str = typer.Option(
+        None,
+        "--chat-id",
+        "-c",
+        help="Continue a specific chat. Defaults to the last chat for this library.",
+    ),
+    new: bool = typer.Option(
+        False,
+        "--new",
+        "-n",
+        help="Start a fresh chat, ignoring the active chat_id.",
+    ),
+    show_tools: bool = typer.Option(
+        False,
+        "--show-tools",
+        help="Show the agent's tool-call trace alongside the assistant message.",
+    ),
+) -> None:
+    """Chat with the Librarian agent — search, record facts, commission views."""
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    lib_id = _resolve_library_id(library_id)
+
+    ctx_data = _read_library_context()
+    resolved_chat = chat_id
+    if not resolved_chat and not new:
+        # Re-use last chat for THIS library if one exists in workspace state.
+        last = ctx_data.get(f"chat_id::{lib_id}")
+        if last:
+            resolved_chat = str(last)
+
+    try:
+        result = client.library.chat(
+            library_id=lib_id, message=message, chat_id=resolved_chat
+        )
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+
+    # Remember the chat_id for this library so the next message continues
+    # the same conversation by default.
+    ctx_data[f"chat_id::{lib_id}"] = result.chat_id
+    _write_library_context(ctx_data)
+
+    if obj.get("json"):
+        print_json(result.model_dump())
+        return
+
+    print_detail(
+        {
+            "chat_id": result.chat_id,
+            "turns_used": result.turns_used,
+            "total_ms": result.total_ms,
+            "stop_reason": result.stop_reason,
+            "tokens": f"in={result.input_tokens} out={result.output_tokens}",
+        },
+        [
+            ("chat_id", "Chat"),
+            ("turns_used", "Turns"),
+            ("total_ms", "ms"),
+            ("stop_reason", "Stop"),
+            ("tokens", "Tokens"),
+        ],
+    )
+
+    if show_tools and result.tool_calls:
+        print()
+        print_success(f"Tool calls ({len(result.tool_calls)}):")
+        for tc in result.tool_calls:
+            preview = ", ".join(f"{k}={v!r}" for k, v in tc.input.items())[:120]
+            print(f"  • {tc.name}({preview}) — {tc.duration_ms}ms")
+
+    print()
+    # The assistant message is the main payload — print it raw, no table.
+    print(result.assistant_message)
+
+
 # ── Facts (Phase 2) ────────────────────────────────────────────────────────
 
 

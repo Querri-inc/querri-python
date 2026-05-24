@@ -12,6 +12,7 @@ from typing import Any
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from ..types.library import (
     BackfillResponse,
+    ChatResponse,
     FactResponse,
     HealthResponse,
     LibraryNode,
@@ -218,6 +219,19 @@ class Library:
             body["name"] = name
         resp = self._http.post("/library/facts", json=body)
         return FactResponse.model_validate(resp.json())
+
+    def chat(
+        self,
+        *,
+        library_id: str,
+        message: str,
+        chat_id: str | None = None,
+    ) -> ChatResponse:
+        body: dict[str, Any] = {"library_id": library_id, "message": message}
+        if chat_id:
+            body["chat_id"] = chat_id
+        resp = self._http.post("/library/chat", json=body)
+        return ChatResponse.model_validate(resp.json())
 
     # ── Read ────────────────────────────────────────────────────────────────
 
@@ -435,6 +449,19 @@ class AsyncLibrary:
             body["name"] = name
         resp = await self._http.post("/library/facts", json=body)
         return FactResponse.model_validate(resp.json())
+
+    async def chat(
+        self,
+        *,
+        library_id: str,
+        message: str,
+        chat_id: str | None = None,
+    ) -> ChatResponse:
+        body: dict[str, Any] = {"library_id": library_id, "message": message}
+        if chat_id:
+            body["chat_id"] = chat_id
+        resp = await self._http.post("/library/chat", json=body)
+        return ChatResponse.model_validate(resp.json())
 
     async def get_node(self, node_id: str) -> LibraryNode:
         resp = await self._http.get(f"/library/nodes/{node_id}")
