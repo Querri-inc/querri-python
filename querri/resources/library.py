@@ -12,6 +12,7 @@ from typing import Any
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from ..types.library import (
     BackfillResponse,
+    FactResponse,
     HealthResponse,
     LibraryNode,
     LibraryNodeSummary,
@@ -193,6 +194,30 @@ class Library:
             body["node_kinds"] = node_kinds
         resp = self._http.post("/library/zoom", json=body)
         return ZoomResponse.model_validate(resp.json())
+
+    def record_fact(
+        self,
+        *,
+        library_id: str,
+        statement: str,
+        fact_kind: str = "contextual_note",
+        source_node_ids: list[str] | None = None,
+        evidence_refs: list[str] | None = None,
+        confidence: float = 1.0,
+        name: str | None = None,
+    ) -> FactResponse:
+        body: dict[str, Any] = {
+            "library_id": library_id,
+            "statement": statement,
+            "fact_kind": fact_kind,
+            "source_node_ids": source_node_ids or [],
+            "evidence_refs": evidence_refs or [],
+            "confidence": confidence,
+        }
+        if name:
+            body["name"] = name
+        resp = self._http.post("/library/facts", json=body)
+        return FactResponse.model_validate(resp.json())
 
     # ── Read ────────────────────────────────────────────────────────────────
 
@@ -386,6 +411,30 @@ class AsyncLibrary:
             body["node_kinds"] = node_kinds
         resp = await self._http.post("/library/zoom", json=body)
         return ZoomResponse.model_validate(resp.json())
+
+    async def record_fact(
+        self,
+        *,
+        library_id: str,
+        statement: str,
+        fact_kind: str = "contextual_note",
+        source_node_ids: list[str] | None = None,
+        evidence_refs: list[str] | None = None,
+        confidence: float = 1.0,
+        name: str | None = None,
+    ) -> FactResponse:
+        body: dict[str, Any] = {
+            "library_id": library_id,
+            "statement": statement,
+            "fact_kind": fact_kind,
+            "source_node_ids": source_node_ids or [],
+            "evidence_refs": evidence_refs or [],
+            "confidence": confidence,
+        }
+        if name:
+            body["name"] = name
+        resp = await self._http.post("/library/facts", json=body)
+        return FactResponse.model_validate(resp.json())
 
     async def get_node(self, node_id: str) -> LibraryNode:
         resp = await self._http.get(f"/library/nodes/{node_id}")

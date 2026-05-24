@@ -443,6 +443,77 @@ def link_nodes(
     print_success(f"Linked: {a_id} ←{result.relation}→ {b_id}")
 
 
+# ── Facts (Phase 2) ────────────────────────────────────────────────────────
+
+
+@library_app.command("record-fact")
+def record_fact(
+    ctx: typer.Context,
+    statement: str = typer.Argument(..., help="The fact statement itself."),
+    library_id: str = typer.Option(
+        None, "--library-id", "-l", help="Library (defaults to active)."
+    ),
+    attach: list[str] = typer.Option(
+        None,
+        "--attach",
+        "-a",
+        help="Node ID this fact is about (repeatable). Creates an ABOUT edge.",
+    ),
+    fact_kind: str = typer.Option(
+        "contextual_note",
+        "--kind",
+        "-k",
+        help="contextual_note | data_quality | timing | scope_constraint",
+    ),
+    evidence: list[str] = typer.Option(
+        None, "--evidence", "-e",
+        help="Evidence URL or doc reference (repeatable).",
+    ),
+    confidence: float = typer.Option(1.0, "--confidence", min=0.0, max=1.0),
+    name: str = typer.Option(None, "--name", help="Display name (default: first 80 chars)."),
+) -> None:
+    """Record a Fact and attach it (via ABOUT edges) to one or more nodes.
+
+    Phase 2 supports the four non-hypothesis fact kinds per Workflow 03.
+    The fact lands as a first-class searchable node in the graph, so the
+    Librarian agent surfaces it on future related queries.
+    """
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    lib_id = _resolve_library_id(library_id)
+    try:
+        fact = client.library.record_fact(
+            library_id=lib_id,
+            statement=statement,
+            fact_kind=fact_kind,
+            source_node_ids=attach or [],
+            evidence_refs=evidence or [],
+            confidence=confidence,
+            name=name,
+        )
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+
+    if obj.get("json"):
+        print_json(fact.model_dump())
+        return
+    if obj.get("quiet"):
+        print_id(fact.id)
+        return
+    print_success(f"Fact recorded: {fact.id}")
+    print_detail(
+        fact.model_dump(),
+        [
+            ("statement", "Statement"),
+            ("fact_kind", "Kind"),
+            ("confidence", "Confidence"),
+            ("id", "ID"),
+        ],
+    )
+    if fact.source_node_ids:
+        print_success(f"  attached to {len(fact.source_node_ids)} node(s) via ABOUT edges")
+
+
 # ── Seed demo ──────────────────────────────────────────────────────────────
 
 

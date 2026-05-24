@@ -129,6 +129,18 @@ class ZoomStats(_LibraryBase):
     zoom: int = 0
 
 
+class FactResponse(_LibraryBase):
+    id: str
+    name: str
+    statement: str
+    fact_kind: str
+    source_node_ids: list[str] = []
+    evidence_refs: list[str] = []
+    confidence: float = 1.0
+    node_kind: str = "Fact"
+    library_id: str
+
+
 class ZoomResponse(_LibraryBase):
     query: str = ""
     library_id: str
