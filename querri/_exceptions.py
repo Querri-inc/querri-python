@@ -153,16 +153,35 @@ def raise_for_status(
         retry_after: Retry-After value from response headers.
     """
     error = body.get("error", {})
-    if isinstance(error, dict):
+    if isinstance(error, dict) and error:
         err_type = str(error.get("type", ""))
         err_code = str(error.get("code", ""))
         err_message = str(error.get("message", f"HTTP {status}"))
         err_doc_url = error.get("doc_url")
     else:
+        # FastAPI's `HTTPException(detail=...)` produces `{"detail": ...}`
+        # with no `error` envelope. Prefer the `detail` payload over a
+        # generic "HTTP {status}" so admin-gate / validation errors carry
+        # the helpful server-side message through to the CLI user.
+        # `detail` may be a string OR a nested dict (FastAPI lets you raise
+        # an HTTPException with a structured detail).
+        detail = body.get("detail")
         err_type = ""
         err_code = ""
-        err_message = str(body) if body else f"HTTP {status}"
         err_doc_url = None
+        if isinstance(detail, str) and detail:
+            err_message = detail
+        elif isinstance(detail, dict) and detail:
+            nested_error = detail.get("error")
+            if isinstance(nested_error, dict) and nested_error:
+                err_type = str(nested_error.get("type", ""))
+                err_code = str(nested_error.get("code", ""))
+                err_message = str(nested_error.get("message", f"HTTP {status}"))
+                err_doc_url = nested_error.get("doc_url")
+            else:
+                err_message = str(detail)
+        else:
+            err_message = str(body) if body else f"HTTP {status}"
 
     exc_class = _STATUS_MAP.get(status, APIError)
 
