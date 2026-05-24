@@ -300,6 +300,22 @@ class Library:
                 except json.JSONDecodeError:
                     continue
 
+    def list_chats(
+        self, *, library_id: str, limit: int = 50
+    ) -> dict[str, Any]:
+        # Enumerate chats for a library — most-recent first. Each item
+        # carries chat_id, message_count, last_user_message_preview,
+        # timestamps. Full history via get_chat(chat_id).
+        resp = self._http.get(
+            f"/library/chats?library_id={library_id}&limit={limit}"
+        )
+        return resp.json()
+
+    def get_chat(self, chat_id: str) -> dict[str, Any]:
+        # Full chat history (every message + tool call) for `chat_id`.
+        resp = self._http.get(f"/library/chats/{chat_id}")
+        return resp.json()
+
     def chat(
         self,
         *,
@@ -594,6 +610,18 @@ class AsyncLibrary:
                     yield json.loads(payload)
                 except json.JSONDecodeError:
                     continue
+
+    async def list_chats(
+        self, *, library_id: str, limit: int = 50
+    ) -> dict[str, Any]:
+        resp = await self._http.get(
+            f"/library/chats?library_id={library_id}&limit={limit}"
+        )
+        return resp.json()
+
+    async def get_chat(self, chat_id: str) -> dict[str, Any]:
+        resp = await self._http.get(f"/library/chats/{chat_id}")
+        return resp.json()
 
     async def chat(
         self,
