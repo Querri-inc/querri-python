@@ -1001,13 +1001,25 @@ def seed_demo(
         "demo-acme",
         "--fixture",
         "-f",
-        help="Fixture name (currently: demo-acme).",
+        help="Fixture name: 'demo-acme' or 'curio' (the multi-system reference business).",
     ),
     library_id: str = typer.Option(
         None, "--library-id", "-l", help="Library _id (defaults to active)."
     ),
+    scale: str = typer.Option(
+        None, "--scale",
+        help="Curio only: data volume tier — test | dev | full (default dev).",
+    ),
+    seed: int = typer.Option(
+        None, "--seed", help="Curio only: RNG seed (default 42) for reproducible data.",
+    ),
 ) -> None:
     """Seed a library with a substantial demo dataset.
+
+    'demo-acme' is the lightweight column-shape fixture. 'curio' is the
+    multi-system reference business (real parquet + knowledge graph + eval set)
+    — pair it with `library intake` then `library eval`. Curio respects
+    --scale (test/dev/full) and --seed.
 
     Idempotent: re-running on the same library produces the same node IDs,
     so the second invocation refreshes timestamps without creating dupes.
@@ -1016,7 +1028,9 @@ def seed_demo(
     client = get_client(ctx)
     lib_id = _resolve_library_id(library_id)
     try:
-        result = client.library.seed_fixture(library_id=lib_id, fixture=fixture)
+        result = client.library.seed_fixture(
+            library_id=lib_id, fixture=fixture, seed=seed, scale=scale
+        )
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 

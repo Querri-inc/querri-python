@@ -238,12 +238,15 @@ class Library:
         return _unwrap_envelope(resp.json(), NodeListResponse)
 
     def seed_fixture(
-        self, *, library_id: str, fixture: str
+        self, *, library_id: str, fixture: str,
+        seed: int | None = None, scale: str | None = None,
     ) -> SeedFixtureResponse:
-        resp = self._http.post(
-            "/library/seed-fixture",
-            json={"library_id": library_id, "fixture": fixture},
-        )
+        body: dict = {"library_id": library_id, "fixture": fixture}
+        if seed is not None:
+            body["seed"] = seed
+        if scale is not None:
+            body["scale"] = scale
+        resp = self._http.post("/library/seed-fixture", json=body)
         return SeedFixtureResponse.model_validate(resp.json())
 
     def zoom(
@@ -671,12 +674,15 @@ class AsyncLibrary:
         return _unwrap_envelope(resp.json(), NodeListResponse)
 
     async def seed_fixture(
-        self, *, library_id: str, fixture: str
+        self, *, library_id: str, fixture: str,
+        seed: int | None = None, scale: str | None = None,
     ) -> SeedFixtureResponse:
-        resp = await self._http.post(
-            "/library/seed-fixture",
-            json={"library_id": library_id, "fixture": fixture},
-        )
+        body: dict = {"library_id": library_id, "fixture": fixture}
+        if seed is not None:
+            body["seed"] = seed
+        if scale is not None:
+            body["scale"] = scale
+        resp = await self._http.post("/library/seed-fixture", json=body)
         return SeedFixtureResponse.model_validate(resp.json())
 
     async def zoom(
