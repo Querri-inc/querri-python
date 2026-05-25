@@ -79,7 +79,9 @@ class AskResponse(_LibraryBase):
     question: str
     declined: bool
     answer: str
+    outcome: str = ""
     provenance: dict | None = None
+    attempted: dict | None = None  # surfaced on decline: source + attempted_sql
     total_rows: int = 0
     data: list = []
 

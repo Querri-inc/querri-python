@@ -1172,7 +1172,13 @@ def ask(
         return
 
     if result.declined:
-        print_detail({"a": result.answer}, [("a", "Declined")])
+        att = result.attempted or {}
+        print_detail(
+            {"a": result.answer,
+             "sql": att.get("attempted_sql") or "—",
+             "src": att.get("source_name") or "—"},
+            [("a", "Declined"), ("src", "Routed to"), ("sql", "Attempted SQL")],
+        )
         return
     print_success(result.answer)
     prov = result.provenance or {}
