@@ -18,6 +18,7 @@ from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from ..types.library import (
     BackfillResponse,
     ChatResponse,
+    EvalResponse,
     IntakeResponse,
     FactResponse,
     HealthResponse,
@@ -532,6 +533,15 @@ class Library:
         resp = self._http.post("/library/intake", json=body)
         return IntakeResponse.model_validate(resp.json())
 
+    def eval(
+        self, *, library_id: str, routing_only: bool = True
+    ) -> EvalResponse:
+        resp = self._http.post(
+            "/library/eval",
+            json={"library_id": library_id, "routing_only": routing_only},
+        )
+        return EvalResponse.model_validate(resp.json())
+
     # ── Health ──────────────────────────────────────────────────────────────
 
     def health(self) -> HealthResponse:
@@ -922,6 +932,15 @@ class AsyncLibrary:
             body["stages"] = stages
         resp = await self._http.post("/library/intake", json=body)
         return IntakeResponse.model_validate(resp.json())
+
+    async def eval(
+        self, *, library_id: str, routing_only: bool = True
+    ) -> EvalResponse:
+        resp = await self._http.post(
+            "/library/eval",
+            json={"library_id": library_id, "routing_only": routing_only},
+        )
+        return EvalResponse.model_validate(resp.json())
 
     async def health(self) -> HealthResponse:
         resp = await self._http.get("/library/health")

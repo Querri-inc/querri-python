@@ -1133,6 +1133,47 @@ def intake(
     )
 
 
+@library_app.command("eval")
+def eval_cmd(
+    ctx: typer.Context,
+    library_id: str = typer.Option(
+        None, "--library-id", "-l", help="Target Library _id (defaults to active)."
+    ),
+    routing_only: bool = typer.Option(
+        True, "--routing-only/--full",
+        help="Routing hit-rate only (answer-correctness eval lands in Phase 6).",
+    ),
+) -> None:
+    """Evaluate the Data Library against the seeded Curio eval set.
+
+    Scores routing hit-rate: for each answerable question, does Search route to
+    a correct source? Requires a Curio-seeded + intaken library.
+    """
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    lib_id = _resolve_library_id(library_id)
+    try:
+        result = client.library.eval(library_id=lib_id, routing_only=routing_only)
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+
+    if obj.get("json"):
+        print_json(result.model_dump())
+        return
+
+    routing = result.routing or {}
+    print_success(
+        f"Routing hit-rate: {routing.get('hits', 0)}/{routing.get('total', 0)} "
+        f"= {routing.get('hit_rate', 0.0)}"
+    )
+    for r in routing.get("results", []):
+        mark = "✓" if r.get("hit") else "✗"
+        print_detail(
+            {"q": f"{mark} [{r['id']}] {r['question']}"},
+            [("q", "Question")],
+        )
+
+
 # ── Zoom (vector-seeded multi-focal graph zoom) ───────────────────────────
 
 

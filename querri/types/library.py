@@ -67,6 +67,12 @@ class IntakeResponse(_LibraryBase):
     link: dict[str, int] = {}
 
 
+class EvalResponse(_LibraryBase):
+    library_id: str
+    tenant_id: str
+    routing: dict = {}
+
+
 class SeedFixtureResponse(_LibraryBase):
     library_id: str
     tenant_id: str
