@@ -24,9 +24,18 @@ class LibraryNodeSummary(_LibraryBase):
     summary: str = ""
 
 
+class Provenance(_LibraryBase):
+    path: list[str] = []
+
+
 class SearchHit(_LibraryBase):
     node_id: str
     score: float
+    # SPEC §5.2: adjacency_score == score for flat ANN, decays for graph
+    # traversal. confidence_tier is the display-side bucket.
+    adjacency_score: float | None = None
+    confidence_tier: str | None = None
+    provenance: Provenance | None = None
     name: str | None = None
     node_kind: str | None = None
 
