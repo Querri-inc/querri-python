@@ -374,6 +374,21 @@ class Library:
         resp = self._http.get(f"/library/nodes/{node_id}")
         return _node_from_get(resp.json())
 
+    def patch_node(
+        self, node_id: str, *, name: str | None = None, summary: str | None = None
+    ) -> LibraryNode:
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if summary is not None:
+            body["summary"] = summary
+        resp = self._http.request("PATCH", f"/library/nodes/{node_id}", json=body)
+        return _node_from_get(resp.json())
+
+    def delete_node(self, node_id: str) -> dict[str, Any]:
+        resp = self._http.request("DELETE", f"/library/nodes/{node_id}")
+        return resp.json()
+
     # ── Search ──────────────────────────────────────────────────────────────
 
     def search(
@@ -676,6 +691,21 @@ class AsyncLibrary:
     async def get_node(self, node_id: str) -> LibraryNode:
         resp = await self._http.get(f"/library/nodes/{node_id}")
         return _node_from_get(resp.json())
+
+    async def patch_node(
+        self, node_id: str, *, name: str | None = None, summary: str | None = None
+    ) -> LibraryNode:
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if summary is not None:
+            body["summary"] = summary
+        resp = await self._http.request("PATCH", f"/library/nodes/{node_id}", json=body)
+        return _node_from_get(resp.json())
+
+    async def delete_node(self, node_id: str) -> dict[str, Any]:
+        resp = await self._http.request("DELETE", f"/library/nodes/{node_id}")
+        return resp.json()
 
     async def search(
         self,
