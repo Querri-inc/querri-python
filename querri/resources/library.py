@@ -312,6 +312,44 @@ class Library:
                 except json.JSONDecodeError:
                     continue
 
+    def create_kpi(
+        self,
+        *,
+        library_id: str,
+        name: str,
+        canonical_name: str = "",
+        categories: list[str] | None = None,
+        summary: str = "",
+        state: str = "draft",
+        parent_kpis: list[str] | None = None,
+        measurement: dict | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "library_id": library_id,
+            "name": name,
+            "canonical_name": canonical_name,
+            "categories": categories or [],
+            "summary": summary,
+            "state": state,
+            "parent_kpis": parent_kpis or [],
+        }
+        if measurement is not None:
+            body["measurement"] = measurement
+        resp = self._http.post("/library/kpis", json=body)
+        return resp.json()
+
+    def list_kpis(self, *, library_id: str, limit: int = 100) -> dict[str, Any]:
+        resp = self._http.get(f"/library/kpis?library_id={library_id}&limit={limit}")
+        return resp.json()
+
+    def get_kpi(self, kpi_id: str) -> dict[str, Any]:
+        resp = self._http.get(f"/library/kpis/{kpi_id}")
+        return resp.json()
+
+    def list_kpi_categories(self, *, library_id: str) -> dict[str, Any]:
+        resp = self._http.get(f"/library/kpi-categories?library_id={library_id}")
+        return resp.json()
+
     def list_chats(
         self, *, library_id: str, limit: int = 50
     ) -> dict[str, Any]:
@@ -637,6 +675,44 @@ class AsyncLibrary:
                     yield json.loads(payload)
                 except json.JSONDecodeError:
                     continue
+
+    async def create_kpi(
+        self,
+        *,
+        library_id: str,
+        name: str,
+        canonical_name: str = "",
+        categories: list[str] | None = None,
+        summary: str = "",
+        state: str = "draft",
+        parent_kpis: list[str] | None = None,
+        measurement: dict | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "library_id": library_id,
+            "name": name,
+            "canonical_name": canonical_name,
+            "categories": categories or [],
+            "summary": summary,
+            "state": state,
+            "parent_kpis": parent_kpis or [],
+        }
+        if measurement is not None:
+            body["measurement"] = measurement
+        resp = await self._http.post("/library/kpis", json=body)
+        return resp.json()
+
+    async def list_kpis(self, *, library_id: str, limit: int = 100) -> dict[str, Any]:
+        resp = await self._http.get(f"/library/kpis?library_id={library_id}&limit={limit}")
+        return resp.json()
+
+    async def get_kpi(self, kpi_id: str) -> dict[str, Any]:
+        resp = await self._http.get(f"/library/kpis/{kpi_id}")
+        return resp.json()
+
+    async def list_kpi_categories(self, *, library_id: str) -> dict[str, Any]:
+        resp = await self._http.get(f"/library/kpi-categories?library_id={library_id}")
+        return resp.json()
 
     async def list_chats(
         self, *, library_id: str, limit: int = 50
