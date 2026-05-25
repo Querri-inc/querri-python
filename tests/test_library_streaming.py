@@ -219,27 +219,34 @@ def test_sync_chat_stream_omits_chat_id_when_not_provided():
 
 
 def test_sync_chat_drains_stream_into_chat_response():
-    """`chat()` consumes the stream + builds a ChatResponse from the done
-    event. Pins the drain at resources/library.py:300-329."""
+    """`chat()` consumes the VercelStream v2 stream (post WS-B6) + builds a
+    ChatResponse from the tool-input/output + data-librarian events."""
     lines = [
         _sse({
-            "type": "tool_result",
-            "name": "search_graph",
+            "type": "tool-input-available",
+            "toolCallId": "tu_1",
+            "toolName": "search_graph",
             "input": {"query": "x"},
-            "result": {"focal_nodes": []},
-            "duration_ms": 123,
         }),
         _sse({
-            "type": "done",
-            "chat_id": "libchat_xyz",
-            "library_id": "lib_x",
-            "assistant_message": "Final answer",
-            "turns_used": 2,
-            "stop_reason": "end_turn",
-            "input_tokens": 100,
-            "output_tokens": 50,
-            "total_ms": 1234,
+            "type": "tool-output-available",
+            "toolCallId": "tu_1",
+            "output": {"focal_nodes": []},
         }),
+        _sse({
+            "type": "data-librarian",
+            "data": {
+                "chat_id": "libchat_xyz",
+                "library_id": "lib_x",
+                "assistant_message": "Final answer",
+                "turns_used": 2,
+                "stop_reason": "end_turn",
+                "input_tokens": 100,
+                "output_tokens": 50,
+                "total_ms": 1234,
+            },
+        }),
+        _sse({"type": "finish", "finishReason": "stop"}),
         "data: [DONE]",
     ]
     cm, _ = _mock_sync_stream_response(lines)
@@ -254,7 +261,6 @@ def test_sync_chat_drains_stream_into_chat_response():
     assert len(result.tool_calls) == 1
     # tool_calls items are ChatToolCall objects (attr access), not dicts.
     assert result.tool_calls[0].name == "search_graph"
-    assert result.tool_calls[0].duration_ms == 123
 
 
 # ── Async parity (3 mirror tests) ─────────────────────────────────────────
@@ -297,13 +303,16 @@ async def test_async_chat_stream_done_sentinel_breaks():
 async def test_async_chat_drains_into_chat_response():
     lines = [
         _sse({
-            "type": "done",
-            "chat_id": "libchat_xyz",
-            "library_id": "lib_x",
-            "assistant_message": "async answer",
-            "turns_used": 1,
-            "stop_reason": "end_turn",
+            "type": "data-librarian",
+            "data": {
+                "chat_id": "libchat_xyz",
+                "library_id": "lib_x",
+                "assistant_message": "async answer",
+                "turns_used": 1,
+                "stop_reason": "end_turn",
+            },
         }),
+        _sse({"type": "finish", "finishReason": "stop"}),
         "data: [DONE]",
     ]
     cm, _ = _mock_async_stream_response(lines)

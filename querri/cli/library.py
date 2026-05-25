@@ -571,63 +571,84 @@ def chat_cmd(
         print_json(result.model_dump())
         return
 
-    # Interactive: stream events to the terminal as they arrive.
+    # Interactive: stream VercelStream v2 events to the terminal as they
+    # arrive. WS-B6: same wire format as `querri views` so a shared SSE
+    # consumer can be used across both agents.
     import json as _json
     final_chat_id = resolved_chat or ""
-    assistant_text = ""
+    assistant_text_chunks: list[str] = []
+    final_meta: dict[str, Any] = {}
+    tool_inputs: dict[str, dict[str, Any]] = {}  # tool_call_id → {name, input}
     try:
         for ev in client.library.chat_stream(
             library_id=lib_id, message=message, chat_id=resolved_chat
         ):
-            etype = ev.get("type")
-            if etype == "tool_use" and show_tools:
-                inp_preview = _json.dumps(ev.get("input", {}), default=str)[:140]
-                print(f"  • {ev.get('name', '?')}({inp_preview})", flush=True)
-            elif etype == "tool_result" and show_tools:
-                dur = ev.get("duration_ms", 0)
-                res = ev.get("result", {})
-                if isinstance(res, dict) and "error" in res:
-                    print(f"    ✗ {ev.get('name', '?')} errored in {dur}ms: {res['error'][:120]}", flush=True)
+            etype = ev.get("type", "")
+            if etype == "tool-input-available" and show_tools:
+                name = ev.get("toolName", "?")
+                inp = ev.get("input", {})
+                tool_inputs[ev.get("toolCallId", "")] = {"name": name, "input": inp}
+                inp_preview = _json.dumps(inp, default=str)[:140]
+                print(f"  • {name}({inp_preview})", flush=True)
+            elif etype == "tool-input-available":
+                tool_inputs[ev.get("toolCallId", "")] = {
+                    "name": ev.get("toolName", "?"),
+                    "input": ev.get("input", {}),
+                }
+            elif etype == "tool-output-available" and show_tools:
+                tcid = ev.get("toolCallId", "")
+                name = tool_inputs.get(tcid, {}).get("name", "?")
+                output = ev.get("output", {})
+                if isinstance(output, dict) and "error" in output:
+                    print(f"    ✗ {name} errored: {str(output['error'])[:120]}", flush=True)
                 else:
-                    keys = list(res.keys())[:5] if isinstance(res, dict) else []
-                    print(f"    ✓ {ev.get('name', '?')} → {keys} ({dur}ms)", flush=True)
-            elif etype == "tool_progress" and show_tools:
-                # Pass-through Views-agent chunk — terse marker only.
-                print(".", end="", flush=True)
-            elif etype == "assistant_text":
-                assistant_text = ev.get("text", "")
-            elif etype == "done":
-                final_chat_id = ev.get("chat_id", final_chat_id)
-                if show_tools:
-                    print()  # newline after progress dots
-                if not assistant_text:
-                    assistant_text = ev.get("assistant_message", "")
-                print()
-                print(assistant_text)
-                print()
-                print_detail(
-                    {
-                        "chat_id": final_chat_id,
-                        "turns_used": ev.get("turns_used", 0),
-                        "total_ms": ev.get("total_ms", 0),
-                        "stop_reason": ev.get("stop_reason", ""),
-                        "tokens": f"in={ev.get('input_tokens', 0)} out={ev.get('output_tokens', 0)}",
-                    },
-                    [
-                        ("chat_id", "Chat"),
-                        ("turns_used", "Turns"),
-                        ("total_ms", "ms"),
-                        ("stop_reason", "Stop"),
-                        ("tokens", "Tokens"),
-                    ],
-                )
-            elif etype == "error":
-                print_error(ev.get("message", "stream error"))
-                raise typer.Exit(code=1)
+                    keys = list(output.keys())[:5] if isinstance(output, dict) else []
+                    print(f"    ✓ {name} → {keys}", flush=True)
+            elif etype in ("text-delta",):
+                # Accumulate text fragments for the final message print.
+                assistant_text_chunks.append(ev.get("delta", ""))
+            elif etype == "data-librarian":
+                # Custom librarian-data event carries chat_id + per-turn
+                # metadata that VercelStream's finish doesn't model.
+                final_meta = ev.get("data", {})
+                final_chat_id = final_meta.get("chat_id", final_chat_id)
+            elif etype == "finish":
+                # Terminal — emit summary block below the loop.
+                pass
     except typer.Exit:
         raise
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=False)) from None
+
+    if show_tools and tool_inputs:
+        print()  # newline after the tool activity block
+    assistant_text = (
+        final_meta.get("assistant_message")
+        or "".join(assistant_text_chunks)
+    )
+    print()
+    if assistant_text:
+        print(assistant_text)
+        print()
+    print_detail(
+        {
+            "chat_id": final_chat_id,
+            "turns_used": final_meta.get("turns_used", 0),
+            "total_ms": final_meta.get("total_ms", 0),
+            "stop_reason": final_meta.get("stop_reason", ""),
+            "tokens": (
+                f"in={final_meta.get('input_tokens', 0)} "
+                f"out={final_meta.get('output_tokens', 0)}"
+            ),
+        },
+        [
+            ("chat_id", "Chat"),
+            ("turns_used", "Turns"),
+            ("total_ms", "ms"),
+            ("stop_reason", "Stop"),
+            ("tokens", "Tokens"),
+        ],
+    )
 
     # Persist active chat_id so the next CLI invocation continues this chat.
     ctx_data[f"chat_id::{lib_id}"] = final_chat_id

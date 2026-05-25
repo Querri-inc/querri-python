@@ -8,6 +8,7 @@ semantic search, health probe.
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import AsyncIterator, Iterator
 from typing import Any, TypeVar
 
@@ -373,38 +374,57 @@ class Library:
         message: str,
         chat_id: str | None = None,
     ) -> ChatResponse:
-        # Drain the stream into the legacy ChatResponse shape so callers
-        # that don't care about incremental events get a single object.
+        # WS-B6: server now emits VercelStream v2 events. Drain them
+        # into ChatResponse:
+        #   tool-input-available  → captured by tool_use_id for matching
+        #   tool-output-available → folded into tool_calls list with the
+        #                           saved input + output
+        #   text-delta            → accumulated into assistant_message
+        #   data-librarian        → carries chat_id/library_id/turns/
+        #                           tokens/total_ms (custom event for
+        #                           per-chat metadata Vercel finish doesn't
+        #                           model)
+        #   finish                → terminal — no payload needed
+        tool_inputs: dict[str, dict[str, Any]] = {}
+        tool_call_t0: dict[str, float] = {}
         tool_calls: list[dict[str, Any]] = []
-        final = ChatResponse(
-            chat_id=chat_id or "",
-            library_id=library_id,
-            assistant_message="",
-        )
+        text_chunks: list[str] = []
+        meta: dict[str, Any] = {}
         for ev in self.chat_stream(
             library_id=library_id, message=message, chat_id=chat_id
         ):
-            etype = ev.get("type")
-            if etype == "tool_result":
-                tool_calls.append({
-                    "name": ev.get("name", ""),
+            etype = ev.get("type", "")
+            if etype == "tool-input-available":
+                tool_inputs[ev.get("toolCallId", "")] = {
+                    "name": ev.get("toolName", ""),
                     "input": ev.get("input", {}),
-                    "result": ev.get("result", {}),
-                    "duration_ms": ev.get("duration_ms", 0),
+                }
+                tool_call_t0[ev.get("toolCallId", "")] = time.monotonic()
+            elif etype == "tool-output-available":
+                tcid = ev.get("toolCallId", "")
+                meta_in = tool_inputs.get(tcid, {})
+                t0 = tool_call_t0.get(tcid, time.monotonic())
+                tool_calls.append({
+                    "name": meta_in.get("name", ""),
+                    "input": meta_in.get("input", {}),
+                    "result": ev.get("output", {}),
+                    "duration_ms": int((time.monotonic() - t0) * 1000),
                 })
-            elif etype == "done":
-                final = ChatResponse(
-                    chat_id=ev.get("chat_id", chat_id or ""),
-                    library_id=ev.get("library_id", library_id),
-                    assistant_message=ev.get("assistant_message", ""),
-                    tool_calls=tool_calls,  # type: ignore[arg-type]
-                    turns_used=ev.get("turns_used", 0),
-                    stop_reason=ev.get("stop_reason", ""),
-                    input_tokens=ev.get("input_tokens", 0),
-                    output_tokens=ev.get("output_tokens", 0),
-                    total_ms=ev.get("total_ms", 0),
-                )
-        return final
+            elif etype == "text-delta":
+                text_chunks.append(ev.get("delta", ""))
+            elif etype == "data-librarian":
+                meta = ev.get("data", {})
+        return ChatResponse(
+            chat_id=meta.get("chat_id", chat_id or ""),
+            library_id=meta.get("library_id", library_id),
+            assistant_message=meta.get("assistant_message") or "".join(text_chunks),
+            tool_calls=tool_calls,  # type: ignore[arg-type]
+            turns_used=meta.get("turns_used", 0),
+            stop_reason=meta.get("stop_reason", ""),
+            input_tokens=meta.get("input_tokens", 0),
+            output_tokens=meta.get("output_tokens", 0),
+            total_ms=meta.get("total_ms", 0),
+        )
 
     # ── Read ────────────────────────────────────────────────────────────────
 
@@ -733,36 +753,48 @@ class AsyncLibrary:
         message: str,
         chat_id: str | None = None,
     ) -> ChatResponse:
+        # WS-B6: mirror the sync drainer — same VercelStream event types,
+        # same accumulation logic.
+        tool_inputs: dict[str, dict[str, Any]] = {}
+        tool_call_t0: dict[str, float] = {}
         tool_calls: list[dict[str, Any]] = []
-        final = ChatResponse(
-            chat_id=chat_id or "",
-            library_id=library_id,
-            assistant_message="",
-        )
+        text_chunks: list[str] = []
+        meta: dict[str, Any] = {}
         async for ev in self.chat_stream(
             library_id=library_id, message=message, chat_id=chat_id
         ):
-            etype = ev.get("type")
-            if etype == "tool_result":
-                tool_calls.append({
-                    "name": ev.get("name", ""),
+            etype = ev.get("type", "")
+            if etype == "tool-input-available":
+                tool_inputs[ev.get("toolCallId", "")] = {
+                    "name": ev.get("toolName", ""),
                     "input": ev.get("input", {}),
-                    "result": ev.get("result", {}),
-                    "duration_ms": ev.get("duration_ms", 0),
+                }
+                tool_call_t0[ev.get("toolCallId", "")] = time.monotonic()
+            elif etype == "tool-output-available":
+                tcid = ev.get("toolCallId", "")
+                meta_in = tool_inputs.get(tcid, {})
+                t0 = tool_call_t0.get(tcid, time.monotonic())
+                tool_calls.append({
+                    "name": meta_in.get("name", ""),
+                    "input": meta_in.get("input", {}),
+                    "result": ev.get("output", {}),
+                    "duration_ms": int((time.monotonic() - t0) * 1000),
                 })
-            elif etype == "done":
-                final = ChatResponse(
-                    chat_id=ev.get("chat_id", chat_id or ""),
-                    library_id=ev.get("library_id", library_id),
-                    assistant_message=ev.get("assistant_message", ""),
-                    tool_calls=tool_calls,  # type: ignore[arg-type]
-                    turns_used=ev.get("turns_used", 0),
-                    stop_reason=ev.get("stop_reason", ""),
-                    input_tokens=ev.get("input_tokens", 0),
-                    output_tokens=ev.get("output_tokens", 0),
-                    total_ms=ev.get("total_ms", 0),
-                )
-        return final
+            elif etype == "text-delta":
+                text_chunks.append(ev.get("delta", ""))
+            elif etype == "data-librarian":
+                meta = ev.get("data", {})
+        return ChatResponse(
+            chat_id=meta.get("chat_id", chat_id or ""),
+            library_id=meta.get("library_id", library_id),
+            assistant_message=meta.get("assistant_message") or "".join(text_chunks),
+            tool_calls=tool_calls,  # type: ignore[arg-type]
+            turns_used=meta.get("turns_used", 0),
+            stop_reason=meta.get("stop_reason", ""),
+            input_tokens=meta.get("input_tokens", 0),
+            output_tokens=meta.get("output_tokens", 0),
+            total_ms=meta.get("total_ms", 0),
+        )
 
     async def get_node(self, node_id: str) -> LibraryNode:
         resp = await self._http.get(f"/library/nodes/{node_id}")
