@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from ..types.library import (
+    AskResponse,
     BackfillResponse,
     ChatResponse,
     EvalResponse,
@@ -545,6 +546,13 @@ class Library:
         )
         return EvalResponse.model_validate(resp.json())
 
+    def ask(self, *, library_id: str, question: str) -> AskResponse:
+        resp = self._http.post(
+            "/library/ask",
+            json={"library_id": library_id, "question": question},
+        )
+        return AskResponse.model_validate(resp.json())
+
     # ── Health ──────────────────────────────────────────────────────────────
 
     def health(self) -> HealthResponse:
@@ -947,6 +955,13 @@ class AsyncLibrary:
             json={"library_id": library_id, "routing_only": routing_only},
         )
         return EvalResponse.model_validate(resp.json())
+
+    async def ask(self, *, library_id: str, question: str) -> AskResponse:
+        resp = await self._http.post(
+            "/library/ask",
+            json={"library_id": library_id, "question": question},
+        )
+        return AskResponse.model_validate(resp.json())
 
     async def health(self) -> HealthResponse:
         resp = await self._http.get("/library/health")

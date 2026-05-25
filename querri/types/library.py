@@ -73,6 +73,17 @@ class EvalResponse(_LibraryBase):
     routing: dict = {}
 
 
+class AskResponse(_LibraryBase):
+    library_id: str
+    tenant_id: str
+    question: str
+    declined: bool
+    answer: str
+    provenance: dict | None = None
+    total_rows: int = 0
+    data: list = []
+
+
 class SeedFixtureResponse(_LibraryBase):
     library_id: str
     tenant_id: str

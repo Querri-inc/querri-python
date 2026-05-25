@@ -1147,6 +1147,46 @@ def intake(
     )
 
 
+@library_app.command("ask")
+def ask(
+    ctx: typer.Context,
+    question: str = typer.Argument(..., help="The question to ask the library."),
+    library_id: str = typer.Option(
+        None, "--library-id", "-l", help="Target Library _id (defaults to active)."
+    ),
+) -> None:
+    """Ask the library a question. Routes to the source that answers it, runs it
+    under RLS, and returns a narrative answer with provenance. Read-only —
+    declines honestly when no source clears the bar.
+    """
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    lib_id = _resolve_library_id(library_id)
+    try:
+        result = client.library.ask(library_id=lib_id, question=question)
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+
+    if obj.get("json"):
+        print_json(result.model_dump())
+        return
+
+    if result.declined:
+        print_detail({"a": result.answer}, [("a", "Declined")])
+        return
+    print_success(result.answer)
+    prov = result.provenance or {}
+    print_detail(
+        {**prov, "total_rows": result.total_rows},
+        [
+            ("source_name", "Source"),
+            ("routing_score", "Routing score"),
+            ("generated_sql", "SQL"),
+            ("total_rows", "Rows"),
+        ],
+    )
+
+
 @library_app.command("eval")
 def eval_cmd(
     ctx: typer.Context,
