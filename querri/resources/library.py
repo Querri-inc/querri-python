@@ -304,12 +304,20 @@ class Library:
         library_id: str,
         message: str,
         chat_id: str | None = None,
+        mode: str = "default",
     ) -> Iterator[dict[str, Any]]:
         """Stream LibrarianAgent events. Yields parsed event dicts as they
         arrive — typically `tool_use`, `tool_progress`, `tool_result`,
         `assistant_text`, and finally `done`.
+
+        `mode="onboarding"` pins the W01 onboarding-mode system prompt +
+        tool palette on the server side (Phase 3).
         """
-        body: dict[str, Any] = {"library_id": library_id, "message": message}
+        body: dict[str, Any] = {
+            "library_id": library_id,
+            "message": message,
+            "mode": mode,
+        }
         if chat_id:
             body["chat_id"] = chat_id
         # httpx.Client.stream is a context manager; yield from inside it.
@@ -385,12 +393,27 @@ class Library:
         resp = self._http.get(f"/library/chats/{chat_id}")
         return _unwrap_dict(resp.json())
 
+    def get_onboarding_summary(
+        self, *, library_id: str, chat_id: str | None = None
+    ) -> dict[str, Any]:
+        """Library Built Recap data — five lists (collections, anchor_questions,
+        refining_questions, kpis, facts) plus `totals` + `complete`. When
+        `chat_id` is provided, only nodes authored in that session are
+        included; otherwise the full library view is returned. (Phase 3 W01)
+        """
+        path = f"/library/onboarding/summary?library_id={library_id}"
+        if chat_id:
+            path += f"&chat_id={chat_id}"
+        resp = self._http.get(path)
+        return _unwrap_dict(resp.json())
+
     def chat(
         self,
         *,
         library_id: str,
         message: str,
         chat_id: str | None = None,
+        mode: str = "default",
     ) -> ChatResponse:
         # WS-B6: server now emits VercelStream v2 events. Drain them
         # into ChatResponse:
@@ -409,7 +432,7 @@ class Library:
         text_chunks: list[str] = []
         meta: dict[str, Any] = {}
         for ev in self.chat_stream(
-            library_id=library_id, message=message, chat_id=chat_id
+            library_id=library_id, message=message, chat_id=chat_id, mode=mode
         ):
             etype = ev.get("type", "")
             if etype == "tool-input-available":
@@ -695,8 +718,13 @@ class AsyncLibrary:
         library_id: str,
         message: str,
         chat_id: str | None = None,
+        mode: str = "default",
     ) -> AsyncIterator[dict[str, Any]]:
-        body: dict[str, Any] = {"library_id": library_id, "message": message}
+        body: dict[str, Any] = {
+            "library_id": library_id,
+            "message": message,
+            "mode": mode,
+        }
         if chat_id:
             body["chat_id"] = chat_id
         async with self._http._client.stream(  # type: ignore[attr-defined]
@@ -765,12 +793,23 @@ class AsyncLibrary:
         resp = await self._http.get(f"/library/chats/{chat_id}")
         return _unwrap_dict(resp.json())
 
+    async def get_onboarding_summary(
+        self, *, library_id: str, chat_id: str | None = None
+    ) -> dict[str, Any]:
+        """Async parallel of :meth:`Library.get_onboarding_summary`."""
+        path = f"/library/onboarding/summary?library_id={library_id}"
+        if chat_id:
+            path += f"&chat_id={chat_id}"
+        resp = await self._http.get(path)
+        return _unwrap_dict(resp.json())
+
     async def chat(
         self,
         *,
         library_id: str,
         message: str,
         chat_id: str | None = None,
+        mode: str = "default",
     ) -> ChatResponse:
         # WS-B6: mirror the sync drainer — same VercelStream event types,
         # same accumulation logic.
@@ -780,7 +819,7 @@ class AsyncLibrary:
         text_chunks: list[str] = []
         meta: dict[str, Any] = {}
         async for ev in self.chat_stream(
-            library_id=library_id, message=message, chat_id=chat_id
+            library_id=library_id, message=message, chat_id=chat_id, mode=mode
         ):
             etype = ev.get("type", "")
             if etype == "tool-input-available":

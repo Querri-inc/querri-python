@@ -655,6 +655,271 @@ def chat_cmd(
     _write_library_context(ctx_data)
 
 
+# ── Onboarding (Phase 3 / W01) ──────────────────────────────────────────────
+
+
+@library_app.command("onboard")
+def onboard(
+    ctx: typer.Context,
+    library_id: str = typer.Option(
+        None, "--library-id", "-l",
+        help="Library to onboard into (defaults to active or creates new).",
+    ),
+    library_name: str = typer.Option(
+        None, "--name",
+        help="Name for the new Library when one is created. "
+             "Defaults to 'My Library'.",
+    ),
+    new: bool = typer.Option(
+        False, "--new", "-n",
+        help="Force a fresh onboarding chat (ignore the last chat for "
+             "this library).",
+    ),
+) -> None:
+    """Run the W01 onboarding interview — question-first, KPI-grounded.
+
+    Interactive: the Librarian asks about your business, you reply, and
+    Collections + Questions + KPIs land in your Library as you go. Type
+    `:done`, `:quit`, or `:exit` (or just press Enter on an empty prompt
+    a second time) to stop. The recap prints at the end.
+
+    The agent runs in onboarding mode — same VercelStream SSE wire format
+    as `querri library chat` and `querri views`, with the W01 system prompt
+    and the four W01 creation tools (create_collection, add_refining_question,
+    propose_kpi, confirm_kpi) plus search/list/record_fact. View
+    commissioning is gated off (no data is connected yet).
+    """
+    import json as _json
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+
+    ctx_data = _read_library_context()
+
+    # Resolve / create the Library.
+    lib_id = library_id or ctx_data.get("library_id")
+    if not lib_id:
+        # No active library — offer to create one. In headless / non-tty
+        # mode, just create it with the default name.
+        proposed_name = library_name or "My Library"
+        print(f"No active Library found — creating '{proposed_name}'.")
+        try:
+            created = client.library.create_library(
+                name=proposed_name, summary="Created via querri library onboard"
+            )
+        except Exception as exc:
+            raise typer.Exit(code=handle_api_error(exc, is_json=False)) from None
+        lib_id = created.id
+        ctx_data["library_id"] = lib_id
+        _write_library_context(ctx_data)
+        print(f"Library created: {lib_id}")
+        print()
+
+    # Resume an in-progress onboarding chat unless --new.
+    chat_id: str | None = None
+    if not new:
+        last = ctx_data.get(f"onboard_chat_id::{lib_id}")
+        if last:
+            chat_id = str(last)
+            print(f"Resuming onboarding chat: {chat_id}")
+            print("(Use --new to start fresh.)")
+            print()
+
+    print("─" * 60)
+    print("Welcome to Querri onboarding.")
+    print(
+        "Tell the Librarian what's on your mind about your business —"
+    )
+    print("we'll shape the questions and metrics together.")
+    print()
+    print("Type :done (or :quit / :exit) when you're ready to wrap up.")
+    print("─" * 60)
+    print()
+
+    # Seed the first turn from the user — the agent's system prompt asks
+    # the opening question, so we kick off with an empty-ish first message
+    # that triggers the greeting. Use a sentinel that the agent will
+    # interpret as "start the interview." Per the W01 system prompt, the
+    # agent will greet and ask the first question on receiving any opening.
+    first_message = "Let's begin the onboarding interview."
+    user_message = first_message
+    final_lib_recap_chat: str | None = None
+
+    def _print_assistant_block(meta: dict[str, Any], text_chunks: list[str]) -> None:
+        assistant_text = (
+            meta.get("assistant_message") or "".join(text_chunks)
+        ).strip()
+        if assistant_text:
+            print()
+            print(f"Librarian › {assistant_text}")
+            print()
+
+    EXIT_VERBS = {":done", ":quit", ":exit", "/done", "/quit", "/exit"}
+
+    while True:
+        if user_message in EXIT_VERBS or not user_message:
+            break
+
+        # Stream one agent turn.
+        assistant_chunks: list[str] = []
+        tool_inputs: dict[str, dict[str, Any]] = {}
+        turn_meta: dict[str, Any] = {}
+        try:
+            for ev in client.library.chat_stream(
+                library_id=lib_id,
+                message=user_message,
+                chat_id=chat_id,
+                mode="onboarding",
+            ):
+                etype = ev.get("type", "")
+                if etype == "tool-input-available":
+                    name = ev.get("toolName", "?")
+                    inp = ev.get("input", {})
+                    tool_inputs[ev.get("toolCallId", "")] = {
+                        "name": name, "input": inp,
+                    }
+                    # Light progress chip per tool — visible but unobtrusive.
+                    label = _onboard_tool_label(name, inp)
+                    if label:
+                        print(f"  → {label}", flush=True)
+                elif etype == "tool-output-available":
+                    tcid = ev.get("toolCallId", "")
+                    name = tool_inputs.get(tcid, {}).get("name", "?")
+                    output = ev.get("output", {})
+                    summary = _onboard_tool_result(name, output)
+                    if summary:
+                        print(f"    {summary}", flush=True)
+                elif etype == "data-node-created":
+                    node = ev.get("data", {}) or {}
+                    kind = node.get("node_kind", "node")
+                    n_name = node.get("name", node.get("node_id", "?"))
+                    print(
+                        f"      • {kind}: {n_name} ({node.get('node_id', '?')})",
+                        flush=True,
+                    )
+                elif etype == "text-delta":
+                    assistant_chunks.append(ev.get("delta", ""))
+                elif etype == "data-librarian":
+                    turn_meta = ev.get("data", {})
+                    chat_id = turn_meta.get("chat_id", chat_id)
+                elif etype == "finish":
+                    pass
+        except typer.Exit:
+            raise
+        except Exception as exc:
+            raise typer.Exit(code=handle_api_error(exc, is_json=False)) from None
+
+        _print_assistant_block(turn_meta, assistant_chunks)
+        if chat_id:
+            ctx_data[f"onboard_chat_id::{lib_id}"] = chat_id
+            _write_library_context(ctx_data)
+            final_lib_recap_chat = chat_id
+
+        # Prompt for the next user input.
+        try:
+            user_input = input("you › ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        user_message = user_input
+
+    # Recap.
+    print()
+    print("═" * 60)
+    print("Library Built — Recap")
+    print("═" * 60)
+    try:
+        summary = client.library.get_onboarding_summary(
+            library_id=lib_id, chat_id=final_lib_recap_chat
+        )
+    except Exception as exc:
+        # Recap is non-fatal — the onboarding itself succeeded. Surface
+        # the error and exit.
+        print(f"(Could not fetch recap: {exc})")
+        return
+
+    totals = summary.get("totals", {})
+    complete = summary.get("complete", False)
+    print(
+        f"Collections: {totals.get('collections', 0)}   "
+        f"Anchor questions: {totals.get('anchor_questions', 0)}   "
+        f"Follow-ups: {totals.get('refining_questions', 0)}"
+    )
+    print(
+        f"Metrics: {totals.get('kpis', 0)}   "
+        f"Business rules: {totals.get('facts', 0)}"
+    )
+    print()
+    for c in summary.get("collections", []):
+        print(f"  • {c.get('name', '?')} ({c.get('id', '?')})")
+    for k in summary.get("kpis", []):
+        state = k.get("state", "?")
+        cats = ", ".join(k.get("categories", []))
+        print(f"    [{state}] {k.get('name', '?')} ({cats}) — {k.get('id', '?')}")
+    print()
+    if complete:
+        print("✓ Your library is populated. Next: connect a data source.")
+    else:
+        print(
+            "Your library has a foundation. Add more topics or metrics anytime "
+            "with `querri library onboard --library-id "
+            f"{lib_id}`."
+        )
+    print()
+    if obj.get("json"):
+        print_json(summary)
+
+
+def _onboard_tool_label(name: str, inp: dict[str, Any]) -> str | None:
+    """Compact, user-readable progress chip per tool invocation."""
+    if name == "create_collection":
+        n = inp.get("name", "?")
+        return f"creating topic: {n!r}"
+    if name == "add_refining_question":
+        q = inp.get("question_text", "?")
+        return f"attaching follow-up: {q[:60]!r}"
+    if name == "propose_kpi":
+        n = inp.get("name", "?")
+        cats = inp.get("categories", [])
+        return f"proposing metric: {n!r} ({', '.join(cats)})"
+    if name == "confirm_kpi":
+        n = inp.get("name", "?")
+        return f"confirming metric: {n!r}"
+    if name == "record_fact":
+        s = inp.get("statement", "?")
+        return f"recording rule: {s[:60]!r}"
+    if name == "search_graph":
+        q = inp.get("query", "?")
+        return f"searching: {q[:60]!r}"
+    if name == "list_by_kind":
+        k = inp.get("node_kind", "?")
+        return f"listing all {k}s"
+    return None
+
+
+def _onboard_tool_result(name: str, output: dict[str, Any]) -> str | None:
+    """Compact result line for tool calls — confirms what landed."""
+    if isinstance(output, dict) and "error" in output:
+        return f"✗ {name} errored: {str(output['error'])[:120]}"
+    if name == "create_collection":
+        return f"✓ topic created ({output.get('collection_id', '?')})"
+    if name == "add_refining_question":
+        return f"✓ follow-up attached ({output.get('refining_question_id', '?')})"
+    if name == "propose_kpi":
+        m = output.get("measurability_hint", "?")
+        return f"✓ metric staged ({output.get('name', '?')}, measurability={m})"
+    if name == "confirm_kpi":
+        state = output.get("state", "?")
+        return f"✓ metric saved [{state}] ({output.get('kpi_id', '?')})"
+    if name == "record_fact":
+        return f"✓ rule recorded ({output.get('fact_id', '?')})"
+    if name == "search_graph":
+        focal = output.get("focal_nodes") or []
+        return f"  → {len(focal)} match(es)"
+    if name == "list_by_kind":
+        return f"  → {output.get('count', 0)} found"
+    return None
+
+
 # ── Facts (Phase 2) ────────────────────────────────────────────────────────
 
 
