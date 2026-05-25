@@ -314,11 +314,14 @@ def test_sync_list_nodes_passes_query_params():
             200,
             json={
                 "library_id": "lib_org_test_aaa",
-                "node_kind": "Collection",
-                "results": [
-                    {"id": "coll_1", "name": "A", "node_kind": "Collection",
-                     "summary": ""},
-                ],
+                "data": {
+                    "node_kind": "Collection",
+                    "results": [
+                        {"id": "coll_1", "name": "A", "node_kind": "Collection",
+                         "summary": ""},
+                    ],
+                },
+                "telemetry": {"latency_ms": 1},
             },
         )
     )
@@ -342,8 +345,11 @@ async def test_async_list_nodes_passes_query_params():
             200,
             json={
                 "library_id": "lib_org_test_aaa",
-                "node_kind": "Collection",
-                "results": [],
+                "data": {
+                    "node_kind": "Collection",
+                    "results": [],
+                },
+                "telemetry": {"latency_ms": 1},
             },
         )
     )
@@ -406,19 +412,22 @@ async def test_async_get_node():
 
 
 _ZOOM_RESPONSE = {
-    "query": "marketing attribution",
     "library_id": "lib_org_test_aaa",
-    "tenant_id": "org_test",
-    "embedding_model": "bge-small-en-v1.5@2026-05",
-    "focal_nodes": [],
-    "subgraph_nodes": [],
-    "subgraph_edges": [],
-    "stats": {
-        "embed_ms": 1, "qdrant_ann_ms": 2, "mongo_traverse_ms": 3,
-        "total_ms": 6, "focal_count": 0, "subgraph_node_count": 0,
-        "candidates_considered": 0, "budget_used_chars": 0,
-        "budget_used_pct": 0, "kind_diversity_rebalance_applied": False,
-        "confidence_floor": 0.55, "zoom": 50,
+    "telemetry": {"latency_ms": 6},
+    "data": {
+        "query": "marketing attribution",
+        "tenant_id": "org_test",
+        "embedding_model": "bge-small-en-v1.5@2026-05",
+        "focal_nodes": [],
+        "subgraph_nodes": [],
+        "subgraph_edges": [],
+        "stats": {
+            "embed_ms": 1, "qdrant_ann_ms": 2, "mongo_traverse_ms": 3,
+            "total_ms": 6, "focal_count": 0, "subgraph_node_count": 0,
+            "candidates_considered": 0, "budget_used_chars": 0,
+            "budget_used_pct": 0, "kind_diversity_rebalance_applied": False,
+            "confidence_floor": 0.55, "zoom": 50,
+        },
     },
 }
 
@@ -540,13 +549,17 @@ def test_sync_search():
         return_value=httpx.Response(
             200,
             json={
-                "query": "revenue",
-                "embedding_model": "bge-small-en-v1.5@2026-05",
-                "surface": "node_summaries",
-                "results": [
-                    {"node_id": "coll_1", "score": 0.92,
-                     "name": "Revenue", "node_kind": "Collection"},
-                ],
+                "library_id": "lib_org_test_aaa",
+                "telemetry": {"latency_ms": 1},
+                "data": {
+                    "query": "revenue",
+                    "embedding_model": "bge-small-en-v1.5@2026-05",
+                    "surface": "node_summaries",
+                    "results": [
+                        {"node_id": "coll_1", "score": 0.92,
+                         "name": "Revenue", "node_kind": "Collection"},
+                    ],
+                },
             },
         )
     )
@@ -564,8 +577,12 @@ async def test_async_search_with_node_kinds_filter():
         return_value=httpx.Response(
             200,
             json={
-                "query": "revenue", "embedding_model": "x",
-                "surface": "node_summaries", "results": [],
+                "library_id": "lib_org_test_aaa",
+                "telemetry": {"latency_ms": 1},
+                "data": {
+                    "query": "revenue", "embedding_model": "x",
+                    "surface": "node_summaries", "results": [],
+                },
             },
         )
     )

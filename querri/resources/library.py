@@ -59,6 +59,21 @@ def _node_from_get(payload: dict[str, Any]) -> LibraryNode:
 _TModel = TypeVar("_TModel", bound=BaseModel)
 
 
+def _unwrap_dict(envelope_json: dict[str, Any]) -> dict[str, Any]:
+    """Dict-returning sibling of `_unwrap_envelope`. Returns the
+    envelope's `data` dict with `library_id` splatted in for parity with
+    the typed-model unwrap path. Used by methods that don't have a
+    Pydantic response model yet (KPIs, chats).
+    """
+    data = envelope_json.get("data")
+    if not isinstance(data, dict):
+        # If it's not wrapped (older endpoint), return as-is — callers
+        # using the same key set will still work.
+        return envelope_json
+    out = {"library_id": envelope_json.get("library_id"), **data}
+    return out
+
+
 def _unwrap_envelope(
     envelope_json: dict[str, Any], model: type[_TModel]
 ) -> _TModel:
@@ -206,11 +221,11 @@ class Library:
             f"/library/nodes?library_id={library_id}"
             f"&node_kind={node_kind}&limit={limit}"
         )
-        return NodeListResponse.model_validate(resp.json())
+        return _unwrap_envelope(resp.json(), NodeListResponse)
 
     def list_libraries(self, *, limit: int = 100) -> NodeListResponse:
         resp = self._http.get(f"/library/libraries?limit={limit}")
-        return NodeListResponse.model_validate(resp.json())
+        return _unwrap_envelope(resp.json(), NodeListResponse)
 
     def list_collections(
         self, *, library_id: str, limit: int = 100
@@ -218,7 +233,7 @@ class Library:
         resp = self._http.get(
             f"/library/collections?library_id={library_id}&limit={limit}"
         )
-        return NodeListResponse.model_validate(resp.json())
+        return _unwrap_envelope(resp.json(), NodeListResponse)
 
     def seed_fixture(
         self, *, library_id: str, fixture: str
@@ -257,7 +272,7 @@ class Library:
         if node_kinds:
             body["node_kinds"] = node_kinds
         resp = self._http.post("/library/zoom", json=body)
-        return ZoomResponse.model_validate(resp.json())
+        return _unwrap_envelope(resp.json(), ZoomResponse)
 
     def record_fact(
         self,
@@ -341,15 +356,18 @@ class Library:
 
     def list_kpis(self, *, library_id: str, limit: int = 100) -> dict[str, Any]:
         resp = self._http.get(f"/library/kpis?library_id={library_id}&limit={limit}")
-        return resp.json()
+        return _unwrap_dict(resp.json())
 
     def get_kpi(self, kpi_id: str) -> dict[str, Any]:
+        # GET /kpis/{id} is the convenience alias for /nodes/{id} scoped to
+        # KPI kind — it returns the model_dump shape, NOT envelope-wrapped.
+        # Kept flat so callers see the same KPI fields as get_node().
         resp = self._http.get(f"/library/kpis/{kpi_id}")
         return resp.json()
 
     def list_kpi_categories(self, *, library_id: str) -> dict[str, Any]:
         resp = self._http.get(f"/library/kpi-categories?library_id={library_id}")
-        return resp.json()
+        return _unwrap_dict(resp.json())
 
     def list_chats(
         self, *, library_id: str, limit: int = 50
@@ -360,12 +378,12 @@ class Library:
         resp = self._http.get(
             f"/library/chats?library_id={library_id}&limit={limit}"
         )
-        return resp.json()
+        return _unwrap_dict(resp.json())
 
     def get_chat(self, chat_id: str) -> dict[str, Any]:
         # Full chat history (every message + tool call) for `chat_id`.
         resp = self._http.get(f"/library/chats/{chat_id}")
-        return resp.json()
+        return _unwrap_dict(resp.json())
 
     def chat(
         self,
@@ -467,7 +485,7 @@ class Library:
         if node_kinds is not None:
             body["node_kinds"] = node_kinds
         resp = self._http.post("/library/search", json=body)
-        return SearchResponse.model_validate(resp.json())
+        return _unwrap_envelope(resp.json(), SearchResponse)
 
     # ── Backfill ────────────────────────────────────────────────────────────
 
@@ -594,11 +612,11 @@ class AsyncLibrary:
             f"/library/nodes?library_id={library_id}"
             f"&node_kind={node_kind}&limit={limit}"
         )
-        return NodeListResponse.model_validate(resp.json())
+        return _unwrap_envelope(resp.json(), NodeListResponse)
 
     async def list_libraries(self, *, limit: int = 100) -> NodeListResponse:
         resp = await self._http.get(f"/library/libraries?limit={limit}")
-        return NodeListResponse.model_validate(resp.json())
+        return _unwrap_envelope(resp.json(), NodeListResponse)
 
     async def list_collections(
         self, *, library_id: str, limit: int = 100
@@ -606,7 +624,7 @@ class AsyncLibrary:
         resp = await self._http.get(
             f"/library/collections?library_id={library_id}&limit={limit}"
         )
-        return NodeListResponse.model_validate(resp.json())
+        return _unwrap_envelope(resp.json(), NodeListResponse)
 
     async def seed_fixture(
         self, *, library_id: str, fixture: str
@@ -645,7 +663,7 @@ class AsyncLibrary:
         if node_kinds:
             body["node_kinds"] = node_kinds
         resp = await self._http.post("/library/zoom", json=body)
-        return ZoomResponse.model_validate(resp.json())
+        return _unwrap_envelope(resp.json(), ZoomResponse)
 
     async def record_fact(
         self,
@@ -724,15 +742,16 @@ class AsyncLibrary:
 
     async def list_kpis(self, *, library_id: str, limit: int = 100) -> dict[str, Any]:
         resp = await self._http.get(f"/library/kpis?library_id={library_id}&limit={limit}")
-        return resp.json()
+        return _unwrap_dict(resp.json())
 
     async def get_kpi(self, kpi_id: str) -> dict[str, Any]:
+        # See sync get_kpi — alias for /nodes/{id}, returned flat.
         resp = await self._http.get(f"/library/kpis/{kpi_id}")
         return resp.json()
 
     async def list_kpi_categories(self, *, library_id: str) -> dict[str, Any]:
         resp = await self._http.get(f"/library/kpi-categories?library_id={library_id}")
-        return resp.json()
+        return _unwrap_dict(resp.json())
 
     async def list_chats(
         self, *, library_id: str, limit: int = 50
@@ -740,11 +759,11 @@ class AsyncLibrary:
         resp = await self._http.get(
             f"/library/chats?library_id={library_id}&limit={limit}"
         )
-        return resp.json()
+        return _unwrap_dict(resp.json())
 
     async def get_chat(self, chat_id: str) -> dict[str, Any]:
         resp = await self._http.get(f"/library/chats/{chat_id}")
-        return resp.json()
+        return _unwrap_dict(resp.json())
 
     async def chat(
         self,
@@ -833,7 +852,7 @@ class AsyncLibrary:
         if node_kinds is not None:
             body["node_kinds"] = node_kinds
         resp = await self._http.post("/library/search", json=body)
-        return SearchResponse.model_validate(resp.json())
+        return _unwrap_envelope(resp.json(), SearchResponse)
 
     async def backfill(
         self, *, library_id: str, include_series: bool = True
