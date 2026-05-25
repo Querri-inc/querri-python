@@ -60,6 +60,13 @@ class BackfillResponse(_LibraryBase):
     counts: dict[str, int]
 
 
+class IntakeResponse(_LibraryBase):
+    library_id: str
+    tenant_id: str
+    structure: dict[str, int] = {}
+    link: dict[str, int] = {}
+
+
 class SeedFixtureResponse(_LibraryBase):
     library_id: str
     tenant_id: str

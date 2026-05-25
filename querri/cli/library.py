@@ -1080,6 +1080,59 @@ def backfill(
     )
 
 
+@library_app.command("intake")
+def intake(
+    ctx: typer.Context,
+    library_id: str = typer.Option(
+        None, "--library-id", "-l", help="Target Library _id (defaults to active)."
+    ),
+    include_series: bool = typer.Option(
+        True, "--include-series/--no-series",
+        help="Emit + enrich one SeriesStub per source column (capped per source).",
+    ),
+) -> None:
+    """Run real intake: connect the tenant's connectors/sources/views into the
+    Data Library graph, enrich series with dtype + examples, and link questions
+    and KPIs to the sources that answer them.
+
+    Idempotent + incremental — safe to re-run; a re-run on unchanged data is a
+    0-delta no-op.
+    """
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    lib_id = _resolve_library_id(library_id)
+    try:
+        result = client.library.intake(
+            library_id=lib_id, include_series=include_series
+        )
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+
+    if obj.get("json"):
+        print_json(result.model_dump())
+        return
+
+    print_success(f"Intake complete into {result.library_id}")
+    print_detail(
+        {
+            **{f"structure_{k}": v for k, v in result.structure.items()},
+            **{f"link_{k}": v for k, v in result.link.items()},
+            "library_id": result.library_id,
+        },
+        [
+            ("structure_sources", "Sources connected"),
+            ("structure_series", "Series created"),
+            ("structure_enriched", "Series enriched"),
+            ("structure_edges", "Structural edges"),
+            ("link_questions_linked", "Questions linked"),
+            ("link_kpis_linked", "KPIs linked"),
+            ("link_answerable", "Answerable questions"),
+            ("link_edges", "Relevance edges"),
+            ("library_id", "Library"),
+        ],
+    )
+
+
 # ── Zoom (vector-seeded multi-focal graph zoom) ───────────────────────────
 
 

@@ -18,6 +18,7 @@ from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from ..types.library import (
     BackfillResponse,
     ChatResponse,
+    IntakeResponse,
     FactResponse,
     HealthResponse,
     LibraryNode,
@@ -521,6 +522,16 @@ class Library:
         )
         return BackfillResponse.model_validate(resp.json())
 
+    def intake(
+        self, *, library_id: str, include_series: bool = True,
+        stages: list[str] | None = None,
+    ) -> IntakeResponse:
+        body: dict = {"library_id": library_id, "include_series": include_series}
+        if stages is not None:
+            body["stages"] = stages
+        resp = self._http.post("/library/intake", json=body)
+        return IntakeResponse.model_validate(resp.json())
+
     # ── Health ──────────────────────────────────────────────────────────────
 
     def health(self) -> HealthResponse:
@@ -901,6 +912,16 @@ class AsyncLibrary:
             json={"library_id": library_id, "include_series": include_series},
         )
         return BackfillResponse.model_validate(resp.json())
+
+    async def intake(
+        self, *, library_id: str, include_series: bool = True,
+        stages: list[str] | None = None,
+    ) -> IntakeResponse:
+        body: dict = {"library_id": library_id, "include_series": include_series}
+        if stages is not None:
+            body["stages"] = stages
+        resp = await self._http.post("/library/intake", json=body)
+        return IntakeResponse.model_validate(resp.json())
 
     async def health(self) -> HealthResponse:
         resp = await self._http.get("/library/health")
