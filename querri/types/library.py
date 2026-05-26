@@ -80,10 +80,26 @@ class AskResponse(_LibraryBase):
     declined: bool
     answer: str
     outcome: str = ""
-    provenance: dict | None = None
-    attempted: dict | None = None  # surfaced on decline: source + attempted_sql
-    total_rows: int = 0
-    data: list = []
+    # Per-cluster (one entry per contributing source cluster): each carries
+    # {cluster, tables, generated_sql, total_rows, rows}. None on decline.
+    provenance: list[dict] | None = None
+    # On decline: one entry per attempted cluster — {cluster, tables, sql, ...}.
+    attempted: list[dict] | None = None
+    sources_used: list[str] = []
+    rounds: int = 0
+    llm_calls: int = 0
+    total_ms: int = 0
+
+
+class ConsolidateResponse(_LibraryBase):
+    library_id: str
+    tenant_id: str
+    dry_run: bool
+    candidate_count: int = 0
+    # Each candidate: {question, systems, n_systems, frequency, score, clusters, ...}
+    candidates: list[dict] = []
+    # On commit: each outcome {question, systems, status, view_uuid, name, fact_id, ...}
+    commissioned: list[dict] = []
 
 
 class SeedFixtureResponse(_LibraryBase):

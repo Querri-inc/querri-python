@@ -19,6 +19,7 @@ from ..types.library import (
     AskResponse,
     BackfillResponse,
     ChatResponse,
+    ConsolidateResponse,
     EvalResponse,
     IntakeResponse,
     FactResponse,
@@ -553,6 +554,27 @@ class Library:
         )
         return AskResponse.model_validate(resp.json())
 
+    def consolidate(
+        self,
+        *,
+        library_id: str,
+        commit: bool = False,
+        question: str | None = None,
+        limit: int = 3,
+        min_systems: int = 2,
+    ) -> ConsolidateResponse:
+        """Mine the ask log for hard, cross-system metrics. Dry-run by default
+        (returns ranked candidates); `commit=True` commissions a unified
+        per-channel View + a definition Fact for the top-N."""
+        resp = self._http.post(
+            "/library/consolidate",
+            json={
+                "library_id": library_id, "commit": commit,
+                "question": question, "limit": limit, "min_systems": min_systems,
+            },
+        )
+        return ConsolidateResponse.model_validate(resp.json())
+
     # ── Health ──────────────────────────────────────────────────────────────
 
     def health(self) -> HealthResponse:
@@ -962,6 +984,27 @@ class AsyncLibrary:
             json={"library_id": library_id, "question": question},
         )
         return AskResponse.model_validate(resp.json())
+
+    async def consolidate(
+        self,
+        *,
+        library_id: str,
+        commit: bool = False,
+        question: str | None = None,
+        limit: int = 3,
+        min_systems: int = 2,
+    ) -> ConsolidateResponse:
+        """Mine the ask log for hard, cross-system metrics. Dry-run by default
+        (returns ranked candidates); `commit=True` commissions a unified
+        per-channel View + a definition Fact for the top-N."""
+        resp = await self._http.post(
+            "/library/consolidate",
+            json={
+                "library_id": library_id, "commit": commit,
+                "question": question, "limit": limit, "min_systems": min_systems,
+            },
+        )
+        return ConsolidateResponse.model_validate(resp.json())
 
     async def health(self) -> HealthResponse:
         resp = await self._http.get("/library/health")

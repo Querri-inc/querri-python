@@ -1172,25 +1172,34 @@ def ask(
         return
 
     if result.declined:
-        att = result.attempted or {}
         print_detail(
-            {"a": result.answer,
-             "sql": att.get("attempted_sql") or "—",
-             "src": att.get("source_name") or "—"},
-            [("a", "Declined"), ("src", "Routed to"), ("sql", "Attempted SQL")],
+            {"a": result.answer, "outcome": result.outcome or "—"},
+            [("a", "Declined"), ("outcome", "Outcome")],
         )
+        for att in result.attempted or []:
+            print_detail(
+                att,
+                [
+                    ("cluster", "Cluster"),
+                    ("tables", "Tables"),
+                    ("reason", "Reason"),
+                    ("error", "Error"),
+                    ("sql", "Attempted SQL"),
+                ],
+            )
         return
     print_success(result.answer)
-    prov = result.provenance or {}
-    print_detail(
-        {**prov, "total_rows": result.total_rows},
-        [
-            ("source_name", "Source"),
-            ("routing_score", "Routing score"),
-            ("generated_sql", "SQL"),
-            ("total_rows", "Rows"),
-        ],
-    )
+    # Provenance is per-cluster: one block per contributing source cluster.
+    for prov in result.provenance or []:
+        print_detail(
+            prov,
+            [
+                ("cluster", "Cluster"),
+                ("tables", "Tables"),
+                ("total_rows", "Rows"),
+                ("generated_sql", "SQL"),
+            ],
+        )
 
 
 @library_app.command("eval")
@@ -1231,6 +1240,94 @@ def eval_cmd(
         print_detail(
             {"q": f"{mark} [{r['id']}] {r['question']}"},
             [("q", "Question")],
+        )
+
+
+@library_app.command("consolidate")
+def consolidate_cmd(
+    ctx: typer.Context,
+    library_id: str = typer.Option(
+        None, "--library-id", "-l", help="Target Library _id (defaults to active)."
+    ),
+    commit: bool = typer.Option(
+        False, "--commit",
+        help="Actually commission Views + record Facts. Default: dry-run.",
+    ),
+    question: str = typer.Option(
+        None, "--question", "-q",
+        help="Target a single metric (case-insensitive substring match).",
+    ),
+    limit: int = typer.Option(3, "--limit", help="Max candidates to process."),
+    min_systems: int = typer.Option(
+        2, "--min-systems", help="Min distinct systems for a candidate."
+    ),
+) -> None:
+    """Close the learning loop: mine the ask log for hard, cross-system metrics
+    and commission unified per-channel Views so the next ask answers in one
+    cheap pass.
+
+    Dry-run by default — lists ranked candidates and what it WOULD build. Pass
+    --commit to commission Views + record Facts (slow: ~1-2 min per View).
+    """
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    lib_id = _resolve_library_id(library_id)
+    try:
+        result = client.library.consolidate(
+            library_id=lib_id, commit=commit, question=question,
+            limit=limit, min_systems=min_systems,
+        )
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+
+    if obj.get("json"):
+        print_json(result.model_dump())
+        return
+
+    if result.dry_run:
+        print_success(
+            f"{result.candidate_count} consolidation candidate(s) — dry run "
+            f"(pass --commit to build)"
+        )
+        print_table(
+            [
+                {
+                    "score": c.get("score"),
+                    "freq": c.get("frequency"),
+                    "systems": ", ".join(c.get("systems", [])),
+                    "question": c.get("question"),
+                }
+                for c in result.candidates
+            ],
+            [
+                ("score", "Score"),
+                ("freq", "Freq"),
+                ("systems", "Systems"),
+                ("question", "Question"),
+            ],
+            ctx=ctx,
+        )
+        return
+
+    ok = [o for o in result.commissioned if o.get("status") == "commissioned"]
+    print_success(f"Commissioned {len(ok)}/{len(result.commissioned)} view(s)")
+    for o in result.commissioned:
+        mark = "✓" if o.get("status") == "commissioned" else "✗"
+        print_detail(
+            {
+                "q": f"{mark} {o.get('question')}",
+                "view": o.get("name") or "—",
+                "systems": ", ".join(o.get("systems", [])),
+                "fact": o.get("fact_id") or "—",
+                "err": o.get("error") or "—",
+            },
+            [
+                ("q", "Question"),
+                ("view", "View"),
+                ("systems", "Systems"),
+                ("fact", "Fact"),
+                ("err", "Error"),
+            ],
         )
 
 
