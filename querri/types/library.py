@@ -96,6 +96,7 @@ class ConsolidateResponse(_LibraryBase):
     tenant_id: str
     dry_run: bool
     candidate_count: int = 0
+    skipped_handled: int = 0  # questions already answered by a live view
     # Each candidate: {question, systems, n_systems, frequency, score, clusters, ...}
     candidates: list[dict] = []
     # On commit: each outcome {question, systems, status, view_uuid, name, fact_id, ...}

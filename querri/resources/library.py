@@ -563,6 +563,7 @@ class Library:
         limit: int = 3,
         min_systems: int = 2,
         unify: bool = False,
+        replace: bool = False,
     ) -> ConsolidateResponse:
         """Mine the ask log for hard, cross-system metrics. Dry-run by default
         (returns ranked candidates); `commit=True` commissions a unified
@@ -574,7 +575,7 @@ class Library:
             json={
                 "library_id": library_id, "commit": commit,
                 "question": question, "limit": limit, "min_systems": min_systems,
-                "unify": unify,
+                "unify": unify, "replace": replace,
             },
         )
         return ConsolidateResponse.model_validate(resp.json())
@@ -998,6 +999,7 @@ class AsyncLibrary:
         limit: int = 3,
         min_systems: int = 2,
         unify: bool = False,
+        replace: bool = False,
     ) -> ConsolidateResponse:
         """Mine the ask log for hard, cross-system metrics. Dry-run by default
         (returns ranked candidates); `commit=True` commissions a unified
@@ -1009,7 +1011,7 @@ class AsyncLibrary:
             json={
                 "library_id": library_id, "commit": commit,
                 "question": question, "limit": limit, "min_systems": min_systems,
-                "unify": unify,
+                "unify": unify, "replace": replace,
             },
         )
         return ConsolidateResponse.model_validate(resp.json())

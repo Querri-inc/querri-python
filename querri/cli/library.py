@@ -1266,6 +1266,11 @@ def consolidate_cmd(
         help="Also build the entity-resolved unified view (resolves the same "
              "product across channels; currencies kept separate, no blind FX).",
     ),
+    replace: bool = typer.Option(
+        False, "--replace",
+        help="Re-commission even if a view already answers the question "
+             "(supersedes it). Default: skip already-consolidated questions.",
+    ),
 ) -> None:
     """Close the learning loop: mine the ask log for hard, cross-system metrics
     and commission unified per-channel Views so the next ask answers in one
@@ -1281,7 +1286,7 @@ def consolidate_cmd(
     try:
         result = client.library.consolidate(
             library_id=lib_id, commit=commit, question=question,
-            limit=limit, min_systems=min_systems, unify=unify,
+            limit=limit, min_systems=min_systems, unify=unify, replace=replace,
         )
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
@@ -1291,9 +1296,14 @@ def consolidate_cmd(
         return
 
     if result.dry_run:
+        skipped = getattr(result, "skipped_handled", 0)
+        extra = (
+            f"; {skipped} already consolidated (skipped — use --replace to rebuild)"
+            if skipped else ""
+        )
         print_success(
             f"{result.candidate_count} consolidation candidate(s) — dry run "
-            f"(pass --commit to build)"
+            f"(pass --commit to build){extra}"
         )
         print_table(
             [
