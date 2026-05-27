@@ -1261,6 +1261,11 @@ def consolidate_cmd(
     min_systems: int = typer.Option(
         2, "--min-systems", help="Min distinct systems for a candidate."
     ),
+    unify: bool = typer.Option(
+        False, "--unify",
+        help="Also build the entity-resolved unified view (resolves the same "
+             "product across channels; currencies kept separate, no blind FX).",
+    ),
 ) -> None:
     """Close the learning loop: mine the ask log for hard, cross-system metrics
     and commission unified per-channel Views so the next ask answers in one
@@ -1268,6 +1273,7 @@ def consolidate_cmd(
 
     Dry-run by default — lists ranked candidates and what it WOULD build. Pass
     --commit to commission Views + record Facts (slow: ~1-2 min per View).
+    --unify also builds the cross-channel entity-resolved view on top.
     """
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -1275,7 +1281,7 @@ def consolidate_cmd(
     try:
         result = client.library.consolidate(
             library_id=lib_id, commit=commit, question=question,
-            limit=limit, min_systems=min_systems,
+            limit=limit, min_systems=min_systems, unify=unify,
         )
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
@@ -1313,22 +1319,28 @@ def consolidate_cmd(
     print_success(f"Commissioned {len(ok)}/{len(result.commissioned)} view(s)")
     for o in result.commissioned:
         mark = "✓" if o.get("status") == "commissioned" else "✗"
-        print_detail(
-            {
-                "q": f"{mark} {o.get('question')}",
-                "view": o.get("name") or "—",
-                "systems": ", ".join(o.get("systems", [])),
-                "fact": o.get("fact_id") or "—",
-                "err": o.get("error") or "—",
-            },
-            [
-                ("q", "Question"),
-                ("view", "View"),
-                ("systems", "Systems"),
-                ("fact", "Fact"),
-                ("err", "Error"),
-            ],
-        )
+        fields = {
+            "q": f"{mark} {o.get('question')}",
+            "view": o.get("name") or "—",
+            "systems": ", ".join(o.get("systems", [])),
+            "fact": o.get("fact_id") or "—",
+            "err": o.get("error") or "—",
+        }
+        cols = [
+            ("q", "Question"), ("view", "Per-channel view"),
+            ("systems", "Systems"), ("fact", "Fact"), ("err", "Error"),
+        ]
+        # Surface the entity-resolved unified view (Part 2 / --unify) when present.
+        if o.get("unified_view_uuid") or o.get("unified_error"):
+            fields["uview"] = o.get("unified_name") or "—"
+            fields["entities"] = str(o.get("entities_resolved") or "—")
+            fields["uerr"] = o.get("unified_error") or "—"
+            cols += [
+                ("uview", "Unified view"),
+                ("entities", "Entities resolved"),
+                ("uerr", "Unified error"),
+            ]
+        print_detail(fields, cols)
 
 
 # ── Zoom (vector-seeded multi-focal graph zoom) ───────────────────────────

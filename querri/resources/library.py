@@ -562,15 +562,19 @@ class Library:
         question: str | None = None,
         limit: int = 3,
         min_systems: int = 2,
+        unify: bool = False,
     ) -> ConsolidateResponse:
         """Mine the ask log for hard, cross-system metrics. Dry-run by default
         (returns ranked candidates); `commit=True` commissions a unified
-        per-channel View + a definition Fact for the top-N."""
+        per-channel View + a definition Fact for the top-N. `unify=True` also
+        builds the entity-resolved view (one row per resolved product ×
+        currency, currencies kept separate)."""
         resp = self._http.post(
             "/library/consolidate",
             json={
                 "library_id": library_id, "commit": commit,
                 "question": question, "limit": limit, "min_systems": min_systems,
+                "unify": unify,
             },
         )
         return ConsolidateResponse.model_validate(resp.json())
@@ -993,15 +997,19 @@ class AsyncLibrary:
         question: str | None = None,
         limit: int = 3,
         min_systems: int = 2,
+        unify: bool = False,
     ) -> ConsolidateResponse:
         """Mine the ask log for hard, cross-system metrics. Dry-run by default
         (returns ranked candidates); `commit=True` commissions a unified
-        per-channel View + a definition Fact for the top-N."""
+        per-channel View + a definition Fact for the top-N. `unify=True` also
+        builds the entity-resolved view (one row per resolved product ×
+        currency, currencies kept separate)."""
         resp = await self._http.post(
             "/library/consolidate",
             json={
                 "library_id": library_id, "commit": commit,
                 "question": question, "limit": limit, "min_systems": min_systems,
+                "unify": unify,
             },
         )
         return ConsolidateResponse.model_validate(resp.json())
