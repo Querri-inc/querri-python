@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from ..types.library import (
     AskResponse,
+    CollectionContents,
     BackfillResponse,
     ChatResponse,
     ConsolidateResponse,
@@ -474,6 +475,88 @@ class Library:
             total_ms=meta.get("total_ms", 0),
         )
 
+    # ── Collection contents + view build (P3c) ────────────────────────────────
+
+    def collection_contents(self, collection_id: str) -> CollectionContents:
+        """Batched, name-resolved contents of a Collection — anchor + refining
+        questions (each with a tri-state ``answer_state`` + KPIs + answering
+        views), the deduped KPI rollup, facts, views, and sources. Server-side
+        FGA-filtered. Backs ``querri library collection show``.
+        """
+        resp = self._http.get(
+            f"/library/collections/{collection_id}/contents"
+        )
+        return _unwrap_envelope(resp.json(), CollectionContents)
+
+    def build_view_stream(
+        self,
+        *,
+        collection_id: str,
+        source_node_ids: list[str],
+        answers_question_ids: list[str] | None = None,
+        name: str | None = None,
+        summary: str | None = None,
+        instructions: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        """Stream a headless view build INTO ``collection_id``. Yields parsed
+        SSE event dicts (inner Views-agent progress frames, then a terminal
+        ``data-view-built`` carrying ``view_uuid`` / ``status`` /
+        ``answers_written`` — or ``error`` / ``retryable`` on failure).
+        """
+        if not source_node_ids:
+            raise ValueError("source_node_ids cannot be empty.")
+        body: dict[str, Any] = {"source_node_ids": source_node_ids}
+        if answers_question_ids:
+            body["answers_question_ids"] = answers_question_ids
+        if name is not None:
+            body["name"] = name
+        if summary is not None:
+            body["summary"] = summary
+        if instructions is not None:
+            body["instructions"] = instructions
+        with self._http._client.stream(  # type: ignore[attr-defined]
+            "POST", f"/library/collections/{collection_id}/views", json=body
+        ) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line or not line.startswith("data: "):
+                    continue
+                payload = line[len("data: "):]
+                if payload == "[DONE]":
+                    break
+                try:
+                    yield json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+
+    def build_view(
+        self,
+        *,
+        collection_id: str,
+        source_node_ids: list[str],
+        answers_question_ids: list[str] | None = None,
+        name: str | None = None,
+        summary: str | None = None,
+        instructions: str | None = None,
+    ) -> dict[str, Any]:
+        """Build a view and drain the stream to its terminal result. Returns the
+        ``data-view-built`` payload (``view_uuid`` / ``status`` /
+        ``answers_written`` on success, or ``error`` / ``retryable`` on
+        failure). Use :meth:`build_view_stream` to surface live progress.
+        """
+        result: dict[str, Any] = {}
+        for ev in self.build_view_stream(
+            collection_id=collection_id,
+            source_node_ids=source_node_ids,
+            answers_question_ids=answers_question_ids,
+            name=name,
+            summary=summary,
+            instructions=instructions,
+        ):
+            if ev.get("type") == "data-view-built":
+                result = ev.get("data", {}) or {}
+        return result
+
     # ── Read ────────────────────────────────────────────────────────────────
 
     def get_node(self, node_id: str) -> LibraryNode:
@@ -915,6 +998,74 @@ class AsyncLibrary:
             output_tokens=meta.get("output_tokens", 0),
             total_ms=meta.get("total_ms", 0),
         )
+
+    async def collection_contents(self, collection_id: str) -> CollectionContents:
+        """Async parallel of :meth:`Library.collection_contents`."""
+        resp = await self._http.get(
+            f"/library/collections/{collection_id}/contents"
+        )
+        return _unwrap_envelope(resp.json(), CollectionContents)
+
+    async def build_view_stream(
+        self,
+        *,
+        collection_id: str,
+        source_node_ids: list[str],
+        answers_question_ids: list[str] | None = None,
+        name: str | None = None,
+        summary: str | None = None,
+        instructions: str | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Async parallel of :meth:`Library.build_view_stream`."""
+        if not source_node_ids:
+            raise ValueError("source_node_ids cannot be empty.")
+        body: dict[str, Any] = {"source_node_ids": source_node_ids}
+        if answers_question_ids:
+            body["answers_question_ids"] = answers_question_ids
+        if name is not None:
+            body["name"] = name
+        if summary is not None:
+            body["summary"] = summary
+        if instructions is not None:
+            body["instructions"] = instructions
+        async with self._http._client.stream(  # type: ignore[attr-defined]
+            "POST", f"/library/collections/{collection_id}/views", json=body
+        ) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if not line or not line.startswith("data: "):
+                    continue
+                payload = line[len("data: "):]
+                if payload == "[DONE]":
+                    break
+                try:
+                    yield json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+
+    async def build_view(
+        self,
+        *,
+        collection_id: str,
+        source_node_ids: list[str],
+        answers_question_ids: list[str] | None = None,
+        name: str | None = None,
+        summary: str | None = None,
+        instructions: str | None = None,
+    ) -> dict[str, Any]:
+        """Async parallel of :meth:`Library.build_view`."""
+        result: dict[str, Any] = {}
+        async for ev in self.build_view_stream(
+            collection_id=collection_id,
+            source_node_ids=source_node_ids,
+            answers_question_ids=answers_question_ids,
+            name=name,
+            summary=summary,
+            instructions=instructions,
+        ):
+            if ev.get("type") == "data-view-built":
+                result = ev.get("data", {}) or {}
+        return result
 
     async def get_node(self, node_id: str) -> LibraryNode:
         resp = await self._http.get(f"/library/nodes/{node_id}")

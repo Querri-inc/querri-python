@@ -741,3 +741,102 @@ def test_library_async_surface_parity():
         f"These AsyncLibrary methods have no Library sibling: "
         f"{sorted(async_only)}. Add sync variants to maintain parity."
     )
+
+
+# ── collection_contents + build_view (P3c) ──────────────────────────────────
+
+_CONTENTS_ENVELOPE = {
+    "data": {
+        "collection": {
+            "id": "coll_org_test_x", "name": "Revenue", "summary": "Top-line",
+            "created_at": "", "updated_at": "",
+        },
+        "anchor": {
+            "id": "q_anchor_x", "question_text": "What drove revenue?",
+            "answerable": True, "answer_state": "answered",
+            "kpis": [], "answering_views": [
+                {"id": "view_x", "name": "rev_by_channel",
+                 "status": "ready", "confidence": 0.82},
+            ],
+        },
+        "refining_questions": [
+            {"id": "q_refining_x", "question_text": "By channel?",
+             "answerable": True, "answer_state": "answerable",
+             "kpis": [], "answering_views": []},
+        ],
+        "kpis": [], "facts": [], "views": [], "sources": [],
+    },
+    "library_id": "lib_org_test_aaa",
+}
+
+_SSE_VIEW_BUILT = (
+    b'data: {"type":"start","messageId":"m1"}\n\n'
+    b'data: {"type":"data-view-built","data":'
+    b'{"view_uuid":"v_1","status":"ready","answers_written":['
+    b'{"question_id":"q_anchor_x","confidence":0.8}]}}\n\n'
+    b'data: [DONE]\n\n'
+)
+
+
+@respx.mock
+def test_sync_collection_contents_unwraps_envelope():
+    respx.get(f"{BASE}/library/collections/coll_org_test_x/contents").mock(
+        return_value=httpx.Response(200, json=_CONTENTS_ENVELOPE)
+    )
+    cc = _sync_lib().collection_contents("coll_org_test_x")
+    assert cc.library_id == "lib_org_test_aaa"
+    assert cc.collection.name == "Revenue"
+    assert cc.anchor is not None
+    assert cc.anchor.answer_state == "answered"
+    assert cc.anchor.answering_views[0].name == "rev_by_channel"
+    assert cc.refining_questions[0].answer_state == "answerable"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_async_collection_contents_unwraps_envelope():
+    respx.get(f"{BASE}/library/collections/coll_org_test_x/contents").mock(
+        return_value=httpx.Response(200, json=_CONTENTS_ENVELOPE)
+    )
+    cc = await _async_lib().collection_contents("coll_org_test_x")
+    assert cc.library_id == "lib_org_test_aaa"
+    assert cc.anchor is not None
+    assert cc.anchor.answer_state == "answered"
+
+
+@respx.mock
+def test_sync_build_view_drains_terminal():
+    route = respx.post(
+        f"{BASE}/library/collections/coll_org_test_x/views"
+    ).mock(return_value=httpx.Response(200, content=_SSE_VIEW_BUILT))
+    result = _sync_lib().build_view(
+        collection_id="coll_org_test_x",
+        source_node_ids=["src_1", "src_2"],
+        name="rev_by_channel",
+        summary="Revenue by channel.",
+    )
+    assert route.called
+    sent = route.calls.last.request
+    assert b"source_node_ids" in sent.content
+    assert result["view_uuid"] == "v_1"
+    assert result["status"] == "ready"
+    assert result["answers_written"][0]["question_id"] == "q_anchor_x"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_async_build_view_drains_terminal():
+    respx.post(
+        f"{BASE}/library/collections/coll_org_test_x/views"
+    ).mock(return_value=httpx.Response(200, content=_SSE_VIEW_BUILT))
+    result = await _async_lib().build_view(
+        collection_id="coll_org_test_x", source_node_ids=["src_1"],
+    )
+    assert result["view_uuid"] == "v_1"
+    assert result["status"] == "ready"
+
+
+def test_sync_build_view_empty_sources_raises():
+    with pytest.raises(ValueError):
+        # Drain the generator so the body executes (build_view delegates to it).
+        _sync_lib().build_view(collection_id="coll_x", source_node_ids=[])

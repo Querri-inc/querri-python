@@ -991,6 +991,173 @@ def record_fact(
         print_success(f"  attached to {len(fact.source_node_ids)} node(s) via ABOUT edges")
 
 
+# ── Collection contents + view build + KPI (P3c) ────────────────────────────
+
+
+@library_app.command("collection-show")
+def collection_show(
+    ctx: typer.Context,
+    collection_id: str = typer.Argument(..., help="Collection _id (coll_…)."),
+) -> None:
+    """Show a Collection's full contents — questions (with tri-state answer
+    status), KPIs, facts, views, and sources.
+    """
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    try:
+        cc = client.library.collection_contents(collection_id)
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+
+    if obj.get("json"):
+        print_json(cc.model_dump())
+        return
+
+    print_detail(
+        cc.collection.model_dump(),
+        [("name", "Name"), ("summary", "Summary"), ("id", "ID")],
+    )
+    questions = ([cc.anchor] if cc.anchor else []) + list(cc.refining_questions)
+    if questions:
+        print_table(
+            [
+                {
+                    "question": q.question_text,
+                    "answer": q.answer_state,
+                    "views": str(len(q.answering_views)),
+                    "id": q.id,
+                }
+                for q in questions
+            ],
+            [("question", "Question"), ("answer", "Answer"),
+             ("views", "Views"), ("id", "ID")],
+        )
+    if cc.views:
+        print_table(
+            [{"name": v.name, "status": v.status, "id": v.id} for v in cc.views],
+            [("name", "View"), ("status", "Status"), ("id", "ID")],
+        )
+    if cc.kpis:
+        print_table(
+            [{"name": k.name, "state": k.state, "id": k.id} for k in cc.kpis],
+            [("name", "Metric"), ("state", "State"), ("id", "ID")],
+        )
+    if cc.facts:
+        print_success(f"  {len(cc.facts)} fact(s), {len(cc.sources)} source(s)")
+    elif cc.sources:
+        print_success(f"  {len(cc.sources)} source(s)")
+
+
+@library_app.command("view-build")
+def view_build(
+    ctx: typer.Context,
+    collection_id: str = typer.Argument(
+        ..., help="Collection to build the view into (coll_…)."
+    ),
+    source: list[str] = typer.Option(
+        ..., "--source", "-s",
+        help="SourceStub node id this view uses (repeatable).",
+    ),
+    name: str = typer.Option(None, "--name", help="Short snake_case view name."),
+    summary: str = typer.Option(
+        None, "--summary", help="1-3 sentence description of what the view computes."
+    ),
+    answers: list[str] = typer.Option(
+        None, "--answers", "-q",
+        help="Question id this view answers (repeatable; defaults to the anchor).",
+    ),
+    instructions: str = typer.Option(
+        None, "--instructions", help="Tailored brief for the Views agent."
+    ),
+) -> None:
+    """Build a View into a Collection (headless — no chat). Streams the Views
+    agent and prints the resulting view id + status. Can take 30-90s.
+    """
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    if not obj.get("json"):
+        typer.echo("Building view (this can take 30-90s)…", err=True)
+    result: dict = {}
+    try:
+        for ev in client.library.build_view_stream(
+            collection_id=collection_id,
+            source_node_ids=source,
+            answers_question_ids=answers or None,
+            name=name,
+            summary=summary,
+            instructions=instructions,
+        ):
+            etype = ev.get("type", "")
+            if etype == "data-view-built":
+                result = ev.get("data", {}) or {}
+            elif etype == "tool-input-available" and not obj.get("json"):
+                typer.echo(f"  ⚡ {ev.get('toolName', '?')}", err=True)
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+
+    if obj.get("json"):
+        print_json(result)
+        return
+    if result.get("error"):
+        print_error(f"View build failed: {result['error']}")
+        raise typer.Exit(code=1)
+    if obj.get("quiet"):
+        print_id(result.get("view_uuid", ""))
+        return
+    print_success(
+        f"View built: {result.get('view_uuid', '?')} [{result.get('status', '?')}]"
+    )
+    answers_written = result.get("answers_written") or []
+    if answers_written:
+        print_success(f"  answers {len(answers_written)} question(s)")
+
+
+@library_app.command("kpi-create")
+def kpi_create(
+    ctx: typer.Context,
+    name: str = typer.Argument(..., help="KPI display name."),
+    library_id: str = typer.Option(
+        None, "--library-id", "-l", help="Library (defaults to active)."
+    ),
+    canonical: str = typer.Option("", "--canonical", help="Canonical name."),
+    category: list[str] = typer.Option(
+        None, "--category", "-c", help="KPI category (repeatable)."
+    ),
+    summary: str = typer.Option("", "--summary", "-s"),
+    state: str = typer.Option(
+        "draft", "--state", help="draft | active | deprecated | aspirational"
+    ),
+) -> None:
+    """Create a KPI node in the Data Library."""
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    lib_id = _resolve_library_id(library_id)
+    try:
+        kpi = client.library.create_kpi(
+            library_id=lib_id,
+            name=name,
+            canonical_name=canonical,
+            categories=category or [],
+            summary=summary,
+            state=state,
+        )
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+
+    kpi_id = kpi.get("id") or kpi.get("_id") or kpi.get("kpi_id", "?")
+    if obj.get("json"):
+        print_json(kpi)
+        return
+    if obj.get("quiet"):
+        print_id(kpi_id)
+        return
+    print_success(f"KPI created: {kpi_id}")
+    print_detail(
+        {**kpi, "id": kpi_id},
+        [("name", "Name"), ("state", "State"), ("id", "ID")],
+    )
+
+
 # ── Seed demo ──────────────────────────────────────────────────────────────
 
 

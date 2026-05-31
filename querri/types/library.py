@@ -272,3 +272,84 @@ class LibraryNode(_LibraryBase):
     # output_schema. Populated by `_node_from_get` via set-difference so
     # we don't duplicate the typed fields on the wire.
     extra: dict[str, Any] = {}
+
+
+# ── Collection contents (P3c — backs GET /collections/{id}/contents) ────────
+# Hand-maintained mirror of server `collection_contents.CollectionContents`
+# (see module docstring — types are NOT codegen). Permissive (_LibraryBase
+# ignores extra) so server-side field additions don't break the SDK.
+
+
+class CollectionContentsSummary(_LibraryBase):
+    id: str
+    name: str
+    summary: str = ""
+    created_at: str = ""
+    updated_at: str = ""
+
+
+class CCKPIRef(_LibraryBase):
+    id: str
+    name: str
+    canonical_name: str = ""
+    categories: list[str] = []
+    state: str = ""
+    # Present only on the deduped library-level rollup entries (KPIRollup).
+    bound_via: list[str] = []
+
+
+class CCAnsweringView(_LibraryBase):
+    id: str
+    name: str
+    status: str = ""
+    confidence: float = 0.0
+
+
+class CCQuestionDetail(_LibraryBase):
+    id: str
+    question_text: str = ""
+    answerable: bool = False
+    # Tri-state: "answered" (live ANSWERS edge / real View) | "answerable"
+    # (intake stamp, no view yet → build-a-view CTA) | "unanswered".
+    answer_state: str = "unanswered"
+    kpis: list[CCKPIRef] = []
+    answering_views: list[CCAnsweringView] = []
+
+
+class CCViewAnswer(_LibraryBase):
+    question_id: str
+    question_text: str = ""
+    confidence: float = 0.0
+
+
+class CCViewDetail(_LibraryBase):
+    id: str
+    name: str
+    summary: str = ""
+    status: str = ""
+    answers: list[CCViewAnswer] = []
+
+
+class CCFactSummary(_LibraryBase):
+    id: str
+    statement: str
+    fact_kind: str = ""
+    confidence: float = 1.0
+
+
+class CCNodeRef(_LibraryBase):
+    id: str
+    name: str
+
+
+class CollectionContents(_LibraryBase):
+    """Batched, name-resolved contents of a Collection. `library_id` is lifted
+    from the SPEC §5.1 envelope by `_unwrap_envelope`."""
+    library_id: str = ""
+    collection: CollectionContentsSummary
+    anchor: CCQuestionDetail | None = None
+    refining_questions: list[CCQuestionDetail] = []
+    kpis: list[CCKPIRef] = []
+    facts: list[CCFactSummary] = []
+    views: list[CCViewDetail] = []
+    sources: list[CCNodeRef] = []
