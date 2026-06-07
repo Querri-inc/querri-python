@@ -65,7 +65,9 @@ def serialize(obj):
     if isinstance(obj, SyncCursorPage):
         page = obj._ensure_first_page()
         return {
-            "data": [item.model_dump() for item in page.data],
+            # Items may be Pydantic models or raw dicts (e.g. sources), so
+            # recurse rather than assuming .model_dump().
+            "data": [serialize(item) for item in page.data],
             "has_more": page.has_more,
             "next_cursor": page.next_cursor,
             "total": page.total,

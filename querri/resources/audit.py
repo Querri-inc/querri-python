@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import builtins
 from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
+from .._pagination import AsyncCursorPage, SyncCursorPage
 from ..types.audit import AuditEvent
 
 
@@ -15,7 +15,7 @@ class Audit:
     Usage::
 
         events = client.audit.list()
-        events = client.audit.list(action="data.query", page_size=10)
+        events = client.audit.list(action="data.query", limit=10)
     """
 
     def __init__(self, http: SyncHTTPClient) -> None:
@@ -31,8 +31,8 @@ class Audit:
         end_date: str | None = None,
         limit: int = 50,
         after: str | None = None,
-    ) -> builtins.list[AuditEvent]:
-        """Query audit events for the organization.
+    ) -> SyncCursorPage[AuditEvent]:
+        """Query audit events for the organization with cursor pagination.
 
         Args:
             actor_id: Filter by actor (user or API key).
@@ -40,11 +40,11 @@ class Audit:
             action: Filter by action type (e.g. "data.query", "file.upload").
             start_date: ISO date string for range start.
             end_date: ISO date string for range end.
-            limit: Max results to return (1-200, default 50).
+            limit: Max results per page (1-100).
             after: Cursor for pagination.
 
         Returns:
-            List of AuditEvent objects.
+            Auto-paginating iterator of AuditEvent objects.
         """
         params: dict[str, Any] = {"limit": limit}
         if after is not None:
@@ -59,9 +59,7 @@ class Audit:
             params["start_date"] = start_date
         if end_date is not None:
             params["end_date"] = end_date
-        resp = self._http.get("/audit/events", params=params)
-        body = resp.json()
-        return [AuditEvent.model_validate(e) for e in body.get("data", [])]
+        return SyncCursorPage(self._http, "/audit/events", AuditEvent, params=params)
 
 
 class AsyncAudit:
@@ -70,7 +68,7 @@ class AsyncAudit:
     Usage::
 
         events = await client.audit.list()
-        events = await client.audit.list(action="data.query", page_size=10)
+        events = await client.audit.list(action="data.query", limit=10)
     """
 
     def __init__(self, http: AsyncHTTPClient) -> None:
@@ -86,8 +84,8 @@ class AsyncAudit:
         end_date: str | None = None,
         limit: int = 50,
         after: str | None = None,
-    ) -> builtins.list[AuditEvent]:
-        """Query audit events for the organization.
+    ) -> AsyncCursorPage[AuditEvent]:
+        """Query audit events for the organization with cursor pagination.
 
         Args:
             actor_id: Filter by actor (user or API key).
@@ -95,11 +93,11 @@ class AsyncAudit:
             action: Filter by action type (e.g. "data.query", "file.upload").
             start_date: ISO date string for range start.
             end_date: ISO date string for range end.
-            limit: Max results to return (1-200, default 50).
+            limit: Max results per page (1-100).
             after: Cursor for pagination.
 
         Returns:
-            List of AuditEvent objects.
+            Auto-paginating iterator of AuditEvent objects.
         """
         params: dict[str, Any] = {"limit": limit}
         if after is not None:
@@ -114,6 +112,4 @@ class AsyncAudit:
             params["start_date"] = start_date
         if end_date is not None:
             params["end_date"] = end_date
-        resp = await self._http.get("/audit/events", params=params)
-        body = resp.json()
-        return [AuditEvent.model_validate(e) for e in body.get("data", [])]
+        return AsyncCursorPage(self._http, "/audit/events", AuditEvent, params=params)

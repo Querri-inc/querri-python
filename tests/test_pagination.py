@@ -161,6 +161,24 @@ class TestSyncCursorPage:
         assert page.has_more is True
         http.close()
 
+    @respx.mock
+    def test_raw_dict_passthrough(self):
+        """model=None yields raw dicts, preserving fields no model captures."""
+        respx.get("https://test.querri.com/api/v1/items").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [{"id": "1", "name": "Alice", "extra": "kept"}],
+                    "has_more": False,
+                },
+            )
+        )
+        http = SyncHTTPClient(_make_config())
+        page = SyncCursorPage(http, "/items", None)
+        items = list(page)
+        assert items == [{"id": "1", "name": "Alice", "extra": "kept"}]
+        http.close()
+
 
 class TestAsyncCursorPage:
     """Test asynchronous pagination."""
@@ -275,4 +293,22 @@ class TestAsyncCursorPage:
         assert len(data) == 1
         assert data[0].id == "1"
         assert data[0].name == "Alice"
+        await http.close()
+
+    @respx.mock
+    async def test_raw_dict_passthrough(self):
+        """model=None yields raw dicts, preserving fields no model captures."""
+        respx.get("https://test.querri.com/api/v1/items").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [{"id": "1", "name": "Alice", "extra": "kept"}],
+                    "has_more": False,
+                },
+            )
+        )
+        http = AsyncHTTPClient(_make_config())
+        page = AsyncCursorPage(http, "/items", None)
+        items = [item async for item in page]
+        assert items == [{"id": "1", "name": "Alice", "extra": "kept"}]
         await http.close()

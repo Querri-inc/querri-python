@@ -165,12 +165,14 @@ def new_view(
 @view_app.command("list")
 def list_views(
     ctx: typer.Context,
+    limit: int = typer.Option(25, "--limit", "-l", help="Results fetched per page."),
+    after: str | None = typer.Option(None, "--after", help="Cursor to start from."),
 ) -> None:
-    """List all views."""
+    """List all views (fetches all pages)."""
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
-        items = client.views.list()
+        items = list(client.views.list(limit=limit, after=after))
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 

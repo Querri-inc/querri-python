@@ -32,14 +32,20 @@ def list_sources(
     search: str | None = typer.Option(
         None, "--search", "-s", help="Filter by name (substring match)."
     ),
+    limit: int = typer.Option(25, "--limit", "-l", help="Results fetched per page."),
+    after: str | None = typer.Option(None, "--after", help="Cursor to start from."),
 ) -> None:
-    """List data sources."""
+    """List data sources (fetches all pages)."""
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
-        items = client.sources.list(search=search)
+        items = list(client.sources.list(limit=limit, after=after))
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+
+    if search:
+        needle = search.lower()
+        items = [s for s in items if needle in (s.get("name") or "").lower()]
 
     if obj.get("json"):
         print_json(items)
@@ -508,12 +514,14 @@ def sync_source(
 @sources_app.command("connectors")
 def list_connectors(
     ctx: typer.Context,
+    limit: int = typer.Option(25, "--limit", "-l", help="Results fetched per page."),
+    after: str | None = typer.Option(None, "--after", help="Cursor to start from."),
 ) -> None:
-    """List available connector types."""
+    """List available connector types (fetches all pages)."""
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
-        items = client.sources.list_connectors()
+        items = list(client.sources.list_connectors(limit=limit, after=after))
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 

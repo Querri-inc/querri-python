@@ -2,18 +2,32 @@
 
 Supports both cursor-based (after/has_more) and offset-based (page/page_size)
 pagination patterns transparently.
+
+Pass a Pydantic model as ``model`` to validate each item, or ``model=None`` to
+yield the raw response dicts unchanged (used by endpoints whose list payloads
+carry a richer field set than any single model captures, e.g. sources).
 """
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
 from pydantic import BaseModel
 
 from ._base_client import AsyncHTTPClient, SyncHTTPClient
 
-T = TypeVar("T", bound=BaseModel)
+T = TypeVar("T")
+
+
+def _parse_items(model: type[BaseModel] | None, items_raw: Any) -> list[Any]:
+    """Validate raw items into ``model`` instances, or pass dicts through.
+
+    When ``model`` is ``None`` the items are returned as-is (raw dicts).
+    """
+    if model is None:
+        return list(items_raw)
+    return [model.model_validate(item) for item in items_raw]
 
 
 class SyncPage(Generic[T]):
@@ -55,7 +69,7 @@ class SyncCursorPage(Generic[T]):
         self,
         http: SyncHTTPClient,
         path: str,
-        model: type[T],
+        model: type[BaseModel] | None,
         params: dict[str, Any] | None = None,
         data_key: str = "data",
     ) -> None:
@@ -81,11 +95,12 @@ class SyncCursorPage(Generic[T]):
 
         # Internal API may return a plain list instead of a paginated envelope
         if isinstance(body, list):
-            items = [self._model.model_validate(item) for item in body]
-            return SyncPage(data=items, has_more=False)
+            return SyncPage(
+                data=cast("list[T]", _parse_items(self._model, body)),
+                has_more=False,
+            )
 
-        items_raw = body.get(self._data_key, [])
-        items = [self._model.model_validate(item) for item in items_raw]
+        items = cast("list[T]", _parse_items(self._model, body.get(self._data_key, [])))
 
         has_more = body.get("has_more", False)
         next_cursor = body.get("next_cursor")
@@ -186,7 +201,7 @@ class AsyncCursorPage(Generic[T]):
         self,
         http: AsyncHTTPClient,
         path: str,
-        model: type[T],
+        model: type[BaseModel] | None,
         params: dict[str, Any] | None = None,
         data_key: str = "data",
     ) -> None:
@@ -212,11 +227,12 @@ class AsyncCursorPage(Generic[T]):
 
         # Internal API may return a plain list instead of a paginated envelope
         if isinstance(body, list):
-            items = [self._model.model_validate(item) for item in body]
-            return AsyncPage(data=items, has_more=False)
+            return AsyncPage(
+                data=cast("list[T]", _parse_items(self._model, body)),
+                has_more=False,
+            )
 
-        items_raw = body.get(self._data_key, [])
-        items = [self._model.model_validate(item) for item in items_raw]
+        items = cast("list[T]", _parse_items(self._model, body.get(self._data_key, [])))
 
         has_more = body.get("has_more", False)
         next_cursor = body.get("next_cursor")

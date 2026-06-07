@@ -6,6 +6,7 @@ import builtins
 from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
+from .._pagination import AsyncCursorPage, SyncCursorPage
 from ..types.key import ApiKey, ApiKeyCreated
 
 
@@ -77,15 +78,26 @@ class Keys:
         resp = self._http.get(f"/keys/{key_id}")
         return ApiKey.model_validate(resp.json())
 
-    def list(self) -> builtins.list[ApiKey]:
-        """List API keys for the organization.
+    def list(
+        self,
+        *,
+        limit: int = 25,
+        after: str | None = None,
+    ) -> SyncCursorPage[ApiKey]:
+        """List API keys for the organization with cursor pagination.
+
+        Args:
+            limit: Maximum keys per page (1-100).
+            after: Cursor for the next page.
 
         Returns:
-            List of ApiKey objects (secrets are never included).
+            Auto-paginating iterator of ApiKey objects (secrets are never
+            included).
         """
-        resp = self._http.get("/keys")
-        body = resp.json()
-        return [ApiKey.model_validate(k) for k in body.get("data", [])]
+        params: dict[str, Any] = {"limit": limit}
+        if after is not None:
+            params["after"] = after
+        return SyncCursorPage(self._http, "/keys", ApiKey, params=params)
 
     def delete(self, key_id: str) -> dict[str, Any]:
         """Revoke an API key.
@@ -168,15 +180,26 @@ class AsyncKeys:
         resp = await self._http.get(f"/keys/{key_id}")
         return ApiKey.model_validate(resp.json())
 
-    async def list(self) -> builtins.list[ApiKey]:
-        """List API keys for the organization.
+    async def list(
+        self,
+        *,
+        limit: int = 25,
+        after: str | None = None,
+    ) -> AsyncCursorPage[ApiKey]:
+        """List API keys for the organization with cursor pagination.
+
+        Args:
+            limit: Maximum keys per page (1-100).
+            after: Cursor for the next page.
 
         Returns:
-            List of ApiKey objects (secrets are never included).
+            Auto-paginating iterator of ApiKey objects (secrets are never
+            included).
         """
-        resp = await self._http.get("/keys")
-        body = resp.json()
-        return [ApiKey.model_validate(k) for k in body.get("data", [])]
+        params: dict[str, Any] = {"limit": limit}
+        if after is not None:
+            params["after"] = after
+        return AsyncCursorPage(self._http, "/keys", ApiKey, params=params)
 
     async def delete(self, key_id: str) -> dict[str, Any]:
         """Revoke an API key.

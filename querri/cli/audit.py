@@ -7,7 +7,9 @@ import typer
 from querri.cli._context import get_client
 from querri.cli._output import (
     handle_api_error,
+    page_items,
     print_json,
+    print_more_hint,
     print_table,
 )
 
@@ -32,14 +34,17 @@ def list_events(
     end_date: str | None = typer.Option(
         None, "--end-date", help="End date (ISO 8601)."
     ),
-    limit: int = typer.Option(25, "--limit", "-l", help="Max results to return."),
+    limit: int = typer.Option(25, "--limit", "-l", help="Max results per page."),
     after: str | None = typer.Option(None, "--after", help="Cursor for pagination."),
+    all_: bool = typer.Option(
+        False, "--all", help="Fetch every page instead of just the first."
+    ),
 ) -> None:
     """List audit log events."""
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
-        items = client.audit.list(
+        page = client.audit.list(
             actor_id=actor_id,
             target_id=target_id,
             action=action,
@@ -48,6 +53,7 @@ def list_events(
             limit=limit,
             after=after,
         )
+        items, next_cursor = page_items(page, all_pages=all_)
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
@@ -66,3 +72,4 @@ def list_events(
             ],
             ctx=ctx,
         )
+    print_more_hint(next_cursor)

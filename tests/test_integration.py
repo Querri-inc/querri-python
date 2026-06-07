@@ -252,7 +252,7 @@ class TestDataOperations:
 
     def test_list_sources(self, client: Querri):
         try:
-            sources = client.sources.list()
+            sources = client.sources.list().to_list()
             assert isinstance(sources, list)
         except Exception as exc:
             pytest.skip(f"Data sources endpoint unavailable: {exc}")

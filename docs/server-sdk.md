@@ -861,26 +861,43 @@ Manage data source connectors and syncing.
 
 #### `client.sources.list_connectors()`
 
-List available connectors.
+List available connectors. Returns a paginated iterator.
 
 ```python
-list_connectors() -> list[dict]
+list_connectors(*, limit: int = 25,
+                after: str | None = None) -> SyncCursorPage[dict]
 ```
 
 ```python
-connectors = client.sources.list_connectors()
+# Auto-paginate through all connectors
+for connector in client.sources.list_connectors():
+    print(connector["name"])
+
+# Collect all into a flat list
+connectors = client.sources.list_connectors().to_list()
 ```
 
 #### `client.sources.list()`
 
-List configured sources.
+List configured sources. Returns a paginated iterator.
 
 ```python
-list() -> list[dict]
+list(*, limit: int = 25, after: str | None = None) -> SyncCursorPage[dict]
 ```
 
 ```python
-sources = client.sources.list()
+# Auto-paginate through all sources
+for source in client.sources.list():
+    print(source["name"])
+
+# Single page + cursor
+page = client.sources.list(limit=10)
+sources = page.data
+if page.has_more:
+    next_page = client.sources.list(limit=10, after=page.next_cursor)
+
+# Collect all into a flat list
+sources = client.sources.list().to_list()
 ```
 
 #### `client.sources.create()`
@@ -1042,12 +1059,19 @@ get(file_id: str) -> File
 
 #### `client.files.list()`
 
+Returns a paginated iterator.
+
 ```python
-list() -> list[File]
+list(*, limit: int = 25, after: str | None = None) -> SyncCursorPage[File]
 ```
 
 ```python
-files = client.files.list()
+# Auto-paginate through all files
+for file in client.files.list():
+    print(file.name)
+
+# Collect all into a flat list
+files = client.files.list().to_list()
 ```
 
 #### `client.files.delete()`
@@ -1095,8 +1119,19 @@ get(key_id: str) -> ApiKey
 
 #### `client.keys.list()`
 
+Returns a paginated iterator.
+
 ```python
-list() -> list[ApiKey]
+list(*, limit: int = 25, after: str | None = None) -> SyncCursorPage[ApiKey]
+```
+
+```python
+# Auto-paginate through all keys
+for key in client.keys.list():
+    print(key.name)
+
+# Collect all into a flat list
+keys = client.keys.list().to_list()
 ```
 
 #### `client.keys.delete()`
@@ -1115,22 +1150,30 @@ Query the audit log.
 
 #### `client.audit.list()`
 
-List audit events with optional filters.
+List audit events with optional filters. Returns a paginated iterator.
 
 ```python
 list(*, actor_id: str | None = None, target_id: str | None = None,
      action: str | None = None, start_date: str | None = None,
-     end_date: str | None = None, page: int = 1,
-     page_size: int = 50) -> list[AuditEvent]
+     end_date: str | None = None, limit: int = 50,
+     after: str | None = None) -> SyncCursorPage[AuditEvent]
 ```
 
 ```python
-events = client.audit.list(
+# First page
+page = client.audit.list(
     actor_id="user_abc123",
     action="user.created",
     start_date="2025-01-01",
     end_date="2025-12-31",
 )
+events = page.data
+if page.has_more:
+    next_page = client.audit.list(action="user.created", after=page.next_cursor)
+
+# Or auto-paginate through every matching event
+for event in client.audit.list(action="user.created"):
+    print(event.id)
 ```
 
 ---

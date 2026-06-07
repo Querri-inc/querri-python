@@ -77,6 +77,39 @@ def print_id(id_value: str) -> None:
     print(id_value)
 
 
+def page_items(page: Any, *, all_pages: bool) -> tuple[list[Any], str | None]:
+    """Resolve a cursor page into a list of items plus an optional next cursor.
+
+    Args:
+        page: A ``SyncCursorPage`` (or anything iterable with ``data`` /
+            ``has_more`` / ``next_cursor`` attributes).
+        all_pages: When ``True``, drain every page and return all items (the
+            next cursor is then ``None``). When ``False``, return just the first
+            page's items and the cursor for the next page if more exist.
+
+    Returns:
+        A ``(items, next_cursor)`` tuple.
+    """
+    if all_pages:
+        return list(page), None
+    items = list(page.data)
+    next_cursor = page.next_cursor if page.has_more else None
+    return items, next_cursor
+
+
+def print_more_hint(next_cursor: str | None) -> None:
+    """Tell the user how to fetch the next page (stderr, all output modes).
+
+    No-op when there is no further page.
+    """
+    if next_cursor:
+        print(
+            f"\nMore results available. Re-run with --after {next_cursor}"
+            " for the next page, or --all to fetch everything.",
+            file=sys.stderr,
+        )
+
+
 def print_table(
     data: Iterable[Any],
     columns: list[tuple[str, str]],

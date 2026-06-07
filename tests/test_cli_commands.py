@@ -24,6 +24,22 @@ _JSON = ["--json"]
 _QUIET = ["-q"]
 
 
+class _FakePage:
+    """Stand-in for a SyncCursorPage in CLI tests.
+
+    Exposes the ``data`` / ``has_more`` / ``next_cursor`` attributes and
+    iteration that the CLI's ``page_items`` helper relies on.
+    """
+
+    def __init__(self, items, *, has_more=False, next_cursor=None):
+        self.data = list(items)
+        self.has_more = has_more
+        self.next_cursor = next_cursor
+
+    def __iter__(self):
+        return iter(self.data)
+
+
 # ---------------------------------------------------------------------------
 # Users
 # ---------------------------------------------------------------------------
@@ -497,7 +513,7 @@ class TestKeysCommands:
 
     def test_key_list(self) -> None:
         mock_client = MagicMock()
-        mock_client.keys.list.return_value = [self._make_key()]
+        mock_client.keys.list.return_value = _FakePage([self._make_key()])
         with patch("querri.cli.keys.get_client", return_value=mock_client):
             result = runner.invoke(main_app, [*_GLOBAL, "key", "list"])
         assert result.exit_code == 0
@@ -505,7 +521,7 @@ class TestKeysCommands:
 
     def test_key_list_json(self) -> None:
         mock_client = MagicMock()
-        mock_client.keys.list.return_value = [self._make_key()]
+        mock_client.keys.list.return_value = _FakePage([self._make_key()])
         with patch("querri.cli.keys.get_client", return_value=mock_client):
             result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "key", "list"])
         assert result.exit_code == 0
@@ -514,7 +530,7 @@ class TestKeysCommands:
 
     def test_key_list_quiet(self) -> None:
         mock_client = MagicMock()
-        mock_client.keys.list.return_value = [self._make_key()]
+        mock_client.keys.list.return_value = _FakePage([self._make_key()])
         with patch("querri.cli.keys.get_client", return_value=mock_client):
             result = runner.invoke(main_app, [*_GLOBAL, *_QUIET, "key", "list"])
         assert result.exit_code == 0
@@ -652,7 +668,7 @@ class TestSourcesCommands:
 
     def test_source_list(self) -> None:
         mock_client = MagicMock()
-        mock_client.sources.list.return_value = [self._SOURCE_DICT]
+        mock_client.sources.list.return_value = _FakePage([self._SOURCE_DICT])
         with patch("querri.cli.sources.get_client", return_value=mock_client):
             result = runner.invoke(main_app, [*_GLOBAL, "source", "list"])
         assert result.exit_code == 0
@@ -660,7 +676,7 @@ class TestSourcesCommands:
 
     def test_source_list_json(self) -> None:
         mock_client = MagicMock()
-        mock_client.sources.list.return_value = [self._SOURCE_DICT]
+        mock_client.sources.list.return_value = _FakePage([self._SOURCE_DICT])
         with patch("querri.cli.sources.get_client", return_value=mock_client):
             result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "source", "list"])
         assert result.exit_code == 0
@@ -669,11 +685,32 @@ class TestSourcesCommands:
 
     def test_source_list_quiet(self) -> None:
         mock_client = MagicMock()
-        mock_client.sources.list.return_value = [self._SOURCE_DICT]
+        mock_client.sources.list.return_value = _FakePage([self._SOURCE_DICT])
         with patch("querri.cli.sources.get_client", return_value=mock_client):
             result = runner.invoke(main_app, [*_GLOBAL, *_QUIET, "source", "list"])
         assert result.exit_code == 0
         assert "src_1" in result.output
+
+    def test_source_list_search_filters_client_side(self) -> None:
+        mock_client = MagicMock()
+        mock_client.sources.list.return_value = _FakePage(
+            [
+                self._SOURCE_DICT,
+                {
+                    "id": "src_2",
+                    "name": "Customers",
+                    "service": "csv",
+                    "connector_id": None,
+                },
+            ]
+        )
+        with patch("querri.cli.sources.get_client", return_value=mock_client):
+            result = runner.invoke(
+                main_app, [*_GLOBAL, "source", "list", "--search", "order"]
+            )
+        assert result.exit_code == 0
+        assert "Orders" in result.output
+        assert "Customers" not in result.output
 
     # -- get ----------------------------------------------------------------
 
@@ -873,7 +910,7 @@ class TestViewsCommands:
 
     def test_view_list(self) -> None:
         mock_client = MagicMock()
-        mock_client.views.list.return_value = [self._VIEW_DICT]
+        mock_client.views.list.return_value = _FakePage([self._VIEW_DICT])
         with patch("querri.cli.views.get_client", return_value=mock_client):
             result = runner.invoke(main_app, [*_GLOBAL, "view", "list"])
         assert result.exit_code == 0
@@ -881,7 +918,7 @@ class TestViewsCommands:
 
     def test_view_list_json(self) -> None:
         mock_client = MagicMock()
-        mock_client.views.list.return_value = [self._VIEW_DICT]
+        mock_client.views.list.return_value = _FakePage([self._VIEW_DICT])
         with patch("querri.cli.views.get_client", return_value=mock_client):
             result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "view", "list"])
         assert result.exit_code == 0
@@ -890,7 +927,7 @@ class TestViewsCommands:
 
     def test_view_list_quiet(self) -> None:
         mock_client = MagicMock()
-        mock_client.views.list.return_value = [self._VIEW_DICT]
+        mock_client.views.list.return_value = _FakePage([self._VIEW_DICT])
         with patch("querri.cli.views.get_client", return_value=mock_client):
             result = runner.invoke(main_app, [*_GLOBAL, *_QUIET, "view", "list"])
         assert result.exit_code == 0
@@ -1197,7 +1234,7 @@ class TestFilesCommands:
 
     def test_file_list(self) -> None:
         mock_client = MagicMock()
-        mock_client.files.list.return_value = [self._make_file()]
+        mock_client.files.list.return_value = _FakePage([self._make_file()])
         with patch("querri.cli.files.get_client", return_value=mock_client):
             result = runner.invoke(main_app, [*_GLOBAL, "file", "list"])
         assert result.exit_code == 0
@@ -1205,7 +1242,7 @@ class TestFilesCommands:
 
     def test_file_list_json(self) -> None:
         mock_client = MagicMock()
-        mock_client.files.list.return_value = [self._make_file()]
+        mock_client.files.list.return_value = _FakePage([self._make_file()])
         with patch("querri.cli.files.get_client", return_value=mock_client):
             result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "file", "list"])
         assert result.exit_code == 0
@@ -1214,7 +1251,7 @@ class TestFilesCommands:
 
     def test_file_list_quiet(self) -> None:
         mock_client = MagicMock()
-        mock_client.files.list.return_value = [self._make_file()]
+        mock_client.files.list.return_value = _FakePage([self._make_file()])
         with patch("querri.cli.files.get_client", return_value=mock_client):
             result = runner.invoke(main_app, [*_GLOBAL, *_QUIET, "file", "list"])
         assert result.exit_code == 0
@@ -1744,7 +1781,7 @@ class TestAuditCommands:
 
     def test_audit_list(self) -> None:
         mock_client = MagicMock()
-        mock_client.audit.list.return_value = [self._make_event()]
+        mock_client.audit.list.return_value = _FakePage([self._make_event()])
         with patch("querri.cli.audit.get_client", return_value=mock_client):
             result = runner.invoke(main_app, [*_GLOBAL, "audit", "list"])
         assert result.exit_code == 0
@@ -1752,7 +1789,7 @@ class TestAuditCommands:
 
     def test_audit_list_json(self) -> None:
         mock_client = MagicMock()
-        mock_client.audit.list.return_value = [self._make_event()]
+        mock_client.audit.list.return_value = _FakePage([self._make_event()])
         with patch("querri.cli.audit.get_client", return_value=mock_client):
             result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "audit", "list"])
         assert result.exit_code == 0
@@ -1762,7 +1799,7 @@ class TestAuditCommands:
 
     def test_audit_list_with_filters(self) -> None:
         mock_client = MagicMock()
-        mock_client.audit.list.return_value = [self._make_event()]
+        mock_client.audit.list.return_value = _FakePage([self._make_event()])
         with patch("querri.cli.audit.get_client", return_value=mock_client):
             result = runner.invoke(
                 main_app,

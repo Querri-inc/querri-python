@@ -530,8 +530,7 @@ class TestKeys:
         from querri.types.key import ApiKey
 
         keys = Keys(_http())
-        result = keys.list()
-        assert isinstance(result, list)
+        result = list(keys.list())
         assert len(result) == 2
         assert all(isinstance(k, ApiKey) for k in result)
 
@@ -644,29 +643,52 @@ class TestSources:
         from querri.resources.sources import Sources
 
         sources = Sources(_http())
-        result = sources.list()
+        result = list(sources.list())
         assert len(result) == 2
         assert result[0]["name"] == "Alpha"
 
     @respx.mock
-    def test_list_with_search(self):
-        respx.get(f"{BASE}/sources").mock(
+    def test_list_passes_pagination_params(self):
+        route = respx.get(f"{BASE}/sources").mock(
             return_value=httpx.Response(
                 200,
-                json={
-                    "data": [
-                        {"id": "src_1", "name": "Alpha"},
-                        {"id": "src_2", "name": "Beta"},
-                    ],
-                },
+                json={"data": [{"id": "src_1", "name": "Alpha"}], "has_more": False},
             )
         )
         from querri.resources.sources import Sources
 
         sources = Sources(_http())
-        result = sources.list(search="beta")
-        assert len(result) == 1
-        assert result[0]["name"] == "Beta"
+        list(sources.list(limit=50, after="cursor_xyz"))
+        url = str(route.calls[0].request.url)
+        assert "limit=50" in url
+        assert "after=cursor_xyz" in url
+
+    @respx.mock
+    def test_list_follows_cursor_across_pages(self):
+        respx.get(f"{BASE}/sources").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "data": [{"id": "src_1", "name": "Alpha"}],
+                        "has_more": True,
+                        "next_cursor": "page2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "data": [{"id": "src_2", "name": "Beta"}],
+                        "has_more": False,
+                    },
+                ),
+            ]
+        )
+        from querri.resources.sources import Sources
+
+        sources = Sources(_http())
+        result = list(sources.list())
+        assert [s["id"] for s in result] == ["src_1", "src_2"]
 
     @respx.mock
     def test_update(self):
@@ -844,7 +866,7 @@ class TestSources:
         from querri.resources.sources import Sources
 
         sources = Sources(_http())
-        result = sources.list_connectors()
+        result = list(sources.list_connectors())
         assert len(result) == 1
         assert result[0]["name"] == "PostgreSQL"
 
@@ -897,7 +919,7 @@ class TestFiles:
         from querri.types.file import File
 
         files = Files(_http())
-        result = files.list()
+        result = list(files.list())
         assert len(result) == 2
         assert all(isinstance(f, File) for f in result)
         assert result[0].name == "a.csv"
@@ -981,7 +1003,7 @@ class TestViews:
         from querri.resources.views import Views
 
         views = Views(_http())
-        result = views.list()
+        result = list(views.list())
         assert len(result) == 2
         assert result[0]["uuid"] == "view_1"
 
@@ -999,7 +1021,7 @@ class TestViews:
         from querri.resources.views import Views
 
         views = Views(_http())
-        result = views.list()
+        result = list(views.list())
         assert len(result) == 1
 
     @respx.mock
@@ -1885,7 +1907,7 @@ class TestAudit:
         from querri.types.audit import AuditEvent
 
         audit = Audit(_http())
-        result = audit.list()
+        result = list(audit.list())
         assert len(result) == 2
         assert all(isinstance(e, AuditEvent) for e in result)
         assert result[0].action == "data.query"
@@ -1899,12 +1921,14 @@ class TestAudit:
         from querri.resources.audit import Audit
 
         audit = Audit(_http())
-        audit.list(
-            actor_id="usr_1",
-            action="data.query",
-            start_date="2025-01-01",
-            end_date="2025-01-31",
-            limit=10,
+        list(
+            audit.list(
+                actor_id="usr_1",
+                action="data.query",
+                start_date="2025-01-01",
+                end_date="2025-01-31",
+                limit=10,
+            )
         )
         url = str(route.calls[0].request.url)
         assert "actor_id=usr_1" in url
@@ -1921,7 +1945,7 @@ class TestAudit:
         from querri.resources.audit import Audit
 
         audit = Audit(_http())
-        audit.list(after="cursor_abc")
+        list(audit.list(after="cursor_abc"))
         assert "after=cursor_abc" in str(route.calls[0].request.url)
 
 
@@ -2175,7 +2199,7 @@ class TestHTTPErrors:
 
         keys = Keys(_http())
         with pytest.raises(RateLimitError):
-            keys.list()
+            list(keys.list())
 
     @respx.mock
     def test_500_raises(self):

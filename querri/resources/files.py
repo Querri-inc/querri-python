@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import builtins
 import os
+from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
+from .._pagination import AsyncCursorPage, SyncCursorPage
 from ..types.file import File
 
 
@@ -58,15 +59,25 @@ class Files:
         resp = self._http.get(f"/files/{file_id}")
         return File.model_validate(resp.json())
 
-    def list(self) -> builtins.list[File]:
-        """List files for the organization.
+    def list(
+        self,
+        *,
+        limit: int = 25,
+        after: str | None = None,
+    ) -> SyncCursorPage[File]:
+        """List files for the organization with cursor pagination.
+
+        Args:
+            limit: Maximum files per page (1-100).
+            after: Cursor for the next page.
 
         Returns:
-            List of File objects.
+            Auto-paginating iterator of File objects.
         """
-        resp = self._http.get("/files")
-        body = resp.json()
-        return [File.model_validate(f) for f in body.get("data", [])]
+        params: dict[str, Any] = {"limit": limit}
+        if after is not None:
+            params["after"] = after
+        return SyncCursorPage(self._http, "/files", File, params=params)
 
     def delete(self, file_id: str) -> None:
         """Delete a file.
@@ -126,15 +137,25 @@ class AsyncFiles:
         resp = await self._http.get(f"/files/{file_id}")
         return File.model_validate(resp.json())
 
-    async def list(self) -> builtins.list[File]:
-        """List files for the organization.
+    async def list(
+        self,
+        *,
+        limit: int = 25,
+        after: str | None = None,
+    ) -> AsyncCursorPage[File]:
+        """List files for the organization with cursor pagination.
+
+        Args:
+            limit: Maximum files per page (1-100).
+            after: Cursor for the next page.
 
         Returns:
-            List of File objects.
+            Auto-paginating iterator of File objects.
         """
-        resp = await self._http.get("/files")
-        body = resp.json()
-        return [File.model_validate(f) for f in body.get("data", [])]
+        params: dict[str, Any] = {"limit": limit}
+        if after is not None:
+            params["after"] = after
+        return AsyncCursorPage(self._http, "/files", File, params=params)
 
     async def delete(self, file_id: str) -> None:
         """Delete a file.

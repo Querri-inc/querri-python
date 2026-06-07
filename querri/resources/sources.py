@@ -6,6 +6,7 @@ import builtins
 from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
+from .._pagination import AsyncCursorPage, SyncCursorPage
 from ..types.data import DataPage, DataWriteResult, QueryResult, Source
 
 
@@ -27,15 +28,26 @@ class Sources:
 
     # -- Connector management -----------------------------------------------
 
-    def list_connectors(self) -> builtins.list[dict[str, Any]]:
+    def list_connectors(
+        self,
+        *,
+        limit: int = 25,
+        after: str | None = None,
+    ) -> SyncCursorPage[dict[str, Any]]:
         """List available connector types with connection status.
 
+        Args:
+            limit: Maximum connectors per page (1-100).
+            after: Cursor for the next page.
+
         Returns:
-            List of connector dicts with id, name, service, status.
+            Auto-paginating iterator of connector dicts with id, name, service,
+            status.
         """
-        resp = self._http.get("/connectors")
-        body = resp.json()
-        return body.get("data", [])  # type: ignore[no-any-return]
+        params: dict[str, Any] = {"limit": limit}
+        if after is not None:
+            params["after"] = after
+        return SyncCursorPage(self._http, "/connectors", None, params=params)
 
     # -- Source CRUD ---------------------------------------------------------
 
@@ -99,22 +111,26 @@ class Sources:
         resp = self._http.get(f"/sources/{source_id}")
         return resp.json()  # type: ignore[no-any-return]
 
-    def list(self, *, search: str | None = None) -> builtins.list[dict[str, Any]]:
-        """List data sources for the organization.
+    def list(
+        self,
+        *,
+        limit: int = 25,
+        after: str | None = None,
+    ) -> SyncCursorPage[dict[str, Any]]:
+        """List data sources for the organization with cursor pagination.
 
         Args:
-            search: Optional name substring filter (client-side).
+            limit: Maximum sources per page (1-100).
+            after: Cursor for the next page.
 
         Returns:
-            List of source summary dicts with id, name, service, connector_id, etc.
+            Auto-paginating iterator of source summary dicts with id, name,
+            service, connector_id, etc.
         """
-        resp = self._http.get("/sources")
-        body = resp.json()
-        items = body.get("data", [])
-        if search:
-            search_lower = search.lower()
-            items = [s for s in items if search_lower in s.get("name", "").lower()]
-        return items  # type: ignore[no-any-return]
+        params: dict[str, Any] = {"limit": limit}
+        if after is not None:
+            params["after"] = after
+        return SyncCursorPage(self._http, "/sources", None, params=params)
 
     def update(
         self,
@@ -278,15 +294,26 @@ class AsyncSources:
 
     # -- Connector management -----------------------------------------------
 
-    async def list_connectors(self) -> builtins.list[dict[str, Any]]:
+    async def list_connectors(
+        self,
+        *,
+        limit: int = 25,
+        after: str | None = None,
+    ) -> AsyncCursorPage[dict[str, Any]]:
         """List available connector types with connection status.
 
+        Args:
+            limit: Maximum connectors per page (1-100).
+            after: Cursor for the next page.
+
         Returns:
-            List of connector dicts with id, name, service, status.
+            Auto-paginating iterator of connector dicts with id, name, service,
+            status.
         """
-        resp = await self._http.get("/connectors")
-        body = resp.json()
-        return body.get("data", [])  # type: ignore[no-any-return]
+        params: dict[str, Any] = {"limit": limit}
+        if after is not None:
+            params["after"] = after
+        return AsyncCursorPage(self._http, "/connectors", None, params=params)
 
     # -- Source CRUD ---------------------------------------------------------
 
@@ -350,22 +377,26 @@ class AsyncSources:
         resp = await self._http.get(f"/sources/{source_id}")
         return resp.json()  # type: ignore[no-any-return]
 
-    async def list(self, *, search: str | None = None) -> builtins.list[dict[str, Any]]:
-        """List data sources for the organization.
+    async def list(
+        self,
+        *,
+        limit: int = 25,
+        after: str | None = None,
+    ) -> AsyncCursorPage[dict[str, Any]]:
+        """List data sources for the organization with cursor pagination.
 
         Args:
-            search: Optional name substring filter (client-side).
+            limit: Maximum sources per page (1-100).
+            after: Cursor for the next page.
 
         Returns:
-            List of source summary dicts with id, name, service, connector_id, etc.
+            Auto-paginating iterator of source summary dicts with id, name,
+            service, connector_id, etc.
         """
-        resp = await self._http.get("/sources")
-        body = resp.json()
-        items = body.get("data", [])
-        if search:
-            search_lower = search.lower()
-            items = [s for s in items if search_lower in s.get("name", "").lower()]
-        return items  # type: ignore[no-any-return]
+        params: dict[str, Any] = {"limit": limit}
+        if after is not None:
+            params["after"] = after
+        return AsyncCursorPage(self._http, "/sources", None, params=params)
 
     async def update(
         self,

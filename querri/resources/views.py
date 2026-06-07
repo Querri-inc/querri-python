@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
+from .._pagination import AsyncCursorPage, SyncCursorPage
 
 # Status vocabulary mirrors querri_core.views.run_state.TERMINAL_STATUSES.
 # A polling client must stop when the server reports a status in this set —
@@ -69,15 +70,25 @@ class Views:
         resp = self._http.post("/views", json=payload)
         return resp.json()  # type: ignore[no-any-return]
 
-    def list(self) -> builtins.list[dict[str, Any]]:
-        """List all views.
+    def list(
+        self,
+        *,
+        limit: int = 25,
+        after: str | None = None,
+    ) -> SyncCursorPage[dict[str, Any]]:
+        """List all views with cursor pagination.
+
+        Args:
+            limit: Maximum views per page (1-100).
+            after: Cursor for the next page.
 
         Returns:
-            List of view summary dicts.
+            Auto-paginating iterator of view summary dicts.
         """
-        resp = self._http.get("/views")
-        body = resp.json()
-        return body.get("data", body) if isinstance(body, dict) else body  # type: ignore[no-any-return]
+        params: dict[str, Any] = {"limit": limit}
+        if after is not None:
+            params["after"] = after
+        return SyncCursorPage(self._http, "/views", None, params=params)
 
     def get(self, view_uuid: str) -> dict[str, Any]:
         """Get view details.
@@ -331,15 +342,25 @@ class AsyncViews:
         resp = await self._http.post("/views", json=payload)
         return resp.json()  # type: ignore[no-any-return]
 
-    async def list(self) -> builtins.list[dict[str, Any]]:
-        """List all views.
+    async def list(
+        self,
+        *,
+        limit: int = 25,
+        after: str | None = None,
+    ) -> AsyncCursorPage[dict[str, Any]]:
+        """List all views with cursor pagination.
+
+        Args:
+            limit: Maximum views per page (1-100).
+            after: Cursor for the next page.
 
         Returns:
-            List of view summary dicts.
+            Auto-paginating iterator of view summary dicts.
         """
-        resp = await self._http.get("/views")
-        body = resp.json()
-        return body.get("data", body) if isinstance(body, dict) else body  # type: ignore[no-any-return]
+        params: dict[str, Any] = {"limit": limit}
+        if after is not None:
+            params["after"] = after
+        return AsyncCursorPage(self._http, "/views", None, params=params)
 
     async def get(self, view_uuid: str) -> dict[str, Any]:
         """Get view details.
