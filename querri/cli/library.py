@@ -1112,6 +1112,48 @@ def view_build(
         print_success(f"  answers {len(answers_written)} question(s)")
 
 
+@library_app.command("view-rename")
+def view_rename(
+    ctx: typer.Context,
+    view_stub_id: str = typer.Argument(
+        ..., help="ViewStub node id (view_…) to rename."
+    ),
+    name: str = typer.Option(
+        None, "--name", "-n",
+        help="New view name (sentence case welcome, e.g. 'Revenue by channel').",
+    ),
+    display_name: str = typer.Option(
+        None, "--display-name",
+        help="Friendly display title (defaults to a sentence-cased --name).",
+    ),
+    summary: str = typer.Option(
+        None, "--summary", "-s", help="New 1-3 sentence description."
+    ),
+) -> None:
+    """Rename / re-describe a view across both its layers (graph stub +
+    legacy source doc), keeping search/routing and the Sources tab in sync.
+    """
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    if name is None and display_name is None and summary is None:
+        print_error("Provide at least one of --name / --display-name / --summary.")
+        raise typer.Exit(code=1)
+    try:
+        result = client.library.rename_view(
+            view_stub_id, name=name, display_name=display_name, summary=summary
+        )
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+    if obj.get("json"):
+        print_json(result)
+        return
+    print_success(
+        f"View renamed: {result.get('name', '?')} "
+        f"({result.get('display_name') or 'no display name'}) "
+        f"[{result.get('view_stub_id', '?')}]"
+    )
+
+
 @library_app.command("kpi-create")
 def kpi_create(
     ctx: typer.Context,

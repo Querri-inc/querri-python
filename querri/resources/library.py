@@ -574,6 +574,35 @@ class Library:
         resp = self._http.request("PATCH", f"/library/nodes/{node_id}", json=body)
         return _node_from_get(resp.json())
 
+    def rename_view(
+        self,
+        view_stub_id: str,
+        *,
+        name: str | None = None,
+        display_name: str | None = None,
+        summary: str | None = None,
+    ) -> dict[str, Any]:
+        """Rename / re-describe a library view across BOTH its layers.
+
+        Unlike :meth:`patch_node` (graph node only), this also syncs the
+        legacy source document the Sources tab and preview modal render
+        (name + display_name + description), so the two layers can't drift.
+        ``display_name`` defaults server-side to a friendly sentence-cased
+        form of ``name`` (e.g. ``revenue_by_channel`` → ``Revenue by
+        channel``). At least one field is required.
+        """
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if display_name is not None:
+            body["display_name"] = display_name
+        if summary is not None:
+            body["summary"] = summary
+        resp = self._http.request(
+            "PATCH", f"/library/views/{view_stub_id}", json=body
+        )
+        return resp.json()
+
     def delete_node(self, node_id: str) -> dict[str, Any]:
         resp = self._http.request("DELETE", f"/library/nodes/{node_id}")
         return resp.json()
@@ -1081,6 +1110,30 @@ class AsyncLibrary:
             body["summary"] = summary
         resp = await self._http.request("PATCH", f"/library/nodes/{node_id}", json=body)
         return _node_from_get(resp.json())
+
+    async def rename_view(
+        self,
+        view_stub_id: str,
+        *,
+        name: str | None = None,
+        display_name: str | None = None,
+        summary: str | None = None,
+    ) -> dict[str, Any]:
+        """Rename / re-describe a library view across BOTH its layers.
+
+        See :meth:`LibraryResource.rename_view` for semantics.
+        """
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if display_name is not None:
+            body["display_name"] = display_name
+        if summary is not None:
+            body["summary"] = summary
+        resp = await self._http.request(
+            "PATCH", f"/library/views/{view_stub_id}", json=body
+        )
+        return resp.json()
 
     async def delete_node(self, node_id: str) -> dict[str, Any]:
         resp = await self._http.request("DELETE", f"/library/nodes/{node_id}")

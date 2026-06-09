@@ -90,6 +90,7 @@ All commands accept `--json` (a top-level flag, e.g. `querri --json library stat
 | Command | What it does |
 |---|---|
 | `querri library record-fact "<statement>" --attach <node-id> [--attach <id>] [--kind <K>] [--evidence <url>] [--confidence X]` | Create a `Fact` node + `about` edges to each `--attach` target. `--kind` is one of `contextual_note` (default), `data_quality`, `timing`, `scope_constraint`. |
+| `querri library view-rename <view-stub-id> [--name "<name>"] [--display-name "<title>"] [--summary "<text>"]` | Rename / re-describe a view across BOTH its layers — the graph ViewStub (re-embedded for search/routing) and the legacy source doc the Sources tab renders. `--display-name` defaults to a sentence-cased `--name` (`revenue_by_channel` → `Revenue by channel`). SDK: `client.library.rename_view(...)`. |
 | `querri library chat "<message>" [--new] [--chat-id <id>] [--show-tools]` | Streaming chat with the LibrarianAgent. Three tools available to the agent: `search_graph`, `record_fact`, `commission_view`. `--show-tools` prints tool calls + Views-agent progress dots in real time. Active chat id persists per-library so subsequent calls continue the same conversation; `--new` starts fresh. |
 
 ### Bulk / admin
