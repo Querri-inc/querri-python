@@ -111,11 +111,35 @@ Supported formats: CSV, Excel (.xlsx/.xls), JSON, Parquet, and others.
 
 ```bash
 querri project chat -m "What is the average revenue by region?"   # send message
-querri project chat -m "..." --new                                  # force new chat session
+querri project chat -m "break it down by region"                   # CONTINUES the same chat
 querri project chat -m "..." --model fast                          # model selection
 querri project chat -m "..." --reasoning                           # show reasoning traces
 querri project chat show                                            # show conversation history
 querri project chat cancel                                          # cancel active stream
+```
+
+**One chat per project — keep the thread going.** The CLI remembers which chat
+each project is "in" (per-project, persisted in `~/.querri/tokens.json`).
+Repeated `project chat -m "..."` calls on the same project **automatically
+continue the same conversation** — you do **not** need to pass `--chat <uuid>`,
+and this works whether the project came from `--project <id>` or
+`project select`. Source loads from `project add-source` also land in that one
+thread. So for a multi-step analysis, just keep calling `project chat -m "..."`:
+
+```bash
+querri --no-interactive --project "$PID" project chat -m "step 1: overview"
+querri --no-interactive --project "$PID" project chat -m "step 2: now by region"   # same thread
+querri --no-interactive --project "$PID" project chat -m "step 3: now by quarter"  # same thread
+```
+
+**Rarely use `--new`.** It forks a brand-new chat and fragments the analysis
+across threads. Only reach for it when you deliberately want to start a fresh,
+unrelated conversation in the project. Prefer continuing the existing chat;
+if you ever need to target a specific chat explicitly, pass the global
+`--chat <uuid>` flag (before the subcommand) rather than `--new`.
+
+```bash
+querri project chat -m "start a completely separate analysis" --new   # forks — avoid unless intended
 ```
 
 Chat responses include `message_id`, `text` (the AI response), `tool_calls` (analysis steps run), `files` (any generated files), and `reasoning`.
@@ -137,19 +161,50 @@ querri chat delete [project_id] [chat_id]                  # delete
 
 A view is a named SQL query over sources that can be materialized into a table. Views are created either by writing SQL directly or by describing what you want to an AI authoring agent.
 
+### Referencing sources in view SQL — `FROM {source:UUID}` (NOT a table name)
+
+This is the single most important and least obvious thing about views, and it differs from `source query`:
+
+- **View SQL** references each source with the placeholder token **`FROM {source:<source-uuid>}`** (lowercase-hex UUID). The server substitutes the token with a DuckDB scan of that source's materialized data before running the query. A plain table name like `FROM orders` will **not** resolve.
+- **`source query`** (a different command, see Sources) registers the one source as a DuckDB view literally named `data`, so there you write `FROM data`.
+
+```bash
+# Direct SQL view over one source — note the {source:UUID} token:
+querri view new --name "Orders limpios" \
+  --sql "SELECT * FROM {source:1ab54fa0-1e9e-49bb-9b0a-8ce265f47ec1} WHERE status <> 'cancelled'"
+
+# Join two sources — one token per source:
+querri view new --name "Pedidos con cliente" \
+  --sql "SELECT o.*, c.name FROM {source:<orders-uuid>} o JOIN {source:<customers-uuid>} c ON o.cust_id = c.id"
+```
+
+Get the UUIDs from `querri --json source list`. The token form is exactly `{source:UUID}` — the server parses it with the regex `\{source:([a-f0-9-]+)\}`, so uppercase or non-UUID strings will not match.
+
+### Sources must be MATERIALIZED to be used in a view
+
+A view can only scan a source that has a materialized **QDF** (the parquet/iceberg-backed table). If you reference a source that isn't materialized, `view run`/`view preview` fails with HTTP 422:
+`Source '<uuid>' has not been materialized (no QDF attached)`.
+
+- **CSV / JSON / Parquet uploads auto-materialize at upload time** → usable in views immediately. ✅
+- **Excel (`.xlsx`/`.xls`) uploads do NOT auto-materialize.** By design, Excel files are registered-but-unparsed and only get a QDF on demand when an analysis (a project chat / `xlsx_inspect`) reads a specific sheet — so a brand-new `.xlsx` source has `row_count: null`, `columns: []`, and **cannot be referenced in a view**. ⚠️
+- **Workaround for spreadsheets:** convert the sheet to CSV and upload that (`querri file upload data.csv`), then point the view at the CSV's source UUID. (`source sync` to force-materialize is not available via the API — returns 501.)
+- A **materialized view is itself a queryable source** — its UUID works both in `source query --source-id <viewid> --sql "... FROM data"` and as a `{source:<viewid>}` token inside another view.
+
 ### Two creation flows
 
-**AI agent flow** — describe what you want; the agent writes the SQL and auto-generates a name and description:
+**AI agent flow** — describe what you want; the agent writes the SQL (including the `{source:...}` tokens) and auto-generates a name and description:
 
 ```bash
 querri view new --prompt "monthly revenue by product line"
 querri view new -n "Revenue" --prompt "revenue by region"    # AI + custom name
 ```
 
-**Direct SQL flow** — provide the SQL yourself; the view is created immediately:
+⚠️ **Verify the source the agent chose.** The authoring agent picks which source(s) to scan and does not surface the chosen UUID in the CLI output — it can pick the wrong one. Always check `querri --json view get <uuid>` and read `sql_definition` to confirm the `FROM {source:...}` UUID is the one you intended; if not, fix it with `view update <uuid> --sql "..."`.
+
+**Direct SQL flow** — provide the SQL yourself (with `{source:UUID}` tokens, see above); the view is created immediately:
 
 ```bash
-querri view new --name "Orders" --sql "SELECT * FROM orders"
+querri view new --name "Orders" --sql "SELECT * FROM {source:<uuid>}"
 ```
 
 Running `querri view new` with no flags drops into interactive mode, prompting for name, SQL, description, and AI prompt (all optional). At least one of `--prompt` or `--sql` is required.
@@ -187,7 +242,7 @@ querri source query --source-id ID --sql SQL      # run SQL against source
 querri source ask <source_id> "question"          # NL question on source
 querri source new --name "X" --file f.json          # create source from JSON file
 querri source update <source_id> --name "..."     # update config
-querri source sync <source_id>                    # trigger sync
+querri source sync <source_id>                    # trigger sync (NOT in public API yet — 501)
 querri source delete <source_id>                  # delete
 querri source connectors                          # list available connector types
 ```
@@ -203,18 +258,33 @@ querri source query --source-id <ID> --sql "SELECT col1, COUNT(*) FROM data GROU
 ```
 
 Using any other table name (e.g. `FROM source`, `FROM contacts`) will return HTTP 400.
+(This `FROM data` convention is **only** for `source query`. Inside a **view's** SQL you instead
+reference sources as `FROM {source:UUID}` — see the Views section.)
+
+**Is a source materialized (queryable)?** There's no explicit `materialized` flag, but
+`querri --json source describe <id>` (or `source get`) tells you: a materialized source has a
+populated `row_count` and non-empty `columns`; an unmaterialized one (e.g. a freshly uploaded
+`.xlsx`) returns `row_count: null` and `columns: []`. Only materialized sources can be queried
+or referenced in a view (CSV/JSON/Parquet materialize on upload; Excel does not — see Views).
 
 ## Dashboards
 
 ```bash
-querri dashboard list
-querri dashboard get <dashboard_id>
-querri dashboard new --name "Name" --project <id>
-querri dashboard update <id> --name "..."
-querri dashboard refresh <id>                     # trigger refresh
-querri dashboard refresh-status <id>
-querri dashboard delete <id>
+querri dashboard list                             # ✅ works
+querri dashboard get <dashboard_id>               # ✅ works
+querri dashboard update <id> --name "..."         # ✅ works (name/description only)
+querri dashboard refresh <id>                     # ✅ works — trigger refresh
+querri dashboard refresh-status <id>              # ✅ works
+querri dashboard new --name "Name"                # ⚠️ 501 not_implemented — app-only for now
+querri dashboard delete <id>                      # ⚠️ 501 not_implemented — app-only for now
 ```
+
+**Heads-up — dashboard create/delete are not in the public API yet** (they return HTTP 501
+`not_implemented`; these are tracked gaps, not permanent). To *create* a dashboard or *pin charts*
+to one, use the Querri web app. From the CLI you can only list, read, update metadata, and refresh
+existing dashboards. `dashboard new` takes only `--name`/`--description` (no `--project` flag).
+Note: a Querri **project** already renders its own charts as a stacked "Data Flow" view, so a
+single project can stand in for a lightweight dashboard when you can't create a real one via CLI.
 
 ## Sharing & Access
 
