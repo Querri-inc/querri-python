@@ -30,7 +30,14 @@ view_app = typer.Typer(
 def new_view(
     ctx: typer.Context,
     name: str | None = typer.Option(None, "--name", "-n", help="View name."),
-    sql: str | None = typer.Option(None, "--sql", "-s", help="SQL definition."),
+    sql: str | None = typer.Option(
+        None,
+        "--sql",
+        "-s",
+        help="SQL definition. Reference sources with the {source:UUID} token "
+        "(e.g. 'SELECT * FROM {source:<uuid>}'), not a plain table name. The "
+        "source must be materialized (CSV/JSON/Parquet; .xlsx is not).",
+    ),
     description: str | None = typer.Option(
         None, "--description", "-d", help="View description."
     ),
@@ -48,10 +55,15 @@ def new_view(
     Running with no arguments drops into interactive mode — all fields are
     optional. Provide at least a prompt or SQL definition.
 
+    View SQL references sources with the {source:UUID} token, not a table name,
+    and the source must be materialized (CSV/JSON/Parquet auto-materialize on
+    upload; .xlsx does not). Get UUIDs from `querri --json source list`. After
+    AI authoring, verify the chosen source with `view get` (read sql_definition).
+
     Examples:
         querri view new                                                   # interactive
         querri view new --prompt "monthly revenue by product line"       # AI agent
-        querri view new --name "Orders" --sql "SELECT * FROM orders"    # direct
+        querri view new --name "Orders" --sql "SELECT * FROM {source:<uuid>}"    # direct
         querri view new -n "Revenue" --prompt "revenue by region"
                                                        # AI + custom name
     """
@@ -524,6 +536,22 @@ def _print_sse_stream(stream: Any) -> None:
                 print("", file=sys.stderr, flush=True)
             else:
                 print(" → done", file=sys.stderr, flush=True)
+        elif event_type == "data-view_sources_selected":
+            # The authoring agent reports which source(s) the view will scan.
+            # Surface them so you can confirm it picked the right one (it can
+            # pick the wrong source, and the UUID is otherwise only visible by
+            # reading the saved view's sql_definition).
+            srcs = event.get("data", {}).get("sources", [])
+            if srcs:
+                labels = ", ".join(
+                    f"{s.get('name', '?')} ({str(s.get('uuid', ''))[:8]})"
+                    for s in srcs
+                )
+                print(
+                    f"\n  📎 View scans source(s): {labels}",
+                    file=sys.stderr,
+                    flush=True,
+                )
         elif event_type == "finish":
             print("", flush=True)  # Final newline
 
@@ -532,6 +560,7 @@ def _collect_sse_stream(stream: Any) -> dict[str, Any]:
     """Buffer a view agent SSE stream and return a JSON-friendly result dict."""
     text_parts: list[str] = []
     tool_calls: list[dict[str, Any]] = []
+    sources_selected: list[dict[str, Any]] = []
 
     for event in _iter_sse_events(stream):
         event_type = event.get("type", "")
@@ -543,8 +572,14 @@ def _collect_sse_stream(stream: Any) -> dict[str, Any]:
                 "tool_name": event.get("toolName", ""),
                 "output": event.get("output", {}),
             })
+        elif event_type == "data-view_sources_selected":
+            sources_selected = event.get("data", {}).get("sources", [])
 
-    return {"text": "".join(text_parts), "tool_calls": tool_calls}
+    return {
+        "text": "".join(text_parts),
+        "tool_calls": tool_calls,
+        "sources_selected": sources_selected,
+    }
 
 
 @view_app.command("chat")
