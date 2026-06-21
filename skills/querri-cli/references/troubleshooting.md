@@ -113,3 +113,48 @@ For local dev, it should be `http://localhost`. Override if needed:
 ```bash
 export QUERRI_HOST=http://localhost
 ```
+
+---
+
+## View `run` fails / `preview` returns "Source '...' has not been materialized (no QDF attached)"
+
+The view references a source that has no materialized table (QDF). Most common cause: the source is
+an **Excel** file (`.xlsx`/`.xls`), which is **not** materialized on upload (it's parsed on demand
+only inside a chat/project). A view scans sources directly, so the Excel source has nothing to scan.
+
+Fix: convert the sheet to CSV and upload that — CSV/JSON/Parquet materialize on upload — then point
+the view at the CSV's source UUID:
+```bash
+querri --json file upload data.csv          # grab the returned source id
+querri view update <view_id> --sql "SELECT ... FROM {source:<csv_source_id>} ..."
+querri view run --view-ids <view_id>
+```
+Confirm a source is materialized first: `querri --json source describe <id>` should show a non-null
+`row_count` and non-empty `columns`. (`source sync` to force materialization is **not** available via
+the public API — it returns 501.)
+
+---
+
+## View returns the wrong rows / scans the wrong source
+
+When you create a view with `--prompt` (AI authoring), the agent picks the source(s) and the CLI does
+**not** print which UUID it chose. It can pick a different source than you intended. Always verify:
+```bash
+querri --json view get <view_id>     # read sql_definition → check the FROM {source:UUID} token
+```
+If it's wrong, overwrite the SQL with the correct source UUID (from `source list`):
+```bash
+querri view update <view_id> --sql "SELECT ... FROM {source:<correct_uuid>} ..."
+querri view run --view-ids <view_id>
+```
+Remember: view SQL uses `FROM {source:UUID}` tokens, **not** plain table names and **not** the
+`FROM data` convention that `source query` uses.
+
+---
+
+## `dashboard new` / `dashboard delete` / `source sync` return HTTP 501 not_implemented
+
+These three operations are not yet bridged to the public API (tracked gaps, not permanent). Use the
+Querri **web app** to create/delete dashboards or pin charts. From the CLI, dashboards support only
+`list`, `get`, `update` (name/description), `refresh`, and `refresh-status`. A Querri project's
+"Data Flow" view already shows all its charts, so it can serve as a lightweight dashboard substitute.
