@@ -86,6 +86,12 @@ class AskResponse(_LibraryBase):
     # On decline: one entry per attempted cluster — {cluster, tables, sql, ...}.
     attempted: list[dict[str, Any]] | None = None
     sources_used: list[str] = []
+    #: The workspace the answer was produced FROM, or None for the whole
+    #: organization. An answer that silently came from a wider set than you
+    #: asked for is the failure this field exists to make visible — check it
+    #: rather than assuming the scope you set was honoured (an API key's is
+    #: not: the server has no membership to validate it against).
+    workspace_id: str | None = None
     rounds: int = 0
     llm_calls: int = 0
     total_ms: int = 0

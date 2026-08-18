@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -1380,6 +1381,23 @@ def intake(
     )
 
 
+
+def _print_scope(workspace_id: str | None) -> None:
+    """Say which room the answer came out of.
+
+    An answer from a wider scope than you set looks identical to a correctly
+    scoped one, so it is printed rather than assumed. The difference is not
+    cosmetic — asked "what is the total of the invoices?" over a 30-database
+    tenant, the unscoped ask fanned out across five unrelated systems and
+    opened with an airline booking total; scoped to one workspace it answered
+    the question.
+    """
+    if workspace_id:
+        print(f"\n  scope: workspace {workspace_id}", file=sys.stderr)
+    else:
+        print("\n  scope: whole organization", file=sys.stderr)
+
+
 @library_app.command("ask")
 def ask(
     ctx: typer.Context,
@@ -1391,6 +1409,11 @@ def ask(
     """Ask the library a question. Routes to the source that answers it, runs it
     under RLS, and returns a narrative answer with provenance. Read-only —
     declines honestly when no source clears the bar.
+
+    Scoped to the active workspace (``querri workspace use``, or
+    ``--workspace``): the answer comes only from data you can see from where you
+    are standing. The scope the answer was actually produced under is printed
+    with it, because the claim is a hint the server may refuse.
     """
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -1409,6 +1432,9 @@ def ask(
             {"a": result.answer, "outcome": result.outcome or "—"},
             [("a", "Declined"), ("outcome", "Outcome")],
         )
+        # A decline is exactly when the scope matters most: "I found nothing"
+        # reads very differently if it only looked in one room.
+        _print_scope(result.workspace_id)
         for att in result.attempted or []:
             print_detail(
                 att,
@@ -1422,6 +1448,7 @@ def ask(
             )
         return
     print_success(result.answer)
+    _print_scope(result.workspace_id)
     # Provenance is per-cluster: one block per contributing source cluster.
     for prov in result.provenance or []:
         print_detail(

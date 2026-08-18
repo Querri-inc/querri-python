@@ -660,11 +660,21 @@ class Library:
         )
         return EvalResponse.model_validate(resp.json())
 
-    def ask(self, *, library_id: str, question: str) -> AskResponse:
-        resp = self._http.post(
-            "/library/ask",
-            json={"library_id": library_id, "question": question},
-        )
+    def ask(
+        self, *, library_id: str, question: str, workspace_id: str | None = None
+    ) -> AskResponse:
+        """Answer a question from the library, with provenance.
+
+        Scoped to the client's active workspace by default (the
+        ``X-Querri-Workspace`` header every request carries). ``workspace_id``
+        scopes a single call without changing the client. The response reports
+        the scope it actually answered under — the claim is a hint the server
+        may refuse, so read ``AskResponse.workspace_id`` rather than assuming.
+        """
+        body: dict[str, Any] = {"library_id": library_id, "question": question}
+        if workspace_id:
+            body["workspace_id"] = workspace_id
+        resp = self._http.post("/library/ask", json=body)
         return AskResponse.model_validate(resp.json())
 
     def consolidate(
@@ -1195,11 +1205,14 @@ class AsyncLibrary:
         )
         return EvalResponse.model_validate(resp.json())
 
-    async def ask(self, *, library_id: str, question: str) -> AskResponse:
-        resp = await self._http.post(
-            "/library/ask",
-            json={"library_id": library_id, "question": question},
-        )
+    async def ask(
+        self, *, library_id: str, question: str, workspace_id: str | None = None
+    ) -> AskResponse:
+        """Answer a question from the library. See :meth:`Library.ask`."""
+        body: dict[str, Any] = {"library_id": library_id, "question": question}
+        if workspace_id:
+            body["workspace_id"] = workspace_id
+        resp = await self._http.post("/library/ask", json=body)
         return AskResponse.model_validate(resp.json())
 
     async def consolidate(
