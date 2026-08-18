@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import random
+import threading
 import time
 from typing import Any
 
@@ -135,6 +136,79 @@ def _get_retry_after(response: httpx.Response) -> float | None:
         return None
 
 
+# ---------------------------------------------------------------------------
+# Token renewal
+# ---------------------------------------------------------------------------
+
+def _is_stale_credential(response: httpx.Response) -> bool:
+    """Does this failure mean "your token aged out" rather than "you may not"?
+
+    401 from the application always does. The gateway in front of ``/api/v2/*``
+    answers a bad JWT with a plain-text **403** ("token validation failed")
+    instead, which is indistinguishable from a real authorization refusal by
+    status alone — so that one is recognised by its shape: the application's own
+    403s carry a JSON ``error`` envelope, the gateway's carries text.
+
+    Deliberately narrow. Renewing on every 403 would retry genuine permission
+    failures with a fresh token and report the same refusal a second time.
+    """
+    if response.status_code == 401:
+        return True
+    if response.status_code != 403:
+        return False
+    if "json" in (response.headers.get("content-type") or "").lower():
+        return False
+    try:
+        return "token" in response.text.lower()
+    except Exception:  # noqa: BLE001 — a body we cannot read is not evidence
+        return False
+
+
+_REFRESH_LOCK = threading.Lock()
+
+
+def _renew_token(config: ClientConfig) -> str | None:
+    """Refresh a store-sourced JWT and return the new access token, or None.
+
+    **A long-running script outliving its access token is the normal case, not
+    an edge case.** WorkOS access tokens are short-lived; the SDK refreshed once
+    at construction and then handed the caller a 401 the moment it aged out. A
+    batch that ran three requests a minute for six minutes died on the fourth
+    minute with `AuthenticationError: The JWT token is invalid or expired`,
+    having done all its work and lost the results — with a valid refresh token
+    sitting in the same file the access token came from.
+
+    Only store-sourced tokens renew (``config.token_profile``). A token passed
+    to the constructor belongs to the caller: the SDK neither renews it nor
+    rewrites their token file.
+
+    Serialized on a lock, and it re-reads the store inside it — with several
+    threads sharing one client, the first to arrive refreshes and the rest find
+    the fresh token already on disk rather than each burning a refresh.
+    """
+    if not config.token_profile or not config.access_token:
+        return None
+    with _REFRESH_LOCK:
+        try:
+            from ._auth import TokenStore, refresh_tokens
+
+            store = TokenStore.load()
+            profile = store.profiles.get(config.token_profile)
+            if profile is None or not profile.refresh_token:
+                return None
+            # Someone else may have refreshed while we waited for the lock.
+            if profile.access_token and profile.access_token != config.access_token:
+                config.access_token = profile.access_token
+                return profile.access_token
+            profile = refresh_tokens(profile, config.host)
+            store.save_profile(config.token_profile, profile)
+            config.access_token = profile.access_token
+            return profile.access_token
+        except Exception as exc:  # noqa: BLE001 — a failed renewal is a 401, not a crash
+            logger.debug("Token renewal failed: %s", exc)
+            return None
+
+
 class SyncHTTPClient:
     """Synchronous HTTP client with retry and error handling."""
 
@@ -167,6 +241,10 @@ class SyncHTTPClient:
         """Make an HTTP request with automatic retry."""
         max_retries = self._config.max_retries
         last_exc: Exception | None = None
+        # A 401 does not consume a retry attempt — renewal is a different
+        # failure from a flaky server, and burning an attempt on it would make
+        # the first real 5xx after a token expiry unretryable.
+        renewed = False
 
         for attempt in range(max_retries + 1):
             try:
@@ -195,6 +273,20 @@ class SyncHTTPClient:
 
                 if response.status_code < 400:
                     return response
+
+                # An expired JWT is renewable, so it is not the caller's
+                # problem until renewal fails. Tried once per request: a second
+                # rejection of a token minted seconds ago is a real
+                # authorization answer, not staleness.
+                if not renewed and _is_stale_credential(response):
+                    renewed = True
+                    fresh = _renew_token(self._config)
+                    if fresh:
+                        response.close()
+                        self._client.headers["Authorization"] = f"Bearer {fresh}"
+                        if headers and "Authorization" in headers:
+                            headers["Authorization"] = f"Bearer {fresh}"
+                        continue
 
                 # Check if we should retry
                 if attempt < max_retries and _should_retry(
@@ -315,6 +407,10 @@ class AsyncHTTPClient:
 
         max_retries = self._config.max_retries
         last_exc: Exception | None = None
+        # A 401 does not consume a retry attempt — renewal is a different
+        # failure from a flaky server, and burning an attempt on it would make
+        # the first real 5xx after a token expiry unretryable.
+        renewed = False
 
         for attempt in range(max_retries + 1):
             try:
@@ -342,6 +438,18 @@ class AsyncHTTPClient:
 
                 if response.status_code < 400:
                     return response
+
+                # See the sync client: an expired JWT is renewable, so it is not
+                # the caller's problem until renewal fails.
+                if not renewed and _is_stale_credential(response):
+                    renewed = True
+                    fresh = await asyncio.to_thread(_renew_token, self._config)
+                    if fresh:
+                        await response.aclose()
+                        self._client.headers["Authorization"] = f"Bearer {fresh}"
+                        if headers and "Authorization" in headers:
+                            headers["Authorization"] = f"Bearer {fresh}"
+                        continue
 
                 if attempt < max_retries and _should_retry(
                     response.status_code, method

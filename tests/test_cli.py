@@ -472,7 +472,9 @@ class TestSubAppRegistration:
 
     EXPECTED_SUBCOMMANDS = [
         "whoami",
+        "workspace",
         "project",
+        "library",
         "step",
         "chat",
         "file",
@@ -504,15 +506,23 @@ class TestSubAppRegistration:
         assert result.exit_code == 0, f"{subcommand} --help failed: {result.output}"
         assert "Traceback" not in result.output
 
-    def test_subcommand_count(self) -> None:
-        """Exactly 19 sub-apps must be registered (``roles`` is a hidden alias)."""
-        # Count registered Typer sub-apps (not the main app callback)
-        registered = [
+    def test_registered_subapps_match_the_expected_set(self) -> None:
+        """The registered sub-apps are exactly `auth` plus EXPECTED_SUBCOMMANDS.
+
+        This used to assert a magic count, which had already drifted (it said
+        16 while 17 were registered) and which, when it fails, tells you a
+        number rather than a name. Comparing sets names what was added and what
+        went missing, and updating it means editing the same list the other two
+        tests in this class iterate — one place, not two.
+        """
+        registered = {
             group.name or group.typer_instance.info.name
             for group in main_app.registered_groups
-        ]
-        assert len(registered) == 19, (
-            f"Expected 19 sub-apps, got {len(registered)}: {registered}"
+        }
+        expected = {"auth", "roles", *self.EXPECTED_SUBCOMMANDS}  # roles: hidden alias
+        assert registered == expected, (
+            f"unexpected: {sorted(registered - expected)}  "
+            f"missing: {sorted(expected - registered)}"
         )
         assert "library" in registered
         assert {"role", "roles"} <= set(registered)

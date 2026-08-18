@@ -35,6 +35,11 @@ class ClientConfig:
     client_kind: str = "sdk"
     workspace_id: str | None = None  #: Active workspace, sent as ``X-Querri-Workspace``.
     host: str = DEFAULT_HOST  #: Server root, without the ``/api/v1`` suffix.
+    #: Name of the token-store profile this client's JWT came from, or None when
+    #: the credential was passed in directly. Set only for store-sourced tokens,
+    #: which are the only ones the SDK is allowed to renew — a token handed to
+    #: the constructor belongs to the caller and is never rewritten on disk.
+    token_profile: str | None = None
     _user_agent: str = field(init=False)  #: Auto-generated User-Agent header value.
 
     def __post_init__(self) -> None:
@@ -110,6 +115,7 @@ def resolve_config(
 
     # 3rd priority: token store (~/.querri/tokens.json)
     profile_host: str | None = None
+    token_profile: str | None = None
     if not resolved_key and not resolved_token:
         try:
             from ._auth import TokenStore, needs_refresh, refresh_tokens
@@ -137,6 +143,7 @@ def resolve_config(
                         # still good. Use it and let the server decide.
                         pass
                 resolved_token = profile.access_token
+                token_profile = store.active_profile
                 if not org_id and profile.org_id:
                     org_id = profile.org_id
                 # The host the token was MINTED against. Without this, `Querri()`
@@ -202,4 +209,5 @@ def resolve_config(
         max_retries=resolved_retries,
         workspace_id=resolved_workspace,
         host=resolved_host.rstrip("/"),
+        token_profile=token_profile,
     )
