@@ -132,6 +132,97 @@ class Sources:
             params["after"] = after
         return SyncCursorPage(self._http, "/sources", None, params=params)
 
+    # -- Readiness -----------------------------------------------------------
+
+    # An upload returns as soon as the bytes land; parsing happens on a job
+    # queue afterwards. Everything downstream — querying, adding to a project,
+    # the knowledge graph, an agent finding it — needs the parsed dataframe, so
+    # "uploaded" and "usable" are minutes apart on a real load. These two
+    # methods are the difference between a script that works and one that
+    # races.
+
+    def ready_state(self, source_id: str) -> tuple[str, dict[str, Any]]:
+        """``(state, source)`` where state is ``ready`` | ``processing`` |
+        ``error`` | ``missing``.
+
+        ``ready`` means a parsed dataframe is attached, which is the condition
+        every downstream feature actually needs — not merely that the row exists.
+        """
+        try:
+            src = self.get(source_id)
+        except Exception as exc:  # noqa: BLE001 — a 404 is a state, not a crash
+            status = getattr(exc, "status", None)
+            if status == 404:
+                return "missing", {"id": source_id}
+            raise
+        if src.get("materialized"):
+            return "ready", src
+        if str(src.get("status", "")).lower() in {"error", "failed"}:
+            return "error", src
+        return "processing", src
+
+    def wait_until_ready(
+        self,
+        source_ids: str | builtins.list[str],
+        *,
+        timeout: float = 900.0,
+        interval: float = 3.0,
+        on_progress: Any = None,
+    ) -> dict[str, dict[str, Any]]:
+        """Block until every source finishes processing.
+
+        Returns ``{source_id: {"state": ..., "source": ...}}`` — one entry per id,
+        with state ``ready``, ``error``, ``missing`` or ``timeout``. It does NOT
+        raise on a failed source: a 400-file load where three tables fail is a
+        result to inspect, not an exception that discards the other 397.
+
+        ``on_progress(done, total, state_counts)`` is called after each poll.
+        """
+        import time
+
+        ids = [source_ids] if isinstance(source_ids, str) else builtins.list(source_ids)
+        out: dict[str, dict[str, Any]] = {}
+        pending = list(ids)
+        deadline = time.monotonic() + timeout
+
+        while pending and time.monotonic() < deadline:
+            still: builtins.list[str] = []
+            for sid in pending:
+                state, src = self.ready_state(sid)
+                if state == "processing":
+                    still.append(sid)
+                else:
+                    out[sid] = {"state": state, "source": src}
+            pending = still
+            if on_progress is not None:
+                counts: dict[str, int] = {}
+                for rec in out.values():
+                    counts[rec["state"]] = counts.get(rec["state"], 0) + 1
+                on_progress(len(out), len(ids), counts)
+            if pending:
+                time.sleep(interval)
+
+        for sid in pending:
+            _state, src = self.ready_state(sid)
+            out[sid] = {"state": "timeout", "source": src}
+        return out
+
+    def pending(self, *, limit: int = 100) -> builtins.list[dict[str, Any]]:
+        """Every source in the current scope that is not yet usable.
+
+        Scoped by the client's active workspace, like any other list read — so
+        after ``querri workspace use finance`` this answers "is Finance ready",
+        not "is the whole org ready".
+        """
+        out: builtins.list[dict[str, Any]] = []
+        for src in self.list(limit=limit):
+            if src.get("materialized"):
+                continue
+            if str(src.get("status", "")).lower() in {"deleted"}:
+                continue
+            out.append(src)
+        return out
+
     def update(
         self,
         source_id: str,
@@ -397,6 +488,76 @@ class AsyncSources:
         if after is not None:
             params["after"] = after
         return AsyncCursorPage(self._http, "/sources", None, params=params)
+
+    # -- Readiness -----------------------------------------------------------
+
+    async def ready_state(self, source_id: str) -> tuple[str, dict[str, Any]]:
+        """``(state, source)`` where state is ``ready`` | ``processing`` |
+        ``error`` | ``missing``. See :meth:`Sources.ready_state`."""
+        try:
+            src = await self.get(source_id)
+        except Exception as exc:  # noqa: BLE001 — a 404 is a state, not a crash
+            status = getattr(exc, "status", None)
+            if status == 404:
+                return "missing", {"id": source_id}
+            raise
+        if src.get("materialized"):
+            return "ready", src
+        if str(src.get("status", "")).lower() in {"error", "failed"}:
+            return "error", src
+        return "processing", src
+
+    async def wait_until_ready(
+        self,
+        source_ids: str | builtins.list[str],
+        *,
+        timeout: float = 900.0,
+        interval: float = 3.0,
+        on_progress: Any = None,
+    ) -> dict[str, dict[str, Any]]:
+        """Block until every source finishes processing. See
+        :meth:`Sources.wait_until_ready`."""
+        import asyncio
+        import time
+
+        ids = [source_ids] if isinstance(source_ids, str) else builtins.list(source_ids)
+        out: dict[str, dict[str, Any]] = {}
+        pending = list(ids)
+        deadline = time.monotonic() + timeout
+
+        while pending and time.monotonic() < deadline:
+            states = await asyncio.gather(*(self.ready_state(sid) for sid in pending))
+            still: builtins.list[str] = []
+            for sid, (state, src) in zip(pending, states):
+                if state == "processing":
+                    still.append(sid)
+                else:
+                    out[sid] = {"state": state, "source": src}
+            pending = still
+            if on_progress is not None:
+                counts: dict[str, int] = {}
+                for rec in out.values():
+                    counts[rec["state"]] = counts.get(rec["state"], 0) + 1
+                on_progress(len(out), len(ids), counts)
+            if pending:
+                await asyncio.sleep(interval)
+
+        for sid in pending:
+            _state, src = await self.ready_state(sid)
+            out[sid] = {"state": "timeout", "source": src}
+        return out
+
+    async def pending(self, *, limit: int = 100) -> builtins.list[dict[str, Any]]:
+        """Every source in the current scope that is not yet usable."""
+        out: builtins.list[dict[str, Any]] = []
+        page = await self.list(limit=limit)
+        async for src in page:
+            if src.get("materialized"):
+                continue
+            if str(src.get("status", "")).lower() in {"deleted"}:
+                continue
+            out.append(src)
+        return out
 
     async def update(
         self,
