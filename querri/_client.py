@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from .resources.usage import AsyncUsage, Usage
     from .resources.users import AsyncUsers, Users
     from .resources.views import AsyncViews, Views
+    from .resources.workspaces import AsyncWorkspaces, Workspaces
 
 
 class Querri:
@@ -51,6 +52,7 @@ class Querri:
         timeout: float | None = None,
         max_retries: int | None = None,
         profile: str | None = None,
+        workspace_id: str | None = None,
     ) -> None:
         """Initialize the synchronous Querri client.
 
@@ -63,6 +65,11 @@ class Querri:
             timeout: Request timeout in seconds (default: 30.0).
             max_retries: Max retry attempts for failed requests (default: 3).
             profile: Named auth profile for token store selection.
+            workspace_id: Active workspace. Falls back to ``QUERRI_WORKSPACE_ID``.
+                Sent as ``X-Querri-Workspace`` on every request: it homes what you
+                create and scopes what you read. Requires user auth — under an API
+                key the server has no membership to validate the claim against and
+                ignores it.
         """
         self._profile = profile
         self._config = resolve_config(
@@ -72,6 +79,7 @@ class Querri:
             host=host,
             timeout=timeout,
             max_retries=max_retries,
+            workspace_id=workspace_id,
         )
         self._http = SyncHTTPClient(self._config)
 
@@ -91,6 +99,7 @@ class Querri:
         self._usage: object | None = None
         self._audit: object | None = None
         self._library: object | None = None
+        self._workspaces: object | None = None
 
     @property
     def users(self) -> "Users":
@@ -204,6 +213,19 @@ class Querri:
             self._library = Library(self._http)
         return self._library  # type: ignore[return-value]
 
+    @property
+    def workspaces(self) -> "Workspaces":
+        if self._workspaces is None:
+            from .resources.workspaces import Workspaces
+
+            self._workspaces = Workspaces(self._http)
+        return self._workspaces  # type: ignore[return-value]
+
+    @property
+    def workspace_id(self) -> str | None:
+        """The active workspace this client sends on every request, or None."""
+        return self._config.workspace_id
+
     def as_user(self, session: dict[str, Any]) -> "UserQuerri":
         """Create a user-scoped client from a ``get_session()`` result.
 
@@ -259,6 +281,7 @@ class AsyncQuerri:
         timeout: float | None = None,
         max_retries: int | None = None,
         profile: str | None = None,
+        workspace_id: str | None = None,
     ) -> None:
         """Initialize the asynchronous Querri client.
 
@@ -271,6 +294,11 @@ class AsyncQuerri:
             timeout: Request timeout in seconds (default: 30.0).
             max_retries: Max retry attempts for failed requests (default: 3).
             profile: Named auth profile for token store selection.
+            workspace_id: Active workspace. Falls back to ``QUERRI_WORKSPACE_ID``.
+                Sent as ``X-Querri-Workspace`` on every request: it homes what you
+                create and scopes what you read. Requires user auth — under an API
+                key the server has no membership to validate the claim against and
+                ignores it.
         """
         self._profile = profile
         self._config = resolve_config(
@@ -280,6 +308,7 @@ class AsyncQuerri:
             host=host,
             timeout=timeout,
             max_retries=max_retries,
+            workspace_id=workspace_id,
         )
         self._http = AsyncHTTPClient(self._config)
 
@@ -297,6 +326,7 @@ class AsyncQuerri:
         self._usage: object | None = None
         self._audit: object | None = None
         self._library: object | None = None
+        self._workspaces: object | None = None
 
     @property
     def users(self) -> "AsyncUsers":
@@ -409,6 +439,19 @@ class AsyncQuerri:
 
             self._library = AsyncLibrary(self._http)
         return self._library  # type: ignore[return-value]
+
+    @property
+    def workspaces(self) -> "AsyncWorkspaces":
+        if self._workspaces is None:
+            from .resources.workspaces import AsyncWorkspaces
+
+            self._workspaces = AsyncWorkspaces(self._http)
+        return self._workspaces  # type: ignore[return-value]
+
+    @property
+    def workspace_id(self) -> str | None:
+        """The active workspace this client sends on every request, or None."""
+        return self._config.workspace_id
 
     def as_user(self, session: dict[str, Any]) -> "AsyncUserQuerri":
         """Create a user-scoped async client from a ``get_session()`` result.

@@ -35,12 +35,21 @@ def _default_headers(config: ClientConfig) -> dict[str, str]:
     1. Session token (``X-Embed-Session``) — user-scoped client via ``as_user()``.
     2. JWT access token (``Bearer ey*``) — OAuth login, no X-Tenant-ID needed.
     3. API key (``Bearer qk_*``) — API key auth with X-Tenant-ID for tenant isolation.
+
+    ``X-Querri-Workspace`` is sent whenever the client has an active workspace. It
+    is the same header the web app's workspace switcher sends, and it is what makes
+    an SDK upload land in a named workspace instead of the caller's personal one.
+    Note the server ignores it for API-key auth (there is no user whose membership
+    could validate the claim) — workspace scoping needs a signed-in identity, i.e.
+    ``querri auth login``.
     """
     headers: dict[str, str] = {
         "User-Agent": config.user_agent,
         "Accept": "application/json",
         "X-Querri-Client": config.client_header,
     }
+    if config.workspace_id:
+        headers["X-Querri-Workspace"] = config.workspace_id
     if config.session_token:
         headers["X-Embed-Session"] = config.session_token
     elif config.access_token:

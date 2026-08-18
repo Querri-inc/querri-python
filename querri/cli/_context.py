@@ -23,17 +23,89 @@ def _as_cli(client: Querri) -> Querri:
     """
     client._config.client_kind = "cli"
     client._http._client.headers["X-Querri-Client"] = client._config.client_header
-    return client
+    return _as_cli(client)
+
+
+# A workspace id is minted server-side as `workspace_<hex>` (named),
+# `workspace_user_<uid>` (personal), or the literal `repo_default` (the org's
+# shared Library). Anything else the user typed is a slug or a name, and gets
+# looked up rather than sent as-is — an unrecognized claim fails CLOSED to the
+# personal workspace on the server, which would silently put your upload
+# somewhere you did not ask for.
+def _looks_like_workspace_id(value: str) -> bool:
+    return value == "repo_default" or value.startswith("workspace_")
+
+
+def _resolve_workspace(client: Querri, value: str, obj: dict[str, Any]) -> str:
+    """Turn a workspace id, slug, or name into an id. Exits 1 if unknown."""
+    if _looks_like_workspace_id(value):
+        return value
+    needle = value.strip().lower()
+    try:
+        candidates = client.workspaces.list()
+    except Exception as exc:  # noqa: BLE001 — report, never guess
+        from querri.cli._output import print_error
+
+        print_error(f"Could not look up workspace {value!r}: {exc}")
+        raise typer.Exit(code=1) from None
+    for ws in candidates:
+        if str(ws.get("slug", "")).lower() == needle:
+            return str(ws["id"])
+    for ws in candidates:
+        if str(ws.get("name", "")).lower() == needle:
+            return str(ws["id"])
+
+    known = ", ".join(f"{w.get('slug')} ({w.get('name')})" for w in candidates)
+    if obj.get("json"):
+        from querri.cli._output import print_json_error
+
+        print_json_error(
+            "unknown_workspace",
+            f"No workspace matches {value!r}. Available: {known}",
+            1,
+        )
+    else:
+        from querri.cli._output import print_error
+
+        print_error(
+            f"No workspace matches {value!r}.\n"
+            f"  Available: {known}\n"
+            f"  querri workspace list"
+        )
+    raise typer.Exit(code=1)
+
+
+def _active_workspace(ctx: typer.Context) -> str | None:
+    """The workspace claim for this invocation: --workspace / env, else the one
+    `querri workspace use` stored. Returned verbatim — may be a slug."""
+    obj: dict[str, Any] = ctx.ensure_object(dict)
+    flag = obj.get("workspace")
+    if flag:
+        return str(flag)
+    try:
+        profile = _get_profile(ctx)
+    except Exception:
+        return None
+    if profile and getattr(profile, "active_workspace_id", ""):
+        return str(profile.active_workspace_id)
+    return None
 
 
 def get_client(ctx: typer.Context) -> Querri:
     """Construct a Querri client from CLI context options.
 
-    Resolution order:
+    Credential resolution order:
     1. Explicit ``--api-key`` flag (wins)
     2. Environment variables (``QUERRI_API_KEY``, ``QUERRI_ACCESS_TOKEN``)
     3. Token store (``~/.querri/tokens.json`` — active profile, auto-refresh)
     4. Error with guidance
+
+    The active workspace (``--workspace``, ``QUERRI_WORKSPACE_ID``, or whatever
+    ``querri workspace use`` stored) rides along on every request as
+    ``X-Querri-Workspace``: it homes what you create and scopes what you read.
+    A slug or name is resolved to an id first — one extra call, worth it because
+    the server silently ignores a claim it cannot match, so an unresolved slug
+    would put your upload somewhere you did not ask for and report success.
 
     Returns:
         Configured ``Querri`` client instance.
@@ -43,73 +115,83 @@ def get_client(ctx: typer.Context) -> Querri:
     """
     obj: dict[str, Any] = ctx.ensure_object(dict)
 
-    # 1. Explicit --api-key wins
     api_key = obj.get("api_key")
     org_id = obj.get("org_id")
     host = obj.get("host")
+    workspace = _active_workspace(ctx)
 
+    # Build closures over the credential source we settled on, so the
+    # workspace-resolving second pass constructs an identical client.
+    build: Any = None
     if api_key:
+        def build(ws: str | None) -> Querri:  # noqa: F811
+            return Querri(api_key=api_key, org_id=org_id, host=host, workspace_id=ws)
+    elif os.environ.get("QUERRI_API_KEY") or os.environ.get("QUERRI_ACCESS_TOKEN"):
+        def build(ws: str | None) -> Querri:  # noqa: F811
+            return Querri(org_id=org_id, host=host, workspace_id=ws)
+    else:
+        # Token store — load active profile, auto-refresh if needed
         try:
-            return _as_cli(Querri(api_key=api_key, org_id=org_id, host=host))
-        except ConfigError as exc:
-            _handle_config_error(obj, exc)
-            raise typer.Exit(code=2) from None
+            from querri._auth import TokenStore, needs_refresh, refresh_tokens
+            from querri._config import DEFAULT_HOST
 
-    # 2. Environment variables — let resolve_config handle them
-    if os.environ.get("QUERRI_API_KEY") or os.environ.get("QUERRI_ACCESS_TOKEN"):
-        try:
-            return _as_cli(Querri(org_id=org_id, host=host))
-        except ConfigError as exc:
-            _handle_config_error(obj, exc)
-            raise typer.Exit(code=2) from None
+            profile_name = obj.get("profile") or "default"
+            store = TokenStore.load()
+            profile = store.profiles.get(profile_name)
 
-    # 3. Token store — load active profile, auto-refresh if needed
-    try:
-        from querri._auth import TokenStore, needs_refresh, refresh_tokens
-        from querri._config import DEFAULT_HOST
-
-        profile_name = obj.get("profile") or "default"
-        store = TokenStore.load()
-        profile = store.profiles.get(profile_name)
-
-        if profile and profile.access_token:
-            # Use the host stored in the profile (from login), CLI flag, env, or default
-            resolved_host = (
-                host or os.environ.get("QUERRI_HOST") or profile.host or DEFAULT_HOST
-            )
-
-            # Auto-refresh if near expiry
-            if needs_refresh(profile):
-                try:
-                    profile = refresh_tokens(profile, resolved_host)
-                    store.save_profile(profile_name, profile)
-                except Exception:
-                    # Refresh failed (RuntimeError, timeout, network error, etc.)
-                    # but the token may still be valid — needs_refresh fires
-                    # early as a buffer. Fall through to use it anyway.
-                    pass
-
-            return _as_cli(
-                Querri(
-                    access_token=profile.access_token,
-                    org_id=profile.org_id or org_id,
-                    host=resolved_host,
+            if profile and profile.access_token:
+                # Use the host stored in the profile (from login), CLI flag, env, or default
+                resolved_host = (
+                    host or os.environ.get("QUERRI_HOST") or profile.host or DEFAULT_HOST
                 )
-            )
-    except Exception as exc:
-        # Token store error — print debug info in verbose mode and fall through
-        if obj.get("verbose"):
-            print(f"Token store error: {exc}", file=sys.stderr)
-        pass
 
-    # 4. Nothing worked
-    _handle_config_error(
-        obj,
-        ConfigError(
-            "No credentials found. Run 'querri auth login' or set QUERRI_API_KEY."
-        ),
-    )
-    raise typer.Exit(code=2)
+                # Auto-refresh if near expiry
+                if needs_refresh(profile):
+                    try:
+                        profile = refresh_tokens(profile, resolved_host)
+                        store.save_profile(profile_name, profile)
+                    except Exception:
+                        # Refresh failed (RuntimeError, timeout, network error, etc.)
+                        # but the token may still be valid — needs_refresh fires
+                        # early as a buffer. Fall through to use it anyway.
+                        pass
+
+                _token = profile.access_token
+                _org = profile.org_id or org_id
+
+                def build(ws: str | None) -> Querri:  # noqa: F811
+                    return Querri(
+                        access_token=_token,
+                        org_id=_org,
+                        host=resolved_host,
+                        workspace_id=ws,
+                    )
+        except Exception as exc:
+            # Token store error — print debug info in verbose mode and fall through
+            if obj.get("verbose"):
+                print(f"Token store error: {exc}", file=sys.stderr)
+
+    if build is None:
+        _handle_config_error(
+            obj,
+            ConfigError(
+                "No credentials found. Run 'querri auth login' or set QUERRI_API_KEY."
+            ),
+        )
+        raise typer.Exit(code=2)
+
+    known_id = bool(workspace) and _looks_like_workspace_id(str(workspace))
+    try:
+        client = build(str(workspace) if known_id else None)
+    except ConfigError as exc:
+        _handle_config_error(obj, exc)
+        raise typer.Exit(code=2) from None
+
+    if workspace and not known_id:
+        resolved = _resolve_workspace(client, str(workspace), obj)
+        client.close()
+        client = build(resolved)
+    return _as_cli(client)
 
 
 def _handle_config_error(obj: dict[str, Any], exc: ConfigError) -> None:

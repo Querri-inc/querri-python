@@ -33,6 +33,8 @@ class ClientConfig:
     #: the ``querri`` command built the client. Sent as ``X-Querri-Client`` so
     #: the server can tell the two apart (the User-Agent is the same for both).
     client_kind: str = "sdk"
+    workspace_id: str | None = None  #: Active workspace, sent as ``X-Querri-Workspace``.
+    host: str = DEFAULT_HOST  #: Server root, without the ``/api/v1`` suffix.
     _user_agent: str = field(init=False)  #: Auto-generated User-Agent header value.
 
     def __post_init__(self) -> None:
@@ -59,7 +61,8 @@ class ClientConfig:
         token_repr = "ey***" if self.access_token else None
         return (
             f"ClientConfig(base_url={self.base_url!r}, api_key={key_repr!r}, "
-            f"access_token={token_repr!r}, org_id={self.org_id!r})"
+            f"access_token={token_repr!r}, org_id={self.org_id!r}, "
+            f"workspace_id={self.workspace_id!r})"
         )
 
     def __str__(self) -> str:
@@ -74,6 +77,7 @@ def resolve_config(
     host: str | None = None,
     timeout: float | None = None,
     max_retries: int | None = None,
+    workspace_id: str | None = None,
 ) -> ClientConfig:
     """Resolve configuration from arguments, env vars, and defaults.
 
@@ -90,6 +94,13 @@ def resolve_config(
             Defaults to ``https://app.querri.com``.
         timeout: Request timeout in seconds.
         max_retries: Max retry attempts for retryable errors.
+        workspace_id: Active workspace (or set QUERRI_WORKSPACE_ID env var).
+            Sent as the ``X-Querri-Workspace`` header on every request, which
+            (a) homes newly created objects there and (b) scopes list reads and
+            agent search to that workspace. ``None`` means "no active
+            workspace": creates fall back to the caller's personal workspace
+            and reads are unscoped. It is a HINT — the server re-validates it
+            against membership and fails closed.
 
     Raises:
         ConfigError: If no credentials are provided.
@@ -98,6 +109,7 @@ def resolve_config(
     resolved_token = access_token or os.environ.get("QUERRI_ACCESS_TOKEN")
 
     # 3rd priority: token store (~/.querri/tokens.json)
+    profile_host: str | None = None
     if not resolved_key and not resolved_token:
         try:
             from ._auth import TokenStore
@@ -108,6 +120,13 @@ def resolve_config(
                 resolved_token = profile.access_token
                 if not org_id and profile.org_id:
                     org_id = profile.org_id
+                # The host the token was MINTED against. Without this, `Querri()`
+                # after `querri auth login --host http://localhost` sent a
+                # localhost JWT to app.querri.com and failed with a bare 403 —
+                # a credential leaked to the wrong host, reported as a
+                # permissions problem. An explicit host= or QUERRI_HOST still
+                # wins; this only fills the blank.
+                profile_host = profile.host or None
         except Exception:
             # Token store unavailable — continue to error
             pass
@@ -128,7 +147,9 @@ def resolve_config(
             "or set the QUERRI_ORG_ID environment variable."
         )
 
-    resolved_host = host or os.environ.get("QUERRI_HOST") or DEFAULT_HOST
+    resolved_host = (
+        host or os.environ.get("QUERRI_HOST") or profile_host or DEFAULT_HOST
+    )
     resolved_url = resolved_host.rstrip("/") + "/api/v1"
 
     resolved_timeout = timeout
@@ -141,6 +162,18 @@ def resolve_config(
         env_retries = os.environ.get("QUERRI_MAX_RETRIES")
         resolved_retries = int(env_retries) if env_retries else DEFAULT_MAX_RETRIES
 
+    # `QUERRI_WORKSPACE_ID` is the documented name; `QUERRI_WORKSPACE` is accepted
+    # because that is what people type. Empty string means None — an env var set to
+    # "" must not send an empty header the server would then have to interpret.
+    resolved_workspace = (
+        workspace_id
+        or os.environ.get("QUERRI_WORKSPACE_ID")
+        or os.environ.get("QUERRI_WORKSPACE")
+        or None
+    )
+    if resolved_workspace is not None:
+        resolved_workspace = resolved_workspace.strip() or None
+
     return ClientConfig(
         api_key=resolved_key,
         access_token=resolved_token,
@@ -148,4 +181,6 @@ def resolve_config(
         base_url=resolved_url,
         timeout=resolved_timeout,
         max_retries=resolved_retries,
+        workspace_id=resolved_workspace,
+        host=resolved_host.rstrip("/"),
     )
