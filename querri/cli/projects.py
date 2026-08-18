@@ -96,7 +96,7 @@ def new_project(
     if profile:
         profile.active_project_id = project.id
         profile.active_project_name = name
-        profile.active_chat_id = ""  # reset chat for new project
+        profile.set_active_chat(project.id, "")  # new project has no chat yet
         _save_profile(ctx, profile)
 
     if obj.get("json"):
@@ -175,7 +175,7 @@ def select_project(
         if profile:
             profile.active_project_id = project.id
             profile.active_project_name = project.name
-            profile.active_chat_id = ""
+            profile.set_active_chat(project.id, "")
             _save_profile(ctx, profile)
 
         if obj.get("json"):
@@ -244,14 +244,14 @@ def select_project(
     if profile:
         profile.active_project_id = project.id
         profile.active_project_name = project.name
-        profile.active_chat_id = ""
+        profile.set_active_chat(project.id, "")
 
-        # Try to auto-select the first chat
+        # Try to auto-select the project's most recent chat
         try:
             chats = client.projects.chats.list(project.id, limit=1)
             chat_list = list(chats)
             if chat_list:
-                profile.active_chat_id = chat_list[0].id
+                profile.set_active_chat(project.id, chat_list[0].id)
         except Exception as exc:
             logger.debug("Could not auto-select chat: %s", exc)
 
@@ -425,12 +425,16 @@ def delete_project(
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
-    # Clear state if deleting active project
+    # Clear state for the deleted project
     profile = _get_profile(ctx)
-    if profile and profile.active_project_id == project_id:
-        profile.active_project_id = ""
-        profile.active_project_name = ""
-        profile.active_chat_id = ""
+    if profile:
+        # Drop the per-project chat memory (also clears the legacy mirror
+        # when this was the active project, since set_active_chat runs while
+        # active_project_id still equals project_id).
+        profile.set_active_chat(project_id, "")
+        if profile.active_project_id == project_id:
+            profile.active_project_id = ""
+            profile.active_project_name = ""
         _save_profile(ctx, profile)
 
     if obj.get("json"):
@@ -596,15 +600,19 @@ def add_source(
     uid = resolve_user_id(ctx)
     client = get_client(ctx)
 
-    # Create a chat for the source load operation and save as active
-    try:
-        chat = client.projects.chats.create(pid)
-    except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
-
+    # Reuse the project's active chat so source loads and the analysis that
+    # follows stay in ONE thread. Only create a chat if the project has none
+    # remembered yet (e.g. the very first add-source on a fresh project).
     profile = _get_profile(ctx)
+    chat_id = profile.get_active_chat(pid) if profile else ""
+    if not chat_id:
+        try:
+            chat = client.projects.chats.create(pid)
+            chat_id = chat.id
+        except Exception as exc:
+            raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
     if profile:
-        profile.active_chat_id = chat.id
+        profile.set_active_chat(pid, chat_id)
         _save_profile(ctx, profile)
 
     # Use the <load> format that the agent loop recognizes
@@ -616,7 +624,7 @@ def add_source(
     try:
         stream = client.projects.chats.stream(
             pid,
-            chat.id,
+            chat_id,
             prompt=prompt,
             user_id=uid,
         )
