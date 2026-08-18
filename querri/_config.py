@@ -112,11 +112,30 @@ def resolve_config(
     profile_host: str | None = None
     if not resolved_key and not resolved_token:
         try:
-            from ._auth import TokenStore
+            from ._auth import TokenStore, needs_refresh, refresh_tokens
 
             store = TokenStore.load()
             profile = store.get_active_profile()
             if profile and profile.access_token:
+                # Refresh a stale token here, not only in the CLI. The CLI's
+                # `get_client` has always done this; `Querri()` did not, so a
+                # script that ran fine yesterday failed today with a bare
+                # `PermissionError: HTTP 403` while a valid refresh token sat
+                # in the same file. A 403 that means "your token aged out" is
+                # indistinguishable from "you lack access" at the call site,
+                # and the caller cannot fix either without being told which.
+                if needs_refresh(profile):
+                    try:
+                        target = (
+                            host or os.environ.get("QUERRI_HOST")
+                            or profile.host or DEFAULT_HOST
+                        )
+                        profile = refresh_tokens(profile, target)
+                        store.save_profile(store.active_profile, profile)
+                    except Exception:
+                        # The buffer fires early, so the current token is often
+                        # still good. Use it and let the server decide.
+                        pass
                 resolved_token = profile.access_token
                 if not org_id and profile.org_id:
                     org_id = profile.org_id
