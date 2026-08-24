@@ -112,6 +112,7 @@ class Chats:
         user_id: str,
         model: str | None = None,
         experimental_v2: bool = False,
+        table_agent_mode: str | None = None,
     ) -> ChatStream:
         """Send a message and stream the AI response via SSE.
 
@@ -121,7 +122,15 @@ class Chats:
             prompt: The user message to send.
             user_id: User ID (or external ID) sending the message.
             model: Optional model selection (default "standard").
-            experimental_v2: Use experimental v2 agent (faster, direct SQL execution).
+            experimental_v2: Deprecated and ignored by the server since 2026-08-19 —
+                v2 is the only planner path.
+            table_agent_mode: Which table agent writes each analysis step's query.
+                "fast" is one shot on DuckDB — the same proposer, the same
+                measured input profiles and the same governing knowledge, then it
+                writes the query, materializes the table and returns: no
+                post-execution review, no independent second derivation, no retry
+                loop. "thorough" is the full loop. Omit to inherit the
+                organization's setting.
 
         Returns:
             A ``ChatStream`` that yields text chunks.
@@ -144,6 +153,8 @@ class Chats:
             body["model"] = model
         if experimental_v2:
             body["experimentalV2"] = True
+        if table_agent_mode is not None:
+            body["tableAgentMode"] = table_agent_mode
         response = self._http.post(
             f"/projects/{project_id}/chats/{chat_id}/stream",
             json=body,
@@ -269,6 +280,7 @@ class AsyncChats:
         user_id: str,
         model: str | None = None,
         experimental_v2: bool = False,
+        table_agent_mode: str | None = None,
     ) -> AsyncChatStream:
         """Send a message and stream the AI response via SSE.
 
@@ -278,7 +290,15 @@ class AsyncChats:
             prompt: The user message to send.
             user_id: User ID (or external ID) sending the message.
             model: Optional model selection (default "standard").
-            experimental_v2: Use experimental v2 agent (faster, direct SQL execution).
+            experimental_v2: Deprecated and ignored by the server since 2026-08-19 —
+                v2 is the only planner path.
+            table_agent_mode: Which table agent writes each analysis step's query.
+                "fast" is one shot on DuckDB — the same proposer, the same
+                measured input profiles and the same governing knowledge, then it
+                writes the query, materializes the table and returns: no
+                post-execution review, no independent second derivation, no retry
+                loop. "thorough" is the full loop. Omit to inherit the
+                organization's setting.
 
         Returns:
             An ``AsyncChatStream`` that yields text chunks.
@@ -301,6 +321,8 @@ class AsyncChats:
             body["model"] = model
         if experimental_v2:
             body["experimentalV2"] = True
+        if table_agent_mode is not None:
+            body["tableAgentMode"] = table_agent_mode
         response = await self._http.post(
             f"/projects/{project_id}/chats/{chat_id}/stream",
             json=body,

@@ -97,7 +97,21 @@ def chat_command(
         False,
         "--experimental-v2",
         "--v2",
-        help="Use experimental v2 agent (faster, direct SQL execution).",
+        help="Deprecated and ignored by the server — v2 is the only planner path.",
+    ),
+    fast: bool = typer.Option(
+        False,
+        "--fast",
+        help="One shot per analysis step: write the query on DuckDB, build the "
+             "table, return. Skips the verification pass (no post-execution "
+             "review, no independent second derivation, no retry loop). Roughly "
+             "one model call per step instead of several.",
+    ),
+    thorough: bool = typer.Option(
+        False,
+        "--thorough",
+        help="Force the full verification loop for every analysis step, even if "
+             "the organization's default is fast.",
     ),
     debug: bool = typer.Option(
         False, "--debug", help="Log all stream events to ~/.querri/debug.log"
@@ -112,9 +126,18 @@ def chat_command(
         querri project chat -m "summarize the data"
         querri project chat --message "show me Q4 revenue" --model gpt-4o
         querri project chat -m "start over" --new
+        querri project chat -m "revenue by region" --fast
     """
     if ctx.invoked_subcommand is not None:
         return
+
+    # WHICH TABLE AGENT. Named explicitly on the wire when either flag is
+    # given, and omitted otherwise so the organization's setting decides —
+    # "the user did not choose" and "the user chose thorough" are different
+    # requests and the server logs them differently.
+    if fast and thorough:
+        raise typer.BadParameter("--fast and --thorough are mutually exclusive.")
+    table_agent_mode = "fast" if fast else ("thorough" if thorough else None)
     if prompt is None:
         ctx.get_help()
         return
@@ -203,6 +226,7 @@ def chat_command(
             user_id=user_id,
             model=model,
             experimental_v2=experimental_v2,
+            table_agent_mode=table_agent_mode,
         )
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
