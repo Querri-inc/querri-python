@@ -180,6 +180,12 @@ class Embed:
 
         Returns:
             Number of sessions revoked.
+
+        Raises:
+            NotFoundError: When listed sessions repeatedly cannot be revoked
+                (two consecutive zero-progress passes) — a broken or renamed
+                endpoint, not expiry. Sessions revoked before the failure are
+                genuinely revoked but their count is lost with the raise.
         """
         count = 0
         zero_progress_passes = 0
@@ -360,6 +366,12 @@ class AsyncEmbed:
 
         Returns:
             Number of sessions revoked.
+
+        Raises:
+            NotFoundError: When listed sessions repeatedly cannot be revoked
+                (two consecutive zero-progress passes) — a broken or renamed
+                endpoint, not expiry. Sessions revoked before the failure are
+                genuinely revoked but their count is lost with the raise.
         """
         count = 0
         zero_progress_passes = 0
