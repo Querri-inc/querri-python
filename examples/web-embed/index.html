@@ -91,9 +91,6 @@
         </div>
     </div>
 
-    <!-- Querri Embed SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@querri-inc/embed/dist/core/querri-embed.iife.global.js"></script>
-
     <script>
     // ── Tab switching ──────────────────────────────────────────
     document.querySelectorAll('.tab').forEach(tab => {
@@ -111,8 +108,17 @@
         statusEl.innerHTML = `<span class="dot ${color}"></span> ${text}`;
     }
 
-    // Fetch server config (serverUrl) then initialize embed
+    // Fetch server config (serverUrl), load the embed script from the
+    // Querri server itself, then initialize the embed.
     fetch('/api/config').then(r => r.json()).then(cfg => {
+        const script = document.createElement('script');
+        script.src = cfg.serverUrl + '/sdk/querri-embed.js';
+        script.onload = () => initEmbed(cfg);
+        script.onerror = () => setStatus('red', 'Failed to load ' + script.src);
+        document.head.appendChild(script);
+    }).catch(e => setStatus('red', 'Config fetch failed: ' + e.message));
+
+    function initEmbed(cfg) {
         try {
             const embed = QuerriEmbed.create(
                 document.getElementById('embed-container'),
@@ -127,7 +133,7 @@
                         }
                     },
                     startView: '/home',
-                    chrome: { sidebar: { show: true }, header: { show: true } },
+                    chrome: { rail: { show: true }, header: { show: true } },
                 }
             );
             embed.on('ready', () => setStatus('green', 'Connected'));
@@ -136,7 +142,7 @@
         } catch (e) {
             setStatus('red', 'Failed: ' + e.message);
         }
-    }).catch(e => setStatus('red', 'Config fetch failed: ' + e.message));
+    }
 
     // ── SDK Explorer ──────────────────────────────────────────
     const ACTIONS = {
@@ -199,14 +205,12 @@
             'dashboards.refreshStatus': { desc: 'Check refresh status', params: { dashboard_id: '' } },
         },
         'Data': {
-            'data.sources':      { desc: 'List data sources (paginated)', params: { limit: 25 } },
-            'data.source':       { desc: 'Get source by ID', params: { source_id: '' } },
-            'data.createSource': { desc: 'Create source with rows', params: { name: 'Test Source', rows: [{ col1: 'val1' }] } },
-            'data.appendRows':   { desc: 'Append rows to source', params: { source_id: '', rows: [{ col1: 'val2' }] } },
-            'data.replaceData':  { desc: 'Replace all data in source', params: { source_id: '', rows: [{ col1: 'new' }] } },
-            'data.deleteSource': { desc: 'Delete a data source', params: { source_id: '' } },
-            'data.query':        { desc: 'Run SQL query', params: { sql: 'SELECT * FROM src LIMIT 10', source_id: '' } },
-            'data.sourceData':   { desc: 'Get source data (paginated)', params: { source_id: '', page: 1, page_size: 50 } },
+            'sources.createDataSource': { desc: 'Create source with rows', params: { name: 'Test Source', rows: [{ col1: 'val1' }] } },
+            'sources.appendRows':       { desc: 'Append rows to source', params: { source_id: '', rows: [{ col1: 'val2' }] } },
+            'sources.replaceData':      { desc: 'Replace all data in source', params: { source_id: '', rows: [{ col1: 'new' }] } },
+            'sources.query':            { desc: 'Run SQL query', params: { sql: 'SELECT * FROM src LIMIT 10', source_id: '' } },
+            'sources.sourceData':       { desc: 'Get source data (paginated)', params: { source_id: '', page: 1, page_size: 50 } },
+            'sources.ask':              { desc: 'Ask a question about a source', params: { source_id: '', question: 'What are the top regions?' } },
         },
         'Sources': {
             'sources.listConnectors': { desc: 'List available connectors', params: {} },

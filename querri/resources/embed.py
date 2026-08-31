@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
@@ -39,12 +40,21 @@ class Embed:
             user_id: WorkOS user ID or external ID. Required.
             origin: Origin domain for validation.
             ttl: Session TTL in seconds (900-86400, default 3600).
-            source_scope: Optional list of source IDs to restrict session access.
+            source_scope: Deprecated no-op — the server does not enforce it,
+                and it will be removed in v2.0.0. Scope sessions with access
+                policies instead (see :meth:`get_session` ``access=``).
         """
         body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
         if origin is not None:
             body["origin"] = origin
         if source_scope is not None:
+            warnings.warn(
+                "source_scope is not enforced by the server and will be removed "
+                "in v2.0.0; sessions are scoped by access policies instead "
+                "(see client.embed.get_session access=...)",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             body["source_scope"] = source_scope
         resp = self._http.post("/embed/sessions", json=body)
         return EmbedSession.model_validate(resp.json())
@@ -167,11 +177,21 @@ class AsyncEmbed:
             user_id: WorkOS user ID or external ID. Required.
             origin: Origin domain for validation.
             ttl: Session TTL in seconds (900-86400, default 3600).
+            source_scope: Deprecated no-op — the server does not enforce it,
+                and it will be removed in v2.0.0. Scope sessions with access
+                policies instead (see :meth:`get_session` ``access=``).
         """
         body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
         if origin is not None:
             body["origin"] = origin
         if source_scope is not None:
+            warnings.warn(
+                "source_scope is not enforced by the server and will be removed "
+                "in v2.0.0; sessions are scoped by access policies instead "
+                "(see client.embed.get_session access=...)",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             body["source_scope"] = source_scope
         resp = await self._http.post("/embed/sessions", json=body)
         return EmbedSession.model_validate(resp.json())

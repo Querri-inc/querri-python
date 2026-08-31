@@ -329,9 +329,12 @@ Manage embed session tokens.
 Create a new embed session token for a user.
 
 ```python
-create_session(user_id: str, *, origin: str | None = None,
-               ttl: int = 3600) -> EmbedSession
+create_session(*, user_id: str, origin: str | None = None,
+               ttl: int = 3600,
+               source_scope: list[str] | None = None) -> EmbedSession
 ```
+
+All parameters are keyword-only.
 
 ```python
 session = client.embed.create_session(
@@ -342,16 +345,30 @@ session = client.embed.create_session(
 print(session.session_token)
 ```
 
+Always pass `origin` — the origin your page embeds Querri from (in a request
+handler, `request.headers.get("Origin")`). If the organization has configured
+an allowlist of embed domains, the server enforces it at session creation:
+omitting `origin` fails with `400 origin_required`, and an origin that is not
+on the allowlist fails with `403 origin_not_allowed`. With no allowlist
+configured, `origin` is accepted but not enforced.
+
+> **Deprecated:** `source_scope` is a no-op — the server does not enforce it,
+> and it will be removed in v2.0.0. Passing it emits a `DeprecationWarning`.
+> Scope sessions with access policies instead (see
+> [`get_session()`](#clientembedget_session) `access=`).
+
 #### `client.embed.refresh_session()`
 
 Refresh a session token. The old token is revoked and a new one is returned.
 
 ```python
-refresh_session(session_token: str) -> EmbedSession
+refresh_session(*, session_token: str) -> EmbedSession
 ```
 
+`session_token` is keyword-only.
+
 ```python
-new_session = client.embed.refresh_session("es_old_token...")
+new_session = client.embed.refresh_session(session_token="es_old_token...")
 ```
 
 #### `client.embed.list_sessions()`
@@ -399,7 +416,7 @@ print(f"Revoked {count} sessions")
 The flagship convenience method. See [get_session() Deep Dive](#get_session-deep-dive) for full documentation.
 
 ```python
-get_session(user: str | dict, *, access: dict | None = None,
+get_session(*, user: str | dict, access: dict | None = None,
             origin: str | None = None, ttl: int = 3600) -> dict
 ```
 
@@ -545,11 +562,11 @@ print(result.removed)  # removed policy IDs
 Resolve the effective access for a user on a specific source.
 
 ```python
-resolve(user_id: str, source_id: str) -> ResolvedAccess
+resolve(*, user_id: str, source_id: str) -> ResolvedAccess
 ```
 
 ```python
-access = client.policies.resolve("user_abc123", "src_sales")
+access = client.policies.resolve(user_id="user_abc123", source_id="src_sales")
 print(access.effective_access)  # "full", "filtered", or "none"
 print(access.where_clause)      # SQL WHERE clause
 ```
@@ -1384,8 +1401,8 @@ session["external_id"]     # str | None — your external ID
 
 ```python
 client.embed.get_session(
-    user: str | dict,
     *,
+    user: str | dict,
     access: dict | None = None,
     origin: str | None = None,
     ttl: int = 3600,
@@ -1396,7 +1413,7 @@ client.embed.get_session(
 |---|---|---|---|
 | `user` | `str \| dict` | Yes | External ID string, or dict with `external_id` + optional profile fields |
 | `access` | `dict \| None` | No | Policy IDs or inline sources + filters |
-| `origin` | `str \| None` | No | Allowed origin for the embed iframe (CORS validation) |
+| `origin` | `str \| None` | No | Origin your page embeds from. If the org configures an embed-domain allowlist, the server rejects a missing origin with `400 origin_required` and a non-allowlisted one with `403 origin_not_allowed` |
 | `ttl` | `int` | No | Session lifetime in seconds (default: `3600`) |
 
 ### Return Value

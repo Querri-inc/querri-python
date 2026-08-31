@@ -8,6 +8,8 @@ Each test class covers a single resource and verifies that:
 
 from __future__ import annotations
 
+import warnings
+
 import httpx
 import pytest
 import respx
@@ -1672,6 +1674,53 @@ class TestEmbed:
         embed.create_session(user_id="usr_1", source_scope=["src_1", "src_2"])
         req_body = route.calls[0].request.content
         assert b"source_scope" in req_body
+
+    @respx.mock
+    def test_create_session_source_scope_warns_deprecated(self):
+        route = respx.post(f"{BASE}/embed/sessions").mock(
+            return_value=httpx.Response(
+                200,
+                json={"session_token": "es_scoped", "expires_in": 3600},
+            )
+        )
+        from querri.resources.embed import Embed
+
+        embed = Embed(_http())
+        with pytest.warns(DeprecationWarning, match="source_scope is not enforced"):
+            embed.create_session(user_id="usr_1", source_scope=["src_1"])
+        # Deprecation only warns — the field is still sent unchanged.
+        assert b"source_scope" in route.calls[0].request.content
+
+    @respx.mock
+    def test_create_session_without_source_scope_does_not_warn(self):
+        respx.post(f"{BASE}/embed/sessions").mock(
+            return_value=httpx.Response(
+                200,
+                json={"session_token": "es_plain", "expires_in": 3600},
+            )
+        )
+        from querri.resources.embed import Embed
+
+        embed = Embed(_http())
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            embed.create_session(user_id="usr_1")
+
+    @respx.mock
+    async def test_async_create_session_source_scope_warns_deprecated(self):
+        route = respx.post(f"{BASE}/embed/sessions").mock(
+            return_value=httpx.Response(
+                200,
+                json={"session_token": "es_scoped", "expires_in": 3600},
+            )
+        )
+        from querri._base_client import AsyncHTTPClient
+        from querri.resources.embed import AsyncEmbed
+
+        embed = AsyncEmbed(AsyncHTTPClient(_make_config()))
+        with pytest.warns(DeprecationWarning, match="source_scope is not enforced"):
+            await embed.create_session(user_id="usr_1", source_scope=["src_1"])
+        assert b"source_scope" in route.calls[0].request.content
 
     @respx.mock
     def test_refresh_session(self):
