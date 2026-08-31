@@ -308,3 +308,7 @@ pytest tests/test_integration.py -m integration -v  # requires API credentials
 ## License
 
 MIT
+
+## Support policy
+
+The 1.x line receives security fixes only, for 6 months from the 2.0.0 release (2026-08-31). Migrate with [docs/MIGRATION.md](docs/MIGRATION.md).
