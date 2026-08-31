@@ -1680,6 +1680,44 @@ class TestEmbedCommands:
         result = runner.invoke(main_app, [*_GLOBAL, "session", "revoke"])
         assert result.exit_code != 0
 
+    # -- ui-config ----------------------------------------------------------
+
+    def test_session_ui_config(self) -> None:
+        mock_client = MagicMock()
+        mock_client.embed.get_ui_config.return_value = {
+            "chrome": {"rail": {"show": False}},
+            "theme": {},
+            "privacy": {},
+        }
+        with patch("querri.cli.embed.get_client", return_value=mock_client):
+            result = runner.invoke(
+                main_app,
+                [*_GLOBAL, "session", "ui-config", "--org", "org_abc"],
+            )
+        assert result.exit_code == 0
+        mock_client.embed.get_ui_config.assert_called_once_with("org_abc")
+        assert "chrome" in result.output
+
+    def test_session_ui_config_json(self) -> None:
+        mock_client = MagicMock()
+        mock_client.embed.get_ui_config.return_value = {
+            "chrome": {},
+            "theme": {},
+            "privacy": {},
+        }
+        with patch("querri.cli.embed.get_client", return_value=mock_client):
+            result = runner.invoke(
+                main_app,
+                [*_GLOBAL, *_JSON, "session", "ui-config", "--org", "org_abc"],
+            )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data == {"chrome": {}, "theme": {}, "privacy": {}}
+
+    def test_session_ui_config_requires_org(self) -> None:
+        result = runner.invoke(main_app, [*_GLOBAL, "session", "ui-config"])
+        assert result.exit_code != 0
+
 
 # ---------------------------------------------------------------------------
 # Usage
@@ -2219,6 +2257,59 @@ class TestSharingCommands:
         mock_client.sharing.revoke_project_share.assert_called_once_with(
             "proj_1", "usr_1"
         )
+
+    # -- share source org ---------------------------------------------------
+
+    def test_share_source_org_enable(self) -> None:
+        mock_client = MagicMock()
+        mock_client._http.post.return_value.json.return_value = {
+            "source_id": "src_1",
+            "org_shared": True,
+        }
+        with patch("querri.cli.sharing.get_client", return_value=mock_client):
+            result = runner.invoke(
+                main_app,
+                [*_GLOBAL, "share", "source", "org", "src_1", "--permission", "edit"],
+            )
+        assert result.exit_code == 0
+        assert "organization" in result.output
+        mock_client._http.post.assert_called_once_with(
+            "/sources/src_1/org-share",
+            json={"enabled": True, "permission": "edit"},
+        )
+
+    def test_share_source_org_disable(self) -> None:
+        mock_client = MagicMock()
+        mock_client._http.post.return_value.json.return_value = {
+            "source_id": "src_1",
+            "org_shared": False,
+        }
+        with patch("querri.cli.sharing.get_client", return_value=mock_client):
+            result = runner.invoke(
+                main_app,
+                [*_GLOBAL, "share", "source", "org", "src_1", "--disable"],
+            )
+        assert result.exit_code == 0
+        assert "Disabled" in result.output
+        mock_client._http.post.assert_called_once_with(
+            "/sources/src_1/org-share",
+            json={"enabled": False, "permission": "view"},
+        )
+
+    def test_share_source_org_json(self) -> None:
+        mock_client = MagicMock()
+        mock_client._http.post.return_value.json.return_value = {
+            "source_id": "src_1",
+            "org_shared": True,
+        }
+        with patch("querri.cli.sharing.get_client", return_value=mock_client):
+            result = runner.invoke(
+                main_app,
+                [*_GLOBAL, *_JSON, "share", "source", "org", "src_1"],
+            )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data == {"source_id": "src_1", "org_shared": True}
 
     def test_share_project_remove_json(self) -> None:
         mock_client = MagicMock()

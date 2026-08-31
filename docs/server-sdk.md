@@ -330,11 +330,12 @@ Create a new embed session token for a user.
 
 ```python
 create_session(*, user_id: str, origin: str | None = None,
-               ttl: int = 3600,
-               source_scope: list[str] | None = None) -> EmbedSession
+               ttl: int = 3600) -> EmbedSession
 ```
 
-All parameters are keyword-only.
+All parameters are keyword-only. ``ttl`` must be within [900, 86400] seconds
+— the SDK raises ``ValueError`` before sending a TTL the server would
+silently clamp.
 
 ```python
 session = client.embed.create_session(
@@ -348,14 +349,15 @@ print(session.session_token)
 Always pass `origin` — the origin your page embeds Querri from (in a request
 handler, `request.headers.get("Origin")`). If the organization has configured
 an allowlist of embed domains, the server enforces it at session creation:
-omitting `origin` fails with `400 origin_required`, and an origin that is not
-on the allowlist fails with `403 origin_not_allowed`. With no allowlist
-configured, `origin` is accepted but not enforced.
+omitting `origin` raises `OriginRequiredError` (a `ValidationError` subclass,
+HTTP `400 origin_required`), and an origin that is not on the allowlist fails
+with `403 origin_not_allowed`. With no allowlist configured, `origin` is
+accepted but not enforced.
 
-> **Deprecated:** `source_scope` is a no-op — the server does not enforce it,
-> and it will be removed in v2.0.0. Passing it emits a `DeprecationWarning`.
-> Scope sessions with access policies instead (see
-> [`get_session()`](#clientembedget_session) `access=`).
+> **Removed in v2.0.0:** `source_scope`. The server never enforced it —
+> passing it now raises `TypeError`. Scope sessions with access policies
+> instead (see [`get_session()`](#clientembedget_session) `access=`), which
+> the server actually enforces. See [MIGRATION.md](MIGRATION.md).
 
 #### `client.embed.refresh_session()`
 
@@ -402,6 +404,11 @@ client.embed.revoke_session(session_token="es_...")
 
 Revoke all embed sessions for a user.
 
+The server lists at most 200 sessions per request and offers no cursor, so
+this loops revoke-and-relist until a listing contains no sessions for the
+user (bounded at 50 passes). Best-effort: sessions created while the loop
+runs may survive it.
+
 ```python
 revoke_user_sessions(user_id: str) -> int
 ```
@@ -410,6 +417,28 @@ revoke_user_sessions(user_id: str) -> int
 count = client.embed.revoke_user_sessions("user_abc123")
 print(f"Revoked {count} sessions")
 ```
+
+#### `client.embed.get_ui_config()`
+
+Fetch the operator-configured embed UI config for an org — the merged
+`{chrome, theme, privacy}` object that embeds apply as a base layer (the
+customer's own `QuerriEmbed.create()` config wins on top).
+
+Calls `GET {host}/api/embed/ui-config?org=...` on the **main app path**, not
+`/api/v1`: the endpoint is public, unauthenticated, and rate-limited per IP.
+The result is a raw dict — the schema evolves server-side, and unknown orgs
+return empty groups.
+
+```python
+get_ui_config(org: str) -> dict
+```
+
+```python
+config = client.embed.get_ui_config("org_abc123")
+print(config["chrome"])   # e.g. {"rail": {"show": False}}
+```
+
+CLI equivalent: `querri session ui-config --org org_abc123`.
 
 #### `client.embed.get_session()`
 
@@ -440,7 +469,7 @@ Manage access policies for row-level security (RLS).
 Create a new access policy.
 
 ```python
-create(name: str, *, description: str | None = None,
+create(*, name: str, description: str | None = None,
        source_ids: list[str] | None = None,
        row_filters: list[dict] | None = None) -> Policy
 ```
@@ -591,7 +620,7 @@ for sc in cols:
 Create a policy and assign users in one call.
 
 ```python
-setup(name: str, *, sources: list[str] | None = None,
+setup(*, name: str, sources: list[str] | None = None,
       row_filters: dict | None = None,
       users: list[str] | None = None,
       description: str | None = None) -> Policy
@@ -616,7 +645,7 @@ Manage dashboards.
 #### `client.dashboards.create()`
 
 ```python
-create(name: str, *, description: str | None = None) -> Dashboard
+create(*, name: str, description: str | None = None) -> Dashboard
 ```
 
 ```python
@@ -703,7 +732,7 @@ Manage projects and their execution.
 #### `client.projects.create()`
 
 ```python
-create(name: str, user_id: str, *, description: str | None = None) -> Project
+create(*, name: str, user_id: str, description: str | None = None) -> Project
 ```
 
 ```python
@@ -837,8 +866,8 @@ list(project_id: str, *, limit: int = 25) -> list[Chat]
 Stream a chat response token-by-token.
 
 ```python
-stream(project_id: str, chat_id: str, prompt: str,
-       user_id: str, *, model: str | None = None) -> ChatStream
+stream(project_id: str, chat_id: str, *, prompt: str,
+       user_id: str, model: str | None = None) -> ChatStream
 ```
 
 ```python
@@ -922,7 +951,7 @@ sources = client.sources.list().to_list()
 Create a new source from a connector.
 
 ```python
-create(name: str, connector_id: str, *,
+create(*, name: str, connector_id: str,
        config: dict | None = None) -> dict
 ```
 
@@ -1108,7 +1137,7 @@ Manage API keys.
 Create a new API key.
 
 ```python
-create(name: str, scopes: list[str], *,
+create(*, name: str, scopes: list[str],
        expires_in_days: int | None = None,
        source_scope: dict | None = None,
        access_policy_ids: list[str] | None = None,
@@ -1329,17 +1358,19 @@ with client.as_user(session) as user_client:
 
 ### How It Works
 
-`as_user()` creates a `UserQuerri` that calls the internal API (`/api/`) with the embed session token in the `X-Embed-Session` header. The internal API applies FGA filtering automatically — only resources the user has been granted access to (via `sharing.share_project()`, `sharing.share_dashboard()`, etc.) are returned.
+`as_user()` creates a `UserQuerri` that calls the public API (`/api/v1/`) with the embed session token in the `X-Embed-Session` header — embed sessions are the public API's highest-priority credential. The API applies FGA filtering automatically — only resources the user has been granted access to (via `sharing.share_project()`, `sharing.share_dashboard()`, etc.) are returned.
 
-This is different from the admin `Querri` client, which calls the public API (`/api/v1/`) with an API key and returns all resources in the organization.
+This is different from the admin `Querri` client, which authenticates the same paths with an API key and returns all resources in the organization. Two scopes are excluded from embed sessions server-side, and the user-scoped client mirrors that:
+
+- **No `user_client.embed`** — a session cannot mint or manage sessions (`embed:session:create` is excluded). Create sessions from the admin client.
+- **Dashboards are read-only** — `admin:dashboards:write` is excluded, so `user_client.dashboards` exposes only `list()`, `get()`, and `refresh_status()`; there is no `create`/`update`/`delete`/`refresh`.
 
 ### Available Resources
 
 | Resource | Example | Description |
 |----------|---------|-------------|
 | `user_client.projects` | `.list()`, `.get(id)`, `.run(id, user_id)` | Projects the user can access |
-| `user_client.dashboards` | `.list()`, `.get(id)`, `.refresh(id)` | Dashboards the user can access |
-| `user_client.sources` | `.list()`, `.list_connectors()` | Data sources and connectors |
+| `user_client.dashboards` | `.list()`, `.get(id)`, `.refresh_status(id)` | Dashboards the user can access (read-only) |
 | `user_client.sources` | `.list()`, `.query(...)`, `.source_data(id)` | Data sources, connectors, and queries with RLS |
 | `user_client.chats` | `.create(proj_id)`, `.list(proj_id)` | Chats within accessible projects |
 

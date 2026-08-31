@@ -1,5 +1,53 @@
 # Changelog
 
+## 2.0.0 (2026-08-31)
+
+Migration guide with before/after snippets: [docs/MIGRATION.md](docs/MIGRATION.md).
+
+### Breaking
+
+- **`source_scope` removed from `client.embed.create_session()`** (sync and
+  async). It was never enforced by the server — a silently-ignored parameter
+  that *looked* like access control. Passing it now raises `TypeError`. Scope
+  sessions with access policies instead: `client.embed.get_session(access=...)`.
+- **`as_user()` / `UserQuerri` rebased from `/api` to `/api/v1`.** Embed
+  sessions (`X-Embed-Session`) are the public API's highest-priority
+  credential, so user-scoped clients now call the same public API paths as
+  the admin client.
+- **`user_client.dashboards` is read-only.** Embed sessions exclude the
+  `admin:dashboards:write` scope server-side; the user-scoped surface now
+  exposes only `list()`, `get()`, and `refresh_status()` — `create`,
+  `update`, `delete`, and `refresh` no longer exist there (they always
+  belonged to the admin client).
+- There is no `user_client.embed`: embed sessions exclude
+  `embed:session:create` server-side (a session cannot mint sessions).
+  The accessor never existed in the SDK; the contract is now documented
+  and tested.
+- **`ttl` is validated client-side**: `create_session()` and
+  `get_session()` raise `ValueError` for TTLs outside [900, 86400] seconds
+  instead of sending a value the server would silently clamp.
+
+### Added
+
+- `client.embed.get_ui_config(org)` — fetches the public, unauthenticated
+  `GET {host}/api/embed/ui-config?org=...` (main app path, not `/api/v1`)
+  and returns the raw `{chrome, theme, privacy}` dict.
+- `querri session ui-config --org <id>` CLI command for the same.
+- `OriginRequiredError` (subclass of `ValidationError`), raised for
+  `400 origin_required` with a message explaining the org's embed-domain
+  allowlist and how to pass `origin`.
+- `querri share source org` gained `--disable` to turn org-wide sharing
+  off (the server contract always supported `enabled: false`).
+- `querri keys create` interactive scope picker now includes the
+  `admin:skills:*`, `admin:library:*` scopes and `*` (superadmin).
+
+### Fixed
+
+- `client.embed.revoke_user_sessions()` no longer stops at the first
+  listing page: the server caps listings at 200 with no cursor, so it now
+  loops revoke-and-relist until a listing shows no sessions for the user
+  (bounded at 50 passes).
+
 ## 1.1.1 (2026-08-31)
 
 ### Fixed

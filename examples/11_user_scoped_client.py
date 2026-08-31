@@ -6,9 +6,11 @@ Demonstrates:
 - Listing projects/dashboards filtered by user access policies
 - Context manager usage for cleanup
 
-The user-scoped client calls the internal API (/api) with an embed
-session token. Resources are automatically filtered by the user's
-assigned access policies — only data they're allowed to see is returned.
+The user-scoped client calls the public API (/api/v1) with an embed
+session token in the X-Embed-Session header. Resources are automatically
+filtered by the user's assigned access policies — only data they're
+allowed to see is returned. Dashboards are read-only under an embed
+session, and there is no user_client.embed (sessions cannot mint sessions).
 
 Prerequisites:
     export QUERRI_API_KEY="qk_..."

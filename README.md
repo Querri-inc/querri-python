@@ -236,7 +236,7 @@ See **[docs/server-sdk.md](docs/server-sdk.md#user-scoped-client-as_user)** for 
 
 | Resource | Access | Key Methods |
 |----------|--------|-------------|
-| `client.embed` | Embed sessions (flagship) | `get_session`, `create_session`, `refresh_session`, `revoke_session`, `list_sessions` |
+| `client.embed` | Embed sessions (flagship) | `get_session`, `create_session`, `refresh_session`, `revoke_session`, `list_sessions`, `get_ui_config` |
 | `client.policies` | Row-level access control | `setup`, `create`, `list`, `get`, `update`, `delete`, `assign_users`, `remove_user`, `resolve`, `columns` |
 | `client.users` | User management | `list`, `create`, `get`, `get_or_create`, `update`, `delete` |
 | `client.dashboards` | Dashboard management | `list`, `create`, `get`, `update`, `delete`, `refresh`, `refresh_status` |
@@ -272,6 +272,7 @@ All errors extend `QuerriError`:
 QuerriError
 ├── APIError                — HTTP error responses
 │   ├── ValidationError     — 400
+│   │   └── OriginRequiredError — 400 origin_required (org has an embed-domain allowlist)
 │   ├── AuthenticationError — 401
 │   ├── PermissionError     — 403
 │   ├── NotFoundError       — 404
