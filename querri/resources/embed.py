@@ -182,19 +182,33 @@ class Embed:
             Number of sessions revoked.
         """
         count = 0
+        zero_progress_passes = 0
         for _ in range(_REVOKE_MAX_PASSES):
             sessions = self.list_sessions(limit=_LIST_SESSIONS_MAX_LIMIT)
             matches = [s for s in sessions.data if s.user_id == user_id]
             if not matches:
                 break
+            revoked_this_pass = 0
+            last_not_found: NotFoundError | None = None
             for session in matches:
                 try:
                     self.revoke_session(session.session_token)
-                except NotFoundError:
+                except NotFoundError as exc:
                     # Expired or revoked elsewhere between list and delete —
                     # the goal state (session gone) is already true.
+                    last_not_found = exc
                     continue
-                count += 1
+                revoked_this_pass += 1
+            count += revoked_this_pass
+            if revoked_this_pass:
+                zero_progress_passes = 0
+            else:
+                # Benign (they all just expired) empties the next listing and
+                # the loop exits above. Two listed-but-unrevokable passes in a
+                # row means something systemic — surface it, don't spin.
+                zero_progress_passes += 1
+                if zero_progress_passes >= 2 and last_not_found is not None:
+                    raise last_not_found
         return count
 
 
@@ -348,17 +362,31 @@ class AsyncEmbed:
             Number of sessions revoked.
         """
         count = 0
+        zero_progress_passes = 0
         for _ in range(_REVOKE_MAX_PASSES):
             sessions = await self.list_sessions(limit=_LIST_SESSIONS_MAX_LIMIT)
             matches = [s for s in sessions.data if s.user_id == user_id]
             if not matches:
                 break
+            revoked_this_pass = 0
+            last_not_found: NotFoundError | None = None
             for session in matches:
                 try:
                     await self.revoke_session(session.session_token)
-                except NotFoundError:
+                except NotFoundError as exc:
                     # Expired or revoked elsewhere between list and delete —
                     # the goal state (session gone) is already true.
+                    last_not_found = exc
                     continue
-                count += 1
+                revoked_this_pass += 1
+            count += revoked_this_pass
+            if revoked_this_pass:
+                zero_progress_passes = 0
+            else:
+                # Benign (they all just expired) empties the next listing and
+                # the loop exits above. Two listed-but-unrevokable passes in a
+                # row means something systemic — surface it, don't spin.
+                zero_progress_passes += 1
+                if zero_progress_passes >= 2 and last_not_found is not None:
+                    raise last_not_found
         return count

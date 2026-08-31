@@ -1952,6 +1952,30 @@ class TestEmbed:
         assert embed.revoke_user_sessions("usr_target") == 1
 
     @respx.mock
+    def test_revoke_user_sessions_raises_on_systemic_404(self):
+        """Every revoke 404ing while the listing still shows the sessions is
+        a broken endpoint, not expiry — surface it instead of spinning to the
+        pass bound and returning 0 as if done."""
+        page = {
+            "data": [{"session_token": "es_stuck", "user_id": "usr_target"}],
+            "has_more": False,
+        }
+        respx.get(f"{BASE}/embed/sessions").mock(
+            return_value=httpx.Response(200, json=page)
+        )
+        respx.delete(f"{BASE}/embed/sessions/es_stuck").mock(
+            return_value=httpx.Response(
+                404, json={"error": {"code": "not_found", "message": "gone"}}
+            )
+        )
+        from querri._exceptions import NotFoundError
+        from querri.resources.embed import Embed
+
+        embed = Embed(_http())
+        with pytest.raises(NotFoundError):
+            embed.revoke_user_sessions("usr_target")
+
+    @respx.mock
     async def test_async_revoke_user_sessions_loops_and_tolerates_404(self):
         """Async mirror of the loop: relists after revoking, skips vanished."""
         respx.get(f"{BASE}/embed/sessions").mock(
