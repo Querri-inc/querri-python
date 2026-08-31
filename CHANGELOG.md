@@ -46,7 +46,10 @@ Migration guide with before/after snippets: [docs/MIGRATION.md](docs/MIGRATION.m
 - `client.embed.revoke_user_sessions()` no longer stops at the first
   listing page: the server caps listings at 200 with no cursor, so it now
   loops revoke-and-relist until a listing shows no sessions for the user
-  (bounded at 50 passes).
+  (bounded at 50 passes), and tolerates a session expiring between list
+  and delete. Still best-effort — with more than 200 concurrent sessions
+  org-wide the listing is a sample and stragglers can survive; do not
+  treat a return as proof every session is gone.
 
 ## 1.1.1 (2026-08-31)
 

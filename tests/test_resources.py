@@ -1919,6 +1919,70 @@ class TestEmbed:
         count = embed.revoke_user_sessions("usr_target")
         assert count == 201
 
+    @respx.mock
+    def test_revoke_user_sessions_tolerates_vanished_session(self):
+        """A session expiring between list and delete is the goal state, not
+        an error — the loop continues and the count stays honest."""
+        respx.get(f"{BASE}/embed/sessions").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "data": [
+                            {"session_token": "es_gone", "user_id": "usr_target"},
+                            {"session_token": "es_live", "user_id": "usr_target"},
+                        ],
+                        "has_more": False,
+                    },
+                ),
+                httpx.Response(200, json={"data": [], "has_more": False}),
+            ]
+        )
+        respx.delete(f"{BASE}/embed/sessions/es_gone").mock(
+            return_value=httpx.Response(
+                404, json={"error": {"code": "not_found", "message": "gone"}}
+            )
+        )
+        respx.delete(f"{BASE}/embed/sessions/es_live").mock(
+            return_value=httpx.Response(200, json={"id": "es_live", "revoked": True})
+        )
+        from querri.resources.embed import Embed
+
+        embed = Embed(_http())
+        assert embed.revoke_user_sessions("usr_target") == 1
+
+    @respx.mock
+    async def test_async_revoke_user_sessions_loops_and_tolerates_404(self):
+        """Async mirror of the loop: relists after revoking, skips vanished."""
+        respx.get(f"{BASE}/embed/sessions").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "data": [
+                            {"session_token": "es_gone", "user_id": "usr_target"},
+                            {"session_token": "es_live", "user_id": "usr_target"},
+                        ],
+                        "has_more": False,
+                    },
+                ),
+                httpx.Response(200, json={"data": [], "has_more": False}),
+            ]
+        )
+        respx.delete(f"{BASE}/embed/sessions/es_gone").mock(
+            return_value=httpx.Response(
+                404, json={"error": {"code": "not_found", "message": "gone"}}
+            )
+        )
+        respx.delete(f"{BASE}/embed/sessions/es_live").mock(
+            return_value=httpx.Response(200, json={"id": "es_live", "revoked": True})
+        )
+        from querri._base_client import AsyncHTTPClient
+        from querri.resources.embed import AsyncEmbed
+
+        embed = AsyncEmbed(AsyncHTTPClient(_make_config()))
+        assert await embed.revoke_user_sessions("usr_target") == 1
+
 
 # =========================================================================
 # Usage

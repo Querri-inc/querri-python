@@ -7,6 +7,7 @@ from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from .._convenience import async_get_session, sync_get_session, validate_ttl
+from .._exceptions import NotFoundError
 from ..types.embed import (
     EmbedSession,
     EmbedSessionList,
@@ -187,7 +188,12 @@ class Embed:
             if not matches:
                 break
             for session in matches:
-                self.revoke_session(session.session_token)
+                try:
+                    self.revoke_session(session.session_token)
+                except NotFoundError:
+                    # Expired or revoked elsewhere between list and delete —
+                    # the goal state (session gone) is already true.
+                    continue
                 count += 1
         return count
 
@@ -348,6 +354,11 @@ class AsyncEmbed:
             if not matches:
                 break
             for session in matches:
-                await self.revoke_session(session.session_token)
+                try:
+                    await self.revoke_session(session.session_token)
+                except NotFoundError:
+                    # Expired or revoked elsewhere between list and delete —
+                    # the goal state (session gone) is already true.
+                    continue
                 count += 1
         return count
