@@ -1,19 +1,21 @@
 """User-scoped client that uses embed session auth and FGA-filtered resources.
 
-Calls the internal API (``/api``) instead of the public API (``/api/v1``).
-Resources are automatically filtered by the session user's access policies.
+Calls the public API (``/api/v1``) with the session token in the
+``X-Embed-Session`` header — embed sessions are the public API's priority-0
+credential. Resources are automatically filtered by the session user's
+access policies, and the scope set excludes ``embed:session:create`` (a
+session cannot mint sessions) and ``admin:dashboards:write`` (dashboards
+are read-only under an embed session).
 """
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING, Any
 
 from ._base_client import AsyncHTTPClient, SyncHTTPClient
 from ._config import ClientConfig
 
 if TYPE_CHECKING:
-    from .resources.dashboards import AsyncDashboards, Dashboards
     from .resources.projects import AsyncChats, AsyncProjects, Chats, Projects
     from .resources.sources import AsyncSources, Sources
 
@@ -23,26 +25,58 @@ def _session_config(
 ) -> ClientConfig:
     """Build a config for session-mode HTTP clients.
 
-    Derives the ``/api`` base URL from the parent's ``/api/v1`` URL and
-    sets the session token for ``X-Embed-Session`` auth.
+    Same ``/api/v1`` base URL as the parent; auth switches from the API key
+    to the session token (sent as ``X-Embed-Session``).
     """
-    # Strip /api/v1 suffix to get the host, then append /api
-    host = re.sub(r"/api/v1$", "", parent_config.base_url)
     return ClientConfig(
         api_key="",  # Not used in session mode.
         org_id="",  # Not used in session mode.
-        base_url=f"{host}/api",
+        base_url=parent_config.base_url,
         timeout=parent_config.timeout,
         max_retries=parent_config.max_retries,
         session_token=session["session_token"],
     )
 
 
+class UserDashboards:
+    """Read-only dashboards surface for user-scoped clients.
+
+    Embed sessions exclude the ``admin:dashboards:write`` scope, so only
+    the read endpoints exist here — write calls would 403 server-side, and
+    this surface makes that contract explicit client-side.
+    """
+
+    def __init__(self, http: SyncHTTPClient) -> None:
+        from .resources.dashboards import Dashboards
+
+        self._full = Dashboards(http)
+        self.list = self._full.list
+        self.get = self._full.get
+        self.refresh_status = self._full.refresh_status
+
+
+class AsyncUserDashboards:
+    """Read-only dashboards surface for user-scoped clients (async).
+
+    See :class:`UserDashboards`.
+    """
+
+    def __init__(self, http: AsyncHTTPClient) -> None:
+        from .resources.dashboards import AsyncDashboards
+
+        self._full = AsyncDashboards(http)
+        self.list = self._full.list
+        self.get = self._full.get
+        self.refresh_status = self._full.refresh_status
+
+
 class UserQuerri:
     """User-scoped synchronous client with FGA-filtered resources.
 
-    Calls the internal API (``/api``) using an embed session token.
-    Only exposes resources visible to the session user.
+    Calls the public API (``/api/v1``) using an embed session token.
+    Only exposes resources visible to the session user; dashboards are
+    read-only, and there is no ``embed`` accessor (a session cannot mint
+    or manage sessions — that is the admin client's job).
 
     Usage::
 
@@ -80,11 +114,9 @@ class UserQuerri:
         return self._projects  # type: ignore[return-value]
 
     @property
-    def dashboards(self) -> Dashboards:
+    def dashboards(self) -> UserDashboards:
         if self._dashboards is None:
-            from .resources.dashboards import Dashboards
-
-            self._dashboards = Dashboards(self._http)
+            self._dashboards = UserDashboards(self._http)
         return self._dashboards  # type: ignore[return-value]
 
     @property
@@ -119,8 +151,9 @@ class UserQuerri:
 class AsyncUserQuerri:
     """User-scoped asynchronous client with FGA-filtered resources.
 
-    Calls the internal API (``/api``) using an embed session token.
-    Only exposes resources visible to the session user.
+    Calls the public API (``/api/v1``) using an embed session token.
+    Only exposes resources visible to the session user; dashboards are
+    read-only, and there is no ``embed`` accessor.
 
     Usage::
 
@@ -157,11 +190,9 @@ class AsyncUserQuerri:
         return self._projects  # type: ignore[return-value]
 
     @property
-    def dashboards(self) -> AsyncDashboards:
+    def dashboards(self) -> AsyncUserDashboards:
         if self._dashboards is None:
-            from .resources.dashboards import AsyncDashboards
-
-            self._dashboards = AsyncDashboards(self._http)
+            self._dashboards = AsyncUserDashboards(self._http)
         return self._dashboards  # type: ignore[return-value]
 
     @property

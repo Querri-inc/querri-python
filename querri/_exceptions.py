@@ -73,6 +73,16 @@ class ConflictError(APIError):
     """409 — Duplicate resource or conflict."""
 
 
+class OriginRequiredError(ValidationError):
+    """400 ``origin_required`` — the organization has an embed-domain allowlist.
+
+    Raised when a session is created without ``origin`` while the org has
+    configured allowed embed domains. Pass ``origin`` (the page origin that
+    will embed Querri, e.g. ``https://app.customer.com``) to
+    ``create_session()`` / ``get_session()``.
+    """
+
+
 class RateLimitError(APIError):
     """429 — Rate limited.
 
@@ -165,6 +175,17 @@ def raise_for_status(
         err_doc_url = None
 
     exc_class = _STATUS_MAP.get(status, APIError)
+
+    # Error-code refinements: some codes carry a contract worth a dedicated
+    # type and a message that says what to do about it.
+    if status == 400 and err_code == "origin_required":
+        exc_class = OriginRequiredError
+        err_message = (
+            f"{err_message} This organization has configured an allowlist of "
+            "embed domains, so origin is required: pass origin=... (the page "
+            "origin that will embed Querri, e.g. 'https://app.customer.com') "
+            "to create_session() or get_session()."
+        )
 
     kwargs: dict[str, object] = {
         "status": status,

@@ -187,10 +187,10 @@ class Querri:
     def as_user(self, session: dict[str, Any]) -> "UserQuerri":
         """Create a user-scoped client from a ``get_session()`` result.
 
-        The returned client uses the embed session token for auth and
-        only exposes resources visible to the user (projects, dashboards,
-        sources, chats). All queries are automatically filtered
-        by the user's access policies.
+        The returned client calls the public API (``/api/v1``) with the
+        embed session token and only exposes resources visible to the user
+        (projects, dashboards read-only, sources, chats). All queries are
+        automatically filtered by the user's access policies.
 
         Args:
             session: Result from ``get_session()`` containing ``session_token``.
@@ -370,10 +370,10 @@ class AsyncQuerri:
     def as_user(self, session: dict[str, Any]) -> "AsyncUserQuerri":
         """Create a user-scoped async client from a ``get_session()`` result.
 
-        The returned client uses the embed session token for auth and
-        only exposes resources visible to the user (projects, dashboards,
-        sources, chats). All queries are automatically filtered
-        by the user's access policies.
+        The returned client calls the public API (``/api/v1``) with the
+        embed session token and only exposes resources visible to the user
+        (projects, dashboards read-only, sources, chats). All queries are
+        automatically filtered by the user's access policies.
 
         Args:
             session: Result from ``get_session()`` containing ``session_token``.

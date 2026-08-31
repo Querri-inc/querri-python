@@ -72,7 +72,7 @@ See [`skills/querri-cli/SKILL.md`](skills/querri-cli/SKILL.md) for the full comm
 
 ## Python SDK
 
-For embedding Querri analytics in a Python web application. Use alongside the [`@querri-inc/embed`](https://www.npmjs.com/package/@querri-inc/embed) frontend component.
+For embedding Querri analytics in a Python web application. The backend SDK creates embed sessions; the frontend loads the embed script directly from your Querri server at `{serverUrl}/sdk/querri-embed.js` (a React wrapper is also available — see below).
 
 ### Quick Start
 
@@ -119,7 +119,37 @@ def querri_session():
 
 Django and FastAPI follow the identical pattern — see **[docs/server-sdk.md](docs/server-sdk.md)** for those examples.
 
+Always forward the request's `Origin` header as shown. If your organization configures an allowlist of embed domains, the server enforces it when the session is created: a missing origin fails with `400 origin_required`, and an origin not on the allowlist fails with `403 origin_not_allowed`. Without an allowlist, `origin` is accepted but not enforced.
+
+### Add the embed (browser)
+
+Load the embed script from your Querri server — it is served at `{serverUrl}/sdk/querri-embed.js` and always matches the server's version:
+
+```html
+<div id="querri" style="width: 100%; height: 600px;"></div>
+<script src="https://app.querri.com/sdk/querri-embed.js"></script>
+<script>
+  QuerriEmbed.create(document.getElementById('querri'), {
+    serverUrl: 'https://app.querri.com',
+    auth: {
+      fetchSessionToken: async () => {
+        const res = await fetch('/api/querri-session', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Session failed');
+        return data.session_token;
+      },
+    },
+    startView: '/home',
+    chrome: { rail: { show: true }, header: { show: true } },
+  });
+</script>
+```
+
+Use the same host for the script tag and `serverUrl`. See [`examples/web-embed/`](examples/web-embed/) for a working page that fetches the server URL from its backend before injecting the script.
+
 ### Add the embed (React)
+
+A React wrapper is available (requires `@querri-inc/embed` >= 1.0.0):
 
 ```tsx
 import { QuerriEmbed } from '@querri-inc/embed/react';
@@ -127,7 +157,14 @@ import { QuerriEmbed } from '@querri-inc/embed/react';
 <QuerriEmbed
   style={{ width: '100%', height: '600px' }}
   serverUrl="https://app.querri.com"
-  auth={{ sessionEndpoint: '/api/querri-session' }}
+  auth={{
+    fetchSessionToken: async () => {
+      const res = await fetch('/api/querri-session', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Session failed');
+      return data.session_token;
+    },
+  }}
 />
 ```
 
@@ -199,7 +236,7 @@ See **[docs/server-sdk.md](docs/server-sdk.md#user-scoped-client-as_user)** for 
 
 | Resource | Access | Key Methods |
 |----------|--------|-------------|
-| `client.embed` | Embed sessions (flagship) | `get_session`, `create_session`, `refresh_session`, `revoke_session`, `list_sessions` |
+| `client.embed` | Embed sessions (flagship) | `get_session`, `create_session`, `refresh_session`, `revoke_session`, `list_sessions`, `get_ui_config` |
 | `client.policies` | Row-level access control | `setup`, `create`, `list`, `get`, `update`, `delete`, `assign_users`, `remove_user`, `resolve`, `columns` |
 | `client.users` | User management | `list`, `create`, `get`, `get_or_create`, `update`, `delete` |
 | `client.dashboards` | Dashboard management | `list`, `create`, `get`, `update`, `delete`, `refresh`, `refresh_status` |
@@ -235,6 +272,7 @@ All errors extend `QuerriError`:
 QuerriError
 ├── APIError                — HTTP error responses
 │   ├── ValidationError     — 400
+│   │   └── OriginRequiredError — 400 origin_required (org has an embed-domain allowlist)
 │   ├── AuthenticationError — 401
 │   ├── PermissionError     — 403
 │   ├── NotFoundError       — 404
@@ -270,3 +308,7 @@ pytest tests/test_integration.py -m integration -v  # requires API credentials
 ## License
 
 MIT
+
+## Support policy
+
+The 1.x line receives security fixes only, for 6 months from the 2.0.0 release (2026-08-31). Migrate with [docs/MIGRATION.md](docs/MIGRATION.md).

@@ -185,7 +185,7 @@ def _dispatch(action: str, p: dict):
         return client.users.delete(p["user_id"])
     if action == "users.getOrCreate":
         return client.users.get_or_create(
-            p["external_id"],
+            external_id=p["external_id"],
             email=p.get("email"),
             first_name=p.get("first_name"),
             last_name=p.get("last_name"),
@@ -202,7 +202,7 @@ def _dispatch(action: str, p: dict):
             ttl=p.get("ttl", 3600),
         )
     if action == "embed.refreshSession":
-        return client.embed.refresh_session(p["session_token"])
+        return client.embed.refresh_session(session_token=p["session_token"])
     if action == "embed.listSessions":
         return client.embed.list_sessions(limit=p.get("limit", 100))
     if action == "embed.revokeSession":
@@ -249,7 +249,7 @@ def _dispatch(action: str, p: dict):
     if action == "policies.replaceUserPolicies":
         return client.policies.replace_user_policies(p["user_id"], policy_ids=p["policy_ids"])
     if action == "policies.resolve":
-        return client.policies.resolve(p["user_id"], p["source_id"])
+        return client.policies.resolve(user_id=p["user_id"], source_id=p["source_id"])
     if action == "policies.columns":
         return client.policies.columns(source_id=p.get("source_id"))
     if action == "policies.setup":

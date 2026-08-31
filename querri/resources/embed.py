@@ -2,15 +2,34 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
-from .._convenience import async_get_session, sync_get_session
+from .._convenience import async_get_session, sync_get_session, validate_ttl
+from .._exceptions import NotFoundError
 from ..types.embed import (
     EmbedSession,
     EmbedSessionList,
     EmbedSessionRevokeResponse,
 )
+
+# The server clamps session listings at 200 per request and offers no cursor,
+# so revoke_user_sessions pages by revoke-and-relist. This bounds the loop for
+# pathological cases (e.g. sessions recreated concurrently faster than we
+# revoke them).
+_REVOKE_MAX_PASSES = 50
+_LIST_SESSIONS_MAX_LIMIT = 200
+
+
+def _ui_config_url(base_url: str) -> str:
+    """Derive the main-app ui-config URL from the /api/v1 base URL.
+
+    ``GET /api/embed/ui-config`` lives on the main app path, not the public
+    ``/api/v1`` API — it is public, unauthenticated, and rate-limited.
+    """
+    host = re.sub(r"/api/v1/?$", "", base_url)
+    return f"{host}/api/embed/ui-config"
 
 
 class Embed:
@@ -31,21 +50,25 @@ class Embed:
         user_id: str,
         origin: str | None = None,
         ttl: int = 3600,
-        source_scope: list[str] | None = None,
     ) -> EmbedSession:
         """Create an embed session for a user.
 
         Args:
             user_id: WorkOS user ID or external ID. Required.
-            origin: Origin domain for validation.
+            origin: Origin domain for validation. Required when the org
+                configures an embed-domain allowlist (else the server
+                responds ``400 origin_required``).
             ttl: Session TTL in seconds (900-86400, default 3600).
-            source_scope: Optional list of source IDs to restrict session access.
+
+        Raises:
+            ValueError: If ``ttl`` is outside [900, 86400].
+            OriginRequiredError: If the org has a domain allowlist and no
+                ``origin`` was passed.
         """
+        validate_ttl(ttl)
         body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
         if origin is not None:
             body["origin"] = origin
-        if source_scope is not None:
-            body["source_scope"] = source_scope
         resp = self._http.post("/embed/sessions", json=body)
         return EmbedSession.model_validate(resp.json())
 
@@ -71,7 +94,7 @@ class Embed:
         scan and response.
 
         Args:
-            limit: Max sessions to return (1-200).
+            limit: Max sessions to return (1-200; the server clamps).
         """
         resp = self._http.get("/embed/sessions", params={"limit": limit})
         return EmbedSessionList.model_validate(resp.json())
@@ -114,7 +137,7 @@ class Embed:
             user: External ID string, or dict with external_id, email, first_name, etc.
             access: Dict with policy_ids or inline spec (sources, filters).
             origin: Allowed origin for the embed session.
-            ttl: Session TTL in seconds.
+            ttl: Session TTL in seconds (900-86400).
 
         Returns:
             Embed session dict with token, expires_in, user_id, etc.
@@ -123,21 +146,75 @@ class Embed:
             self._http, user=user, access=access, origin=origin, ttl=ttl
         )
 
+    def get_ui_config(self, org: str) -> dict[str, Any]:
+        """Fetch the operator-configured embed UI config for an org.
+
+        Calls ``GET {host}/api/embed/ui-config?org=...`` on the **main app
+        path** (not ``/api/v1``). The endpoint is public, unauthenticated,
+        and rate-limited per IP; embeds fetch it on load and merge their own
+        ``QuerriEmbed.create()`` config on top (customer config wins).
+
+        Args:
+            org: Querri org UUID or WorkOS org ID.
+
+        Returns:
+            Raw config dict — ``{"chrome": ..., "theme": ..., "privacy": ...}``.
+            The schema evolves server-side; unknown orgs return empty groups.
+        """
+        resp = self._http.get(
+            _ui_config_url(self._http._config.base_url), params={"org": org}
+        )
+        return resp.json()  # type: ignore[no-any-return]
+
     def revoke_user_sessions(self, user_id: str) -> int:
         """Revoke all embed sessions for a user.
+
+        The server lists at most 200 sessions per request and offers no
+        cursor, so this loops revoke-and-relist until a listing contains no
+        sessions for the user. Best-effort: with more than 200 concurrent
+        sessions org-wide the listing is a sample, and sessions created
+        while the loop runs may survive it.
 
         Args:
             user_id: The user whose sessions to revoke.
 
         Returns:
             Number of sessions revoked.
+
+        Raises:
+            NotFoundError: When listed sessions repeatedly cannot be revoked
+                (two consecutive zero-progress passes) — a broken or renamed
+                endpoint, not expiry. Sessions revoked before the failure are
+                genuinely revoked but their count is lost with the raise.
         """
-        sessions = self.list_sessions()
         count = 0
-        for session in sessions.data:
-            if session.user_id == user_id:
-                self.revoke_session(session.session_token)
-                count += 1
+        zero_progress_passes = 0
+        for _ in range(_REVOKE_MAX_PASSES):
+            sessions = self.list_sessions(limit=_LIST_SESSIONS_MAX_LIMIT)
+            matches = [s for s in sessions.data if s.user_id == user_id]
+            if not matches:
+                break
+            revoked_this_pass = 0
+            last_not_found: NotFoundError | None = None
+            for session in matches:
+                try:
+                    self.revoke_session(session.session_token)
+                except NotFoundError as exc:
+                    # Expired or revoked elsewhere between list and delete —
+                    # the goal state (session gone) is already true.
+                    last_not_found = exc
+                    continue
+                revoked_this_pass += 1
+            count += revoked_this_pass
+            if revoked_this_pass:
+                zero_progress_passes = 0
+            else:
+                # Benign (they all just expired) empties the next listing and
+                # the loop exits above. Two listed-but-unrevokable passes in a
+                # row means something systemic — surface it, don't spin.
+                zero_progress_passes += 1
+                if zero_progress_passes >= 2 and last_not_found is not None:
+                    raise last_not_found
         return count
 
 
@@ -159,20 +236,25 @@ class AsyncEmbed:
         user_id: str,
         origin: str | None = None,
         ttl: int = 3600,
-        source_scope: list[str] | None = None,
     ) -> EmbedSession:
         """Create an embed session for a user.
 
         Args:
             user_id: WorkOS user ID or external ID. Required.
-            origin: Origin domain for validation.
+            origin: Origin domain for validation. Required when the org
+                configures an embed-domain allowlist (else the server
+                responds ``400 origin_required``).
             ttl: Session TTL in seconds (900-86400, default 3600).
+
+        Raises:
+            ValueError: If ``ttl`` is outside [900, 86400].
+            OriginRequiredError: If the org has a domain allowlist and no
+                ``origin`` was passed.
         """
+        validate_ttl(ttl)
         body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
         if origin is not None:
             body["origin"] = origin
-        if source_scope is not None:
-            body["source_scope"] = source_scope
         resp = await self._http.post("/embed/sessions", json=body)
         return EmbedSession.model_validate(resp.json())
 
@@ -198,7 +280,7 @@ class AsyncEmbed:
         scan and response.
 
         Args:
-            limit: Max sessions to return (1-200).
+            limit: Max sessions to return (1-200; the server clamps).
         """
         resp = await self._http.get("/embed/sessions", params={"limit": limit})
         return EmbedSessionList.model_validate(resp.json())
@@ -241,7 +323,7 @@ class AsyncEmbed:
             user: External ID string, or dict with external_id, email, first_name, etc.
             access: Dict with policy_ids or inline spec (sources, filters).
             origin: Allowed origin for the embed session.
-            ttl: Session TTL in seconds.
+            ttl: Session TTL in seconds (900-86400).
 
         Returns:
             Embed session dict with token, expires_in, user_id, etc.
@@ -250,19 +332,73 @@ class AsyncEmbed:
             self._http, user=user, access=access, origin=origin, ttl=ttl
         )
 
+    async def get_ui_config(self, org: str) -> dict[str, Any]:
+        """Fetch the operator-configured embed UI config for an org.
+
+        Calls ``GET {host}/api/embed/ui-config?org=...`` on the **main app
+        path** (not ``/api/v1``). The endpoint is public, unauthenticated,
+        and rate-limited per IP; embeds fetch it on load and merge their own
+        ``QuerriEmbed.create()`` config on top (customer config wins).
+
+        Args:
+            org: Querri org UUID or WorkOS org ID.
+
+        Returns:
+            Raw config dict — ``{"chrome": ..., "theme": ..., "privacy": ...}``.
+            The schema evolves server-side; unknown orgs return empty groups.
+        """
+        resp = await self._http.get(
+            _ui_config_url(self._http._config.base_url), params={"org": org}
+        )
+        return resp.json()  # type: ignore[no-any-return]
+
     async def revoke_user_sessions(self, user_id: str) -> int:
         """Revoke all embed sessions for a user.
+
+        The server lists at most 200 sessions per request and offers no
+        cursor, so this loops revoke-and-relist until a listing contains no
+        sessions for the user. Best-effort: with more than 200 concurrent
+        sessions org-wide the listing is a sample, and sessions created
+        while the loop runs may survive it.
 
         Args:
             user_id: The user whose sessions to revoke.
 
         Returns:
             Number of sessions revoked.
+
+        Raises:
+            NotFoundError: When listed sessions repeatedly cannot be revoked
+                (two consecutive zero-progress passes) — a broken or renamed
+                endpoint, not expiry. Sessions revoked before the failure are
+                genuinely revoked but their count is lost with the raise.
         """
-        sessions = await self.list_sessions()
         count = 0
-        for session in sessions.data:
-            if session.user_id == user_id:
-                await self.revoke_session(session.session_token)
-                count += 1
+        zero_progress_passes = 0
+        for _ in range(_REVOKE_MAX_PASSES):
+            sessions = await self.list_sessions(limit=_LIST_SESSIONS_MAX_LIMIT)
+            matches = [s for s in sessions.data if s.user_id == user_id]
+            if not matches:
+                break
+            revoked_this_pass = 0
+            last_not_found: NotFoundError | None = None
+            for session in matches:
+                try:
+                    await self.revoke_session(session.session_token)
+                except NotFoundError as exc:
+                    # Expired or revoked elsewhere between list and delete —
+                    # the goal state (session gone) is already true.
+                    last_not_found = exc
+                    continue
+                revoked_this_pass += 1
+            count += revoked_this_pass
+            if revoked_this_pass:
+                zero_progress_passes = 0
+            else:
+                # Benign (they all just expired) empties the next listing and
+                # the loop exits above. Two listed-but-unrevokable passes in a
+                # row means something systemic — surface it, don't spin.
+                zero_progress_passes += 1
+                if zero_progress_passes >= 2 and last_not_found is not None:
+                    raise last_not_found
         return count

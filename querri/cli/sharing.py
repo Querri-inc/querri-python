@@ -378,8 +378,13 @@ def org_source_share(
     permission: str = typer.Option(
         "view", "--permission", help="Permission: view or edit."
     ),
+    enabled: bool = typer.Option(
+        True,
+        "--enabled/--disable",
+        help="Enable (default) or disable org-wide sharing.",
+    ),
 ) -> None:
-    """Share a data source with the entire organization."""
+    """Enable or disable org-wide sharing for a data source."""
     source_id = _resolve_arg(
         source_id,
         "SOURCE_ID",
@@ -391,7 +396,7 @@ def org_source_share(
     try:
         resp = client._http.post(
             f"/sources/{source_id}/org-share",
-            json={"enabled": True, "permission": permission},
+            json={"enabled": enabled, "permission": permission},
         )
         result = resp.json()
     except Exception as exc:
@@ -399,5 +404,7 @@ def org_source_share(
 
     if obj.get("json"):
         print_json(result)
-    else:
+    elif result.get("org_shared"):
         print_success(f"Shared source {source_id} with organization ({permission})")
+    else:
+        print_success(f"Disabled org-wide sharing for source {source_id}")

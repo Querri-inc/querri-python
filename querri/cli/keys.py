@@ -31,6 +31,12 @@ _SCOPE_GROUPS: list[tuple[str, list[str]]] = [
     ("Embed", ["embed:session:create"]),
     ("Usage", ["admin:usage:read"]),
     ("Audit", ["admin:audit:read"]),
+    ("Skills", ["admin:skills:read", "admin:skills:write"]),
+    (
+        "Library",
+        ["admin:library:read", "admin:library:write", "admin:library:seed"],
+    ),
+    ("Superadmin", ["*"]),
 ]
 
 

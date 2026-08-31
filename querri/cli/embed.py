@@ -70,6 +70,32 @@ def new_session(
         )
 
 
+@embed_app.command("ui-config")
+def get_ui_config(
+    ctx: typer.Context,
+    org: str = typer.Option(
+        ..., "--org", help="Org ID (Querri UUID or WorkOS org ID)."
+    ),
+) -> None:
+    """Fetch the operator-configured embed UI config for an org.
+
+    Public, unauthenticated endpoint on the main app path
+    (GET {host}/api/embed/ui-config?org=...). Returns the merged
+    chrome/theme/privacy config that embeds apply as a base layer.
+    """
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    try:
+        config = client.embed.get_ui_config(org)
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+
+    if obj.get("json"):
+        print_json(config)
+    else:
+        print(json.dumps(config, indent=2, default=str))
+
+
 @embed_app.command("refresh")
 def refresh_session(
     ctx: typer.Context,

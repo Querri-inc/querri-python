@@ -21,6 +21,24 @@ from .types.policy import Policy
 logger = logging.getLogger("querri")
 
 
+# Session TTL bounds enforced by the server (which silently clamps rather
+# than rejecting). The client raises instead, so a mistyped TTL fails loudly.
+TTL_MIN = 900
+TTL_MAX = 86400
+
+
+def validate_ttl(ttl: int) -> None:
+    """Raise ValueError if ``ttl`` is outside the server's [900, 86400] bounds.
+
+    The server clamps out-of-range TTLs silently; the SDK makes the contract
+    explicit by refusing to send a TTL that would not be honored as given.
+    """
+    if not TTL_MIN <= ttl <= TTL_MAX:
+        raise ValueError(
+            f"ttl must be between {TTL_MIN} and {TTL_MAX} seconds, got {ttl}"
+        )
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -193,6 +211,7 @@ def sync_get_session(
             origin="https://app.customer.com",
         )
     """
+    validate_ttl(ttl)
     external_id, creation_body = _resolve_user_param(user)
 
     # ------------------------------------------------------------------
@@ -386,6 +405,7 @@ async def async_get_session(
     Identical logic and parameters — see :func:`sync_get_session` for full
     documentation.
     """
+    validate_ttl(ttl)
     external_id, creation_body = _resolve_user_param(user)
 
     # ------------------------------------------------------------------

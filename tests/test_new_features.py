@@ -158,8 +158,12 @@ class TestRemoveExternalId:
 class TestAsUser:
     """Test client.as_user() and UserQuerri."""
 
-    def test_session_config_derives_api_base_url(self):
-        """Verify _session_config strips /api/v1 and appends /api."""
+    def test_session_config_keeps_v1_base_url(self):
+        """v2.0.0: user clients call the public API (/api/v1), not /api.
+
+        X-Embed-Session is the public API's priority-0 credential, so the
+        base URL is the same as the parent admin client's.
+        """
         parent = _make_config()
         session = {
             "session_token": "es_test_token",
@@ -167,7 +171,7 @@ class TestAsUser:
             "user_id": "usr_1",
         }
         config = _session_config(session, parent)
-        assert config.base_url == "https://test.querri.com/api"
+        assert config.base_url == "https://test.querri.com/api/v1"
         assert config.session_token == "es_test_token"
         assert config.timeout == parent.timeout
         assert config.max_retries == parent.max_retries
@@ -185,7 +189,36 @@ class TestAsUser:
         assert not hasattr(user_client, "policies")
         assert not hasattr(user_client, "keys")
         assert not hasattr(user_client, "audit")
+        # v2.0.0: no .embed — the server excludes embed:session:create from
+        # embed-session scopes, so a session cannot mint or manage sessions.
+        assert not hasattr(user_client, "embed")
         user_client.close()
+
+    def test_user_querri_dashboards_are_read_only(self):
+        """v2.0.0: embed sessions lack admin:dashboards:write — the write
+        methods do not exist on the user-scoped dashboards surface."""
+        session = {"session_token": "es_test", "expires_in": 3600, "user_id": "usr_1"}
+        with UserQuerri(session, _make_config()) as uc:
+            assert callable(uc.dashboards.list)
+            assert callable(uc.dashboards.get)
+            assert callable(uc.dashboards.refresh_status)
+            for write_method in ("create", "update", "delete", "refresh"):
+                assert not hasattr(uc.dashboards, write_method)
+
+    @respx.mock
+    def test_user_querri_requests_hit_v1_paths(self):
+        """User-client requests go to /api/v1 with X-Embed-Session auth."""
+        route = respx.get("https://test.querri.com/api/v1/projects").mock(
+            return_value=httpx.Response(
+                200, json={"data": [], "has_more": False, "next_cursor": None}
+            )
+        )
+        session = {"session_token": "es_test", "expires_in": 3600, "user_id": "usr_1"}
+        with UserQuerri(session, _make_config()) as uc:
+            list(uc.projects.list())
+        request = route.calls[0].request
+        assert request.headers["X-Embed-Session"] == "es_test"
+        assert "Authorization" not in request.headers
 
     def test_user_querri_context_manager(self):
         """Verify UserQuerri supports context manager usage."""

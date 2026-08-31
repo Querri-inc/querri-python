@@ -1655,23 +1655,110 @@ class TestEmbed:
         assert b"origin" in req_body
         assert b"example.com" in req_body
 
+    def test_create_session_rejects_source_scope(self):
+        """source_scope was removed in v2.0.0 — it is now an unexpected kwarg."""
+        from querri.resources.embed import Embed
+
+        embed = Embed(_http())
+        with pytest.raises(TypeError, match="source_scope"):
+            embed.create_session(user_id="usr_1", source_scope=["src_1"])
+
+    def test_async_create_session_rejects_source_scope(self):
+        from querri._base_client import AsyncHTTPClient
+        from querri.resources.embed import AsyncEmbed
+
+        embed = AsyncEmbed(AsyncHTTPClient(_make_config()))
+        with pytest.raises(TypeError, match="source_scope"):
+            embed.create_session(user_id="usr_1", source_scope=["src_1"])
+
+    def test_create_session_ttl_out_of_bounds_raises(self):
+        """The client refuses TTLs the server would silently clamp."""
+        from querri.resources.embed import Embed
+
+        embed = Embed(_http())
+        with pytest.raises(ValueError, match="between 900 and 86400"):
+            embed.create_session(user_id="usr_1", ttl=899)
+        with pytest.raises(ValueError, match="between 900 and 86400"):
+            embed.create_session(user_id="usr_1", ttl=86401)
+
     @respx.mock
-    def test_create_session_with_source_scope(self):
+    def test_create_session_ttl_bounds_accepted(self):
         route = respx.post(f"{BASE}/embed/sessions").mock(
             return_value=httpx.Response(
                 200,
-                json={
-                    "session_token": "es_scoped",
-                    "expires_in": 3600,
-                },
+                json={"session_token": "es_1", "expires_in": 900},
             )
         )
         from querri.resources.embed import Embed
 
         embed = Embed(_http())
-        embed.create_session(user_id="usr_1", source_scope=["src_1", "src_2"])
-        req_body = route.calls[0].request.content
-        assert b"source_scope" in req_body
+        embed.create_session(user_id="usr_1", ttl=900)
+        embed.create_session(user_id="usr_1", ttl=86400)
+        assert len(route.calls) == 2
+
+    @respx.mock
+    def test_create_session_origin_required_error(self):
+        """400 origin_required maps to the dedicated OriginRequiredError."""
+        respx.post(f"{BASE}/embed/sessions").mock(
+            return_value=httpx.Response(
+                400,
+                json={
+                    "error": {
+                        "type": "invalid_request_error",
+                        "code": "origin_required",
+                        "message": (
+                            "origin is required when a domain allowlist is "
+                            "configured for this organization"
+                        ),
+                    }
+                },
+            )
+        )
+        from querri._exceptions import OriginRequiredError, ValidationError
+        from querri.resources.embed import Embed
+
+        embed = Embed(_http())
+        with pytest.raises(OriginRequiredError) as exc_info:
+            embed.create_session(user_id="usr_1")
+        # Still a ValidationError, so existing except clauses keep working.
+        assert isinstance(exc_info.value, ValidationError)
+        assert exc_info.value.code == "origin_required"
+        assert "allowlist of embed domains" in exc_info.value.message
+        assert "pass origin=" in exc_info.value.message
+
+    @respx.mock
+    def test_get_ui_config(self):
+        """ui-config lives on the main app path, not /api/v1."""
+        main_app_route = respx.get(
+            "https://test.querri.com/api/embed/ui-config"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={"chrome": {"rail": {"show": False}}, "theme": {}, "privacy": {}},
+            )
+        )
+        from querri.resources.embed import Embed
+
+        embed = Embed(_http())
+        config = embed.get_ui_config("org_abc")
+        assert config["chrome"] == {"rail": {"show": False}}
+        request = main_app_route.calls[0].request
+        assert request.url.params["org"] == "org_abc"
+        assert "/api/v1/" not in str(request.url)
+
+    @respx.mock
+    async def test_async_get_ui_config(self):
+        respx.get("https://test.querri.com/api/embed/ui-config").mock(
+            return_value=httpx.Response(
+                200, json={"chrome": {}, "theme": {}, "privacy": {}}
+            )
+        )
+        from querri._base_client import AsyncHTTPClient
+        from querri.resources.embed import AsyncEmbed
+
+        embed = AsyncEmbed(AsyncHTTPClient(_make_config()))
+        config = await embed.get_ui_config("org_abc")
+        assert config == {"chrome": {}, "theme": {}, "privacy": {}}
 
     @respx.mock
     def test_refresh_session(self):
@@ -1758,19 +1845,28 @@ class TestEmbed:
 
     @respx.mock
     def test_revoke_user_sessions(self):
-        """Test the compound revoke_user_sessions method."""
-        respx.get(f"{BASE}/embed/sessions").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "data": [
-                        {"session_token": "es_1", "user_id": "usr_target"},
-                        {"session_token": "es_2", "user_id": "usr_other"},
-                        {"session_token": "es_3", "user_id": "usr_target"},
-                    ],
-                    "has_more": False,
-                },
-            )
+        """Revokes matches, then relists until a listing shows none left."""
+        list_route = respx.get(f"{BASE}/embed/sessions").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "data": [
+                            {"session_token": "es_1", "user_id": "usr_target"},
+                            {"session_token": "es_2", "user_id": "usr_other"},
+                            {"session_token": "es_3", "user_id": "usr_target"},
+                        ],
+                        "has_more": False,
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "data": [{"session_token": "es_2", "user_id": "usr_other"}],
+                        "has_more": False,
+                    },
+                ),
+            ]
         )
         respx.delete(f"{BASE}/embed/sessions/es_1").mock(
             return_value=httpx.Response(200, json={"id": "es_1", "revoked": True})
@@ -1783,6 +1879,133 @@ class TestEmbed:
         embed = Embed(_http())
         count = embed.revoke_user_sessions("usr_target")
         assert count == 2
+        assert len(list_route.calls) == 2
+        assert list_route.calls[0].request.url.params["limit"] == "200"
+
+    @respx.mock
+    def test_revoke_user_sessions_pages_past_listing_cap(self):
+        """Sessions hidden past the 200-cap surface on relist and get revoked."""
+        page_full = {
+            "data": [
+                {"session_token": f"es_{i}", "user_id": "usr_target"}
+                for i in range(200)
+            ],
+            "has_more": False,
+        }
+        page_tail = {
+            "data": [
+                {"session_token": "es_tail", "user_id": "usr_target"},
+                {"session_token": "es_other", "user_id": "usr_other"},
+            ],
+            "has_more": False,
+        }
+        page_done = {
+            "data": [{"session_token": "es_other", "user_id": "usr_other"}],
+            "has_more": False,
+        }
+        respx.get(f"{BASE}/embed/sessions").mock(
+            side_effect=[
+                httpx.Response(200, json=page_full),
+                httpx.Response(200, json=page_tail),
+                httpx.Response(200, json=page_done),
+            ]
+        )
+        respx.delete(url__regex=rf"{BASE}/embed/sessions/es_.*").mock(
+            return_value=httpx.Response(200, json={"id": "es_x", "revoked": True})
+        )
+        from querri.resources.embed import Embed
+
+        embed = Embed(_http())
+        count = embed.revoke_user_sessions("usr_target")
+        assert count == 201
+
+    @respx.mock
+    def test_revoke_user_sessions_tolerates_vanished_session(self):
+        """A session expiring between list and delete is the goal state, not
+        an error — the loop continues and the count stays honest."""
+        respx.get(f"{BASE}/embed/sessions").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "data": [
+                            {"session_token": "es_gone", "user_id": "usr_target"},
+                            {"session_token": "es_live", "user_id": "usr_target"},
+                        ],
+                        "has_more": False,
+                    },
+                ),
+                httpx.Response(200, json={"data": [], "has_more": False}),
+            ]
+        )
+        respx.delete(f"{BASE}/embed/sessions/es_gone").mock(
+            return_value=httpx.Response(
+                404, json={"error": {"code": "not_found", "message": "gone"}}
+            )
+        )
+        respx.delete(f"{BASE}/embed/sessions/es_live").mock(
+            return_value=httpx.Response(200, json={"id": "es_live", "revoked": True})
+        )
+        from querri.resources.embed import Embed
+
+        embed = Embed(_http())
+        assert embed.revoke_user_sessions("usr_target") == 1
+
+    @respx.mock
+    def test_revoke_user_sessions_raises_on_systemic_404(self):
+        """Every revoke 404ing while the listing still shows the sessions is
+        a broken endpoint, not expiry — surface it instead of spinning to the
+        pass bound and returning 0 as if done."""
+        page = {
+            "data": [{"session_token": "es_stuck", "user_id": "usr_target"}],
+            "has_more": False,
+        }
+        respx.get(f"{BASE}/embed/sessions").mock(
+            return_value=httpx.Response(200, json=page)
+        )
+        respx.delete(f"{BASE}/embed/sessions/es_stuck").mock(
+            return_value=httpx.Response(
+                404, json={"error": {"code": "not_found", "message": "gone"}}
+            )
+        )
+        from querri._exceptions import NotFoundError
+        from querri.resources.embed import Embed
+
+        embed = Embed(_http())
+        with pytest.raises(NotFoundError):
+            embed.revoke_user_sessions("usr_target")
+
+    @respx.mock
+    async def test_async_revoke_user_sessions_loops_and_tolerates_404(self):
+        """Async mirror of the loop: relists after revoking, skips vanished."""
+        respx.get(f"{BASE}/embed/sessions").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "data": [
+                            {"session_token": "es_gone", "user_id": "usr_target"},
+                            {"session_token": "es_live", "user_id": "usr_target"},
+                        ],
+                        "has_more": False,
+                    },
+                ),
+                httpx.Response(200, json={"data": [], "has_more": False}),
+            ]
+        )
+        respx.delete(f"{BASE}/embed/sessions/es_gone").mock(
+            return_value=httpx.Response(
+                404, json={"error": {"code": "not_found", "message": "gone"}}
+            )
+        )
+        respx.delete(f"{BASE}/embed/sessions/es_live").mock(
+            return_value=httpx.Response(200, json={"id": "es_live", "revoked": True})
+        )
+        from querri._base_client import AsyncHTTPClient
+        from querri.resources.embed import AsyncEmbed
+
+        embed = AsyncEmbed(AsyncHTTPClient(_make_config()))
+        assert await embed.revoke_user_sessions("usr_target") == 1
 
 
 # =========================================================================
@@ -2138,20 +2361,21 @@ class TestSharing:
                 200,
                 json={
                     "source_id": "src_1",
-                    "enabled": True,
-                    "permission": "view",
+                    "org_shared": True,
                 },
             )
         )
+        import json as jsonlib
+
         from querri.resources.sharing import Sharing
 
         sharing = Sharing(_http())
-        result = sharing.org_share_source("src_1", enabled=True)
-        assert result["enabled"] is True
-        assert (
-            b'"enabled": true' in route.calls[0].request.content
-            or b'"enabled":true' in route.calls[0].request.content
-        )
+        result = sharing.org_share_source("src_1", enabled=True, permission="edit")
+        # Server contract: request {enabled, permission} -> response
+        # {source_id, org_shared} (POST /v1/sources/{id}/org-share).
+        assert result == {"source_id": "src_1", "org_shared": True}
+        sent = jsonlib.loads(route.calls[0].request.content)
+        assert sent == {"enabled": True, "permission": "edit"}
 
 
 # =========================================================================

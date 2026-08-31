@@ -233,7 +233,7 @@ querri share dashboard list <dashboard_id>
 querri share source add <source_id> --user-id <user_id> [--permission view]
 querri share source remove <source_id> <user_id>
 querri share source list <source_id>
-querri share source org <source_id> [--permission view]   # share with entire org
+querri share source org <source_id> [--permission view] [--disable]   # org-wide sharing on/off
 ```
 
 ## API Keys
@@ -283,6 +283,7 @@ querri session list
 querri session get --user <user_id>                # get-or-create convenience
 querri session refresh --token <token>
 querri session revoke --session-id <session_id>
+querri session ui-config --org <org_id>            # public embed UI config (chrome/theme/privacy)
 ```
 
 ## Administration
