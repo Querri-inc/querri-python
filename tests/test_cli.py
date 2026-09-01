@@ -529,3 +529,56 @@ class TestVerboseFlag:
     def test_verbose_short_flag_accepted(self) -> None:
         result = runner.invoke(main_app, ["-v", "--help"])
         assert result.exit_code == 0
+
+
+# ---------------------------------------------------------------------------
+# ID/UUID column truncation (QUE-135)
+# ---------------------------------------------------------------------------
+
+
+class TestIdColumnNoTruncation:
+    """ID/UUID columns must render in full — never clipped to fit the terminal.
+
+    Rich shrinks wide columns and ellipsis-clips them to fit the console width.
+    For a 36-char view UUID that produced a truncated ID which, when copied into
+    ``querri view chat``, failed with a misleading HTTP 403 (QUE-135).
+    """
+
+    def test_is_id_column_detection(self) -> None:
+        from querri.cli._output import _is_id_column
+
+        assert _is_id_column("id", "ID")
+        assert _is_id_column("uuid", "UUID")
+        assert _is_id_column("view_id", "View")
+        assert _is_id_column("source_uuid", "Source")
+        assert _is_id_column("anything", "ID")
+        assert not _is_id_column("name", "Name")
+        assert not _is_id_column("description", "Description")
+        assert not _is_id_column("status", "Status")
+
+    def test_full_uuid_not_truncated_in_narrow_terminal(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from querri.cli._output import _print_rich_table
+
+        # Force a standard-width terminal, where the pre-fix table clipped IDs.
+        monkeypatch.setenv("COLUMNS", "80")
+        uuid = "e95ddcce-edf9-480f-862b-019ca2d34abc"
+        data = [
+            {
+                "id": uuid,
+                "name": "My View",
+                "status": "ready",
+                "description": "A longish description that eats terminal width " * 3,
+            }
+        ]
+        columns = [
+            ("id", "ID"),
+            ("name", "Name"),
+            ("status", "Status"),
+            ("description", "Description"),
+        ]
+        _print_rich_table(data, columns)
+        out = capsys.readouterr().out
+        # The full, unbroken UUID must appear verbatim so it is copyable.
+        assert uuid in out
