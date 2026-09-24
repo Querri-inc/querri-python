@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.1.0 (2026-09-24)
+
+### Added
+
+- **`client.library`** (sync and async) and the `querri library` CLI: the Data
+  Library surface — libraries, collections, anchor and refining questions,
+  graph search and zoom, `record_fact`, the Librarian `chat` / `chat_stream`,
+  `ask`, `intake`, `consolidate`, `eval`, backfill and health. Reference:
+  [docs/data-library.md](docs/data-library.md). This is the `dev` line that
+  had been building since 1.1.0; it ships here unchanged.
+
+### Fixed
+
+- **Error bodies without a Stripe-style envelope keep their message and
+  code.** FastAPI raises `{"detail": {"error": {...}}}` (or a plain string
+  `detail`); `APIError.message`, `.code` and `.type` were left as
+  `"HTTP <status>"` / `None` for those, so a `NotFoundError` for a step with
+  no data read the same as one for a missing project. Both shapes are parsed
+  now.
+
 ## 2.0.0 (2026-08-31)
 
 Migration guide with before/after snippets: [docs/MIGRATION.md](docs/MIGRATION.md).
