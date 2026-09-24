@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 import typer
 
@@ -42,22 +44,25 @@ library_app = typer.Typer(
 _LIBRARY_CONTEXT_FILE = Path.home() / ".querri" / "library_context.json"
 
 
+def _short(text: str, n: int = 60) -> str:
+    return (text[:n] + "…") if len(text) > n else text
+
+
 def _read_library_context() -> dict[str, str]:
     if not _LIBRARY_CONTEXT_FILE.exists():
         return {}
     try:
-        return json.loads(_LIBRARY_CONTEXT_FILE.read_text(encoding="utf-8"))
+        data = json.loads(_LIBRARY_CONTEXT_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
+    return data if isinstance(data, dict) else {}
 
 
 def _write_library_context(data: dict[str, str]) -> None:
     _LIBRARY_CONTEXT_FILE.parent.mkdir(mode=0o700, exist_ok=True)
     _LIBRARY_CONTEXT_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    try:
+    with contextlib.suppress(OSError):
         os.chmod(_LIBRARY_CONTEXT_FILE, 0o600)
-    except OSError:
-        pass
 
 
 def _resolve_library_id(explicit: str | None) -> str:
@@ -144,10 +149,14 @@ def create_collection(
         None,
         "--anchor",
         "-a",
-        help="Anchor question text — creates AnchorQuestion + ANCHOR_OF edge in the same call.",
+        help=(
+            "Anchor question text — creates AnchorQuestion + ANCHOR_OF edge "
+            "in the same call."
+        ),
     ),
 ) -> None:
-    """Create a Collection inside a Library, optionally seeded with an anchor question."""
+    """Create a Collection inside a Library, optionally seeded with an anchor
+    question."""
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     lib_id = _resolve_library_id(library_id)
@@ -183,7 +192,9 @@ def create_collection(
 def create_question(
     ctx: typer.Context,
     question_text: str = typer.Argument(..., help="The actual question text."),
-    library_id: str = typer.Option(..., "--library-id", "-l", help="Parent Library _id."),
+    library_id: str = typer.Option(
+        ..., "--library-id", "-l", help="Parent Library _id."
+    ),
     name: str = typer.Option(
         None,
         "--name",
@@ -361,7 +372,7 @@ def list_nodes(
         [
             {
                 "name": item.name,
-                "summary": (item.summary[:60] + "…") if len(item.summary) > 60 else item.summary,
+                "summary": _short(item.summary),
                 "id": item.id,
             }
             for item in result.results
@@ -388,14 +399,17 @@ def list_libraries(
         return
 
     if not result.results:
-        print_error("No Library nodes in tenant. Run `querri library create-library <name>` first.")
+        print_error(
+            "No Library nodes in tenant. "
+            "Run `querri library create-library <name>` first."
+        )
         return
 
     print_table(
         [
             {
                 "name": item.name,
-                "summary": (item.summary[:60] + "…") if len(item.summary) > 60 else item.summary,
+                "summary": _short(item.summary),
                 "id": item.id,
             }
             for item in result.results
@@ -433,7 +447,7 @@ def list_collections(
         [
             {
                 "name": item.name,
-                "summary": (item.summary[:60] + "…") if len(item.summary) > 60 else item.summary,
+                "summary": _short(item.summary),
                 "id": item.id,
             }
             for item in result.results
@@ -600,7 +614,8 @@ def chat_cmd(
                 name = tool_inputs.get(tcid, {}).get("name", "?")
                 output = ev.get("output", {})
                 if isinstance(output, dict) and "error" in output:
-                    print(f"    ✗ {name} errored: {str(output['error'])[:120]}", flush=True)
+                    err = str(output["error"])[:120]
+                    print(f"    ✗ {name} errored: {err}", flush=True)
                 else:
                     keys = list(output.keys())[:5] if isinstance(output, dict) else []
                     print(f"    ✓ {name} → {keys}", flush=True)
@@ -689,7 +704,6 @@ def onboard(
     propose_kpi, confirm_kpi) plus search/list/record_fact. View
     commissioning is gated off (no data is connected yet).
     """
-    import json as _json
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
 
@@ -753,10 +767,10 @@ def onboard(
             print(f"Librarian › {assistant_text}")
             print()
 
-    EXIT_VERBS = {":done", ":quit", ":exit", "/done", "/quit", "/exit"}
+    exit_verbs = {":done", ":quit", ":exit", "/done", "/quit", "/exit"}
 
     while True:
-        if user_message in EXIT_VERBS or not user_message:
+        if user_message in exit_verbs or not user_message:
             break
 
         # Stream one agent turn.
@@ -828,7 +842,7 @@ def onboard(
     print("Library Built — Recap")
     print("═" * 60)
     try:
-        summary = client.library.get_onboarding_summary(
+        recap = client.library.get_onboarding_summary(
             library_id=lib_id, chat_id=final_lib_recap_chat
         )
     except Exception as exc:
@@ -837,8 +851,8 @@ def onboard(
         print(f"(Could not fetch recap: {exc})")
         return
 
-    totals = summary.get("totals", {})
-    complete = summary.get("complete", False)
+    totals = recap.get("totals", {})
+    complete = recap.get("complete", False)
     print(
         f"Collections: {totals.get('collections', 0)}   "
         f"Anchor questions: {totals.get('anchor_questions', 0)}   "
@@ -849,9 +863,9 @@ def onboard(
         f"Business rules: {totals.get('facts', 0)}"
     )
     print()
-    for c in summary.get("collections", []):
+    for c in recap.get("collections", []):
         print(f"  • {c.get('name', '?')} ({c.get('id', '?')})")
-    for k in summary.get("kpis", []):
+    for k in recap.get("kpis", []):
         state = k.get("state", "?")
         cats = ", ".join(k.get("categories", []))
         print(f"    [{state}] {k.get('name', '?')} ({cats}) — {k.get('id', '?')}")
@@ -866,7 +880,7 @@ def onboard(
         )
     print()
     if obj.get("json"):
-        print_json(summary)
+        print_json(recap)
 
 
 def _onboard_tool_label(name: str, inp: dict[str, Any]) -> str | None:
@@ -947,7 +961,9 @@ def record_fact(
         help="Evidence URL or doc reference (repeatable).",
     ),
     confidence: float = typer.Option(1.0, "--confidence", min=0.0, max=1.0),
-    name: str = typer.Option(None, "--name", help="Display name (default: first 80 chars)."),
+    name: str = typer.Option(
+        None, "--name", help="Display name (default: first 80 chars)."
+    ),
 ) -> None:
     """Record a Fact and attach it (via ABOUT edges) to one or more nodes.
 
@@ -988,7 +1004,8 @@ def record_fact(
         ],
     )
     if fact.source_node_ids:
-        print_success(f"  attached to {len(fact.source_node_ids)} node(s) via ABOUT edges")
+        n_attached = len(fact.source_node_ids)
+        print_success(f"  attached to {n_attached} node(s) via ABOUT edges")
 
 
 # ── Collection contents + view build + KPI (P3c) ────────────────────────────
@@ -1077,7 +1094,7 @@ def view_build(
     client = get_client(ctx)
     if not obj.get("json"):
         typer.echo("Building view (this can take 30-90s)…", err=True)
-    result: dict = {}
+    result: dict[str, Any] = {}
     try:
         for ev in client.library.build_view_stream(
             collection_id=collection_id,
@@ -1168,7 +1185,10 @@ def seed_demo(
         "demo-acme",
         "--fixture",
         "-f",
-        help="Fixture name: 'demo-acme' or 'curio' (the multi-system reference business).",
+        help=(
+            "Fixture name: 'demo-acme' or 'curio' "
+            "(the multi-system reference business)."
+        ),
     ),
     library_id: str = typer.Option(
         None, "--library-id", "-l", help="Library _id (defaults to active)."
@@ -1248,7 +1268,11 @@ def backfill(
 
     print_success(f"Backfill complete into {result.library_id}")
     print_detail(
-        {**result.counts, "library_id": result.library_id, "tenant_id": result.tenant_id},
+        {
+            **result.counts,
+            "library_id": result.library_id,
+            "tenant_id": result.tenant_id,
+        },
         [
             ("connectors", "Connectors"),
             ("sources", "Sources"),
@@ -1692,7 +1716,10 @@ def search(
         None,
         "--kind",
         "-k",
-        help="Filter by node_kind (repeatable). E.g. --kind Collection --kind SourceStub.",
+        help=(
+            "Filter by node_kind (repeatable). "
+            "E.g. --kind Collection --kind SourceStub."
+        ),
     ),
 ) -> None:
     """Vector-ANN semantic search over the Data Library."""

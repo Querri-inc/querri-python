@@ -10,32 +10,30 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import AsyncIterator, Iterator
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel
 
 from .._base_client import AsyncHTTPClient, SyncHTTPClient
 from ..types.library import (
     AskResponse,
-    CollectionContents,
     BackfillResponse,
     ChatResponse,
+    CollectionContents,
     ConsolidateResponse,
     EvalResponse,
-    IntakeResponse,
     FactResponse,
     HealthResponse,
+    IntakeResponse,
     LibraryNode,
     LibraryNodeSummary,
     LinkResponse,
     NodeListResponse,
-    SearchHit,
     SearchResponse,
     SeedFixtureResponse,
     StatusResponse,
     ZoomResponse,
 )
-
 
 _LIBRARY_NODE_TYPED_FIELDS = frozenset({
     "_id", "id", "name", "node_kind", "library_id", "tenant_id",
@@ -147,7 +145,7 @@ class Library:
             if anchor_question_name:
                 body["anchor_question_name"] = anchor_question_name
         resp = self._http.post("/library/collections", json=body)
-        return resp.json()
+        return cast("dict[str, Any]", resp.json())
 
     def create_anchor_question(
         self,
@@ -244,7 +242,7 @@ class Library:
         self, *, library_id: str, fixture: str,
         seed: int | None = None, scale: str | None = None,
     ) -> SeedFixtureResponse:
-        body: dict = {"library_id": library_id, "fixture": fixture}
+        body: dict[str, Any] = {"library_id": library_id, "fixture": fixture}
         if seed is not None:
             body["seed"] = seed
         if scale is not None:
@@ -329,7 +327,7 @@ class Library:
         if chat_id:
             body["chat_id"] = chat_id
         # httpx.Client.stream is a context manager; yield from inside it.
-        with self._http._client.stream(  # type: ignore[attr-defined]
+        with self._http._client.stream(
             "POST", "/library/chat", json=body
         ) as response:
             response.raise_for_status()
@@ -354,7 +352,7 @@ class Library:
         summary: str = "",
         state: str = "draft",
         parent_kpis: list[str] | None = None,
-        measurement: dict | None = None,
+        measurement: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "library_id": library_id,
@@ -368,7 +366,7 @@ class Library:
         if measurement is not None:
             body["measurement"] = measurement
         resp = self._http.post("/library/kpis", json=body)
-        return resp.json()
+        return cast("dict[str, Any]", resp.json())
 
     def list_kpis(self, *, library_id: str, limit: int = 100) -> dict[str, Any]:
         resp = self._http.get(f"/library/kpis?library_id={library_id}&limit={limit}")
@@ -379,7 +377,7 @@ class Library:
         # KPI kind — it returns the model_dump shape, NOT envelope-wrapped.
         # Kept flat so callers see the same KPI fields as get_node().
         resp = self._http.get(f"/library/kpis/{kpi_id}")
-        return resp.json()
+        return cast("dict[str, Any]", resp.json())
 
     def list_kpi_categories(self, *, library_id: str) -> dict[str, Any]:
         resp = self._http.get(f"/library/kpi-categories?library_id={library_id}")
@@ -514,7 +512,7 @@ class Library:
             body["summary"] = summary
         if instructions is not None:
             body["instructions"] = instructions
-        with self._http._client.stream(  # type: ignore[attr-defined]
+        with self._http._client.stream(
             "POST", f"/library/collections/{collection_id}/views", json=body
         ) as response:
             response.raise_for_status()
@@ -576,7 +574,7 @@ class Library:
 
     def delete_node(self, node_id: str) -> dict[str, Any]:
         resp = self._http.request("DELETE", f"/library/nodes/{node_id}")
-        return resp.json()
+        return cast("dict[str, Any]", resp.json())
 
     # ── Search ──────────────────────────────────────────────────────────────
 
@@ -615,7 +613,10 @@ class Library:
         self, *, library_id: str, include_series: bool = True,
         stages: list[str] | None = None,
     ) -> IntakeResponse:
-        body: dict = {"library_id": library_id, "include_series": include_series}
+        body: dict[str, Any] = {
+            "library_id": library_id,
+            "include_series": include_series,
+        }
         if stages is not None:
             body["stages"] = stages
         resp = self._http.post("/library/intake", json=body)
@@ -676,7 +677,9 @@ class AsyncLibrary:
     def __init__(self, http: AsyncHTTPClient) -> None:
         self._http = http
 
-    async def create_library(self, *, name: str, summary: str = "") -> LibraryNodeSummary:
+    async def create_library(
+        self, *, name: str, summary: str = ""
+    ) -> LibraryNodeSummary:
         resp = await self._http.post(
             "/library/libraries",
             json={"name": name, "summary": summary},
@@ -700,7 +703,7 @@ class AsyncLibrary:
             if anchor_question_name:
                 body["anchor_question_name"] = anchor_question_name
         resp = await self._http.post("/library/collections", json=body)
-        return resp.json()
+        return cast("dict[str, Any]", resp.json())
 
     async def create_anchor_question(
         self,
@@ -795,7 +798,7 @@ class AsyncLibrary:
         self, *, library_id: str, fixture: str,
         seed: int | None = None, scale: str | None = None,
     ) -> SeedFixtureResponse:
-        body: dict = {"library_id": library_id, "fixture": fixture}
+        body: dict[str, Any] = {"library_id": library_id, "fixture": fixture}
         if seed is not None:
             body["seed"] = seed
         if scale is not None:
@@ -872,7 +875,7 @@ class AsyncLibrary:
         }
         if chat_id:
             body["chat_id"] = chat_id
-        async with self._http._client.stream(  # type: ignore[attr-defined]
+        async with self._http._client.stream(
             "POST", "/library/chat", json=body
         ) as response:
             response.raise_for_status()
@@ -897,7 +900,7 @@ class AsyncLibrary:
         summary: str = "",
         state: str = "draft",
         parent_kpis: list[str] | None = None,
-        measurement: dict | None = None,
+        measurement: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "library_id": library_id,
@@ -911,16 +914,18 @@ class AsyncLibrary:
         if measurement is not None:
             body["measurement"] = measurement
         resp = await self._http.post("/library/kpis", json=body)
-        return resp.json()
+        return cast("dict[str, Any]", resp.json())
 
     async def list_kpis(self, *, library_id: str, limit: int = 100) -> dict[str, Any]:
-        resp = await self._http.get(f"/library/kpis?library_id={library_id}&limit={limit}")
+        resp = await self._http.get(
+            f"/library/kpis?library_id={library_id}&limit={limit}"
+        )
         return _unwrap_dict(resp.json())
 
     async def get_kpi(self, kpi_id: str) -> dict[str, Any]:
         # See sync get_kpi — alias for /nodes/{id}, returned flat.
         resp = await self._http.get(f"/library/kpis/{kpi_id}")
-        return resp.json()
+        return cast("dict[str, Any]", resp.json())
 
     async def list_kpi_categories(self, *, library_id: str) -> dict[str, Any]:
         resp = await self._http.get(f"/library/kpi-categories?library_id={library_id}")
@@ -1028,7 +1033,7 @@ class AsyncLibrary:
             body["summary"] = summary
         if instructions is not None:
             body["instructions"] = instructions
-        async with self._http._client.stream(  # type: ignore[attr-defined]
+        async with self._http._client.stream(
             "POST", f"/library/collections/{collection_id}/views", json=body
         ) as response:
             response.raise_for_status()
@@ -1084,7 +1089,7 @@ class AsyncLibrary:
 
     async def delete_node(self, node_id: str) -> dict[str, Any]:
         resp = await self._http.request("DELETE", f"/library/nodes/{node_id}")
-        return resp.json()
+        return cast("dict[str, Any]", resp.json())
 
     async def search(
         self,
@@ -1119,7 +1124,10 @@ class AsyncLibrary:
         self, *, library_id: str, include_series: bool = True,
         stages: list[str] | None = None,
     ) -> IntakeResponse:
-        body: dict = {"library_id": library_id, "include_series": include_series}
+        body: dict[str, Any] = {
+            "library_id": library_id,
+            "include_series": include_series,
+        }
         if stages is not None:
             body["stages"] = stages
         resp = await self._http.post("/library/intake", json=body)

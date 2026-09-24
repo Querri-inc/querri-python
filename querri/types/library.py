@@ -70,7 +70,7 @@ class IntakeResponse(_LibraryBase):
 class EvalResponse(_LibraryBase):
     library_id: str
     tenant_id: str
-    routing: dict = {}
+    routing: dict[str, Any] = {}
 
 
 class AskResponse(_LibraryBase):
@@ -82,9 +82,9 @@ class AskResponse(_LibraryBase):
     outcome: str = ""
     # Per-cluster (one entry per contributing source cluster): each carries
     # {cluster, tables, generated_sql, total_rows, rows}. None on decline.
-    provenance: list[dict] | None = None
+    provenance: list[dict[str, Any]] | None = None
     # On decline: one entry per attempted cluster — {cluster, tables, sql, ...}.
-    attempted: list[dict] | None = None
+    attempted: list[dict[str, Any]] | None = None
     sources_used: list[str] = []
     rounds: int = 0
     llm_calls: int = 0
@@ -98,9 +98,9 @@ class ConsolidateResponse(_LibraryBase):
     candidate_count: int = 0
     skipped_handled: int = 0  # questions already answered by a live view
     # Each candidate: {question, systems, n_systems, frequency, score, clusters, ...}
-    candidates: list[dict] = []
+    candidates: list[dict[str, Any]] = []
     # On commit: each outcome {question, systems, status, view_uuid, name, fact_id, ...}
-    commissioned: list[dict] = []
+    commissioned: list[dict[str, Any]] = []
 
 
 class SeedFixtureResponse(_LibraryBase):
