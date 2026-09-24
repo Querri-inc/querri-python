@@ -480,6 +480,7 @@ class TestSubAppRegistration:
         "view",
         "user",
         "dashboard",
+        "library",
         "key",
         "policy",
         "share",
@@ -503,15 +504,16 @@ class TestSubAppRegistration:
         assert "Traceback" not in result.output
 
     def test_subcommand_count(self) -> None:
-        """Exactly 16 sub-apps must be registered (including auth)."""
+        """Exactly 17 sub-apps must be registered (including auth and library)."""
         # Count registered Typer sub-apps (not the main app callback)
         registered = [
             group.name or group.typer_instance.info.name
             for group in main_app.registered_groups
         ]
-        assert len(registered) == 16, (
-            f"Expected 16 sub-apps, got {len(registered)}: {registered}"
+        assert len(registered) == 17, (
+            f"Expected 17 sub-apps, got {len(registered)}: {registered}"
         )
+        assert "library" in registered
 
 
 # ---------------------------------------------------------------------------
