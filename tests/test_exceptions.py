@@ -160,3 +160,37 @@ class TestRaiseForStatus:
         body = {"error": "string error"}
         with pytest.raises(APIError):
             raise_for_status(500, body)
+
+    def test_fastapi_detail_string_surfaces_to_message(self):
+        # FastAPI's `raise HTTPException(detail="...")` produces
+        # {"detail": "..."} with no `error` envelope. Before this fix the
+        # CLI showed "HTTP 403" instead of the helpful server-side message.
+        body = {"detail": "seed-fixture is disabled in this environment. "
+                          "Set LIBRARY_SEED_FIXTURE_ENABLED=true."}
+        with pytest.raises(APIError) as exc_info:
+            raise_for_status(403, body)
+        assert "LIBRARY_SEED_FIXTURE_ENABLED" in exc_info.value.message
+        assert "HTTP 403" not in exc_info.value.message
+
+    def test_fastapi_detail_nested_error_envelope_extracted(self):
+        # Some routes raise HTTPException with a structured detail that
+        # itself wraps the Stripe-shape error (e.g., the auth module's
+        # 401/403 responses). Verify the nested envelope is unwrapped.
+        body = {"detail": {"error": {
+            "type": "permission_error",
+            "code": "insufficient_scope",
+            "message": "missing admin:library:write",
+        }}}
+        with pytest.raises(APIError) as exc_info:
+            raise_for_status(403, body)
+        assert exc_info.value.message == "missing admin:library:write"
+        assert exc_info.value.code == "insufficient_scope"
+
+    def test_empty_error_dict_falls_through_to_detail(self):
+        # body = {"error": {}, "detail": "..."} — the early-return path
+        # used to take {"error": {}} as truthy and miss the detail. With
+        # the `and error` truthiness check we fall through correctly.
+        body = {"error": {}, "detail": "real message here"}
+        with pytest.raises(APIError) as exc_info:
+            raise_for_status(500, body)
+        assert exc_info.value.message == "real message here"

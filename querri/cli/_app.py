@@ -14,6 +14,7 @@ from querri.cli.dashboards import dashboards_app
 from querri.cli.embed import embed_app
 from querri.cli.files import files_app
 from querri.cli.keys import keys_app
+from querri.cli.library import library_app
 from querri.cli.policies import policies_app
 from querri.cli.projects import projects_app
 from querri.cli.sharing import sharing_app
@@ -225,6 +226,11 @@ main_app.add_typer(
 main_app.add_typer(
     dashboards_app,
     name="dashboard",
+    rich_help_panel="[#f15a24]Projects & Data[/#f15a24]",
+)
+main_app.add_typer(
+    library_app,
+    name="library",
     rich_help_panel="[#f15a24]Projects & Data[/#f15a24]",
 )
 
