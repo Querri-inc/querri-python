@@ -29,6 +29,10 @@ class ClientConfig:
     timeout: float = DEFAULT_TIMEOUT  #: Request timeout in seconds.
     max_retries: int = DEFAULT_MAX_RETRIES  #: Max retry attempts for retryable errors.
     session_token: str | None = None  #: Embed session token for user-scoped clients.
+    #: Which Querri client is calling: ``"sdk"`` for library use, ``"cli"`` when
+    #: the ``querri`` command built the client. Sent as ``X-Querri-Client`` so
+    #: the server can tell the two apart (the User-Agent is the same for both).
+    client_kind: str = "sdk"
     _user_agent: str = field(init=False)  #: Auto-generated User-Agent header value.
 
     def __post_init__(self) -> None:
@@ -36,6 +40,13 @@ class ClientConfig:
         from ._version import __version__
 
         self._user_agent = f"querri-python/{__version__}"
+
+    @property
+    def client_header(self) -> str:
+        """The ``X-Querri-Client`` header value, e.g. ``cli/2.1.0``."""
+        from ._version import __version__
+
+        return f"{self.client_kind}/{__version__}"
 
     @property
     def user_agent(self) -> str:
