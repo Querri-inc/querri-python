@@ -265,7 +265,10 @@ def _cli_headers() -> dict[str, str]:
     """Headers for the CLI's own token requests (login, refresh)."""
     from ._version import __version__
 
-    return {"User-Agent": f"querri-python/{__version__}", "X-Querri-Client": f"cli/{__version__}"}
+    return {
+        "User-Agent": f"querri-python/{__version__}",
+        "X-Querri-Client": f"cli/{__version__}",
+    }
 
 
 def refresh_tokens(
