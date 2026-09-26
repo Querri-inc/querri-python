@@ -145,14 +145,34 @@ def _get_field(item: Any, field: str) -> str:
     return str(val)
 
 
+def _is_id_column(field: str, header: str) -> bool:
+    """Return True for columns holding IDs/UUIDs that must never be truncated.
+
+    Rich shrinks and ellipsis-clips wide columns to fit the terminal, which
+    turns a 36-char UUID into ``...``-truncated garbage that fails downstream
+    commands with a misleading 403. ID columns must stay ``no_wrap`` so the
+    full value is always shown and copyable.
+    """
+    field_l = field.lower()
+    header_l = header.lower()
+    return (
+        field_l in {"id", "uuid"}
+        or header_l in {"id", "uuid"}
+        or field_l.endswith("_id")
+        or field_l.endswith("_uuid")
+    )
+
+
 def _print_rich_table(data: Sequence[Any], columns: list[tuple[str, str]]) -> None:
     """Render a Rich table to stdout."""
     from rich.console import Console
     from rich.table import Table
 
     table = Table(show_header=True, header_style=f"bold {QUERRI_ORANGE}")
-    for _, header in columns:
-        table.add_column(header)
+    for field, header in columns:
+        # Keep ID/UUID columns intact — Rich otherwise clips them to fit width,
+        # producing truncated IDs that fail downstream commands (QUE-135).
+        table.add_column(header, no_wrap=_is_id_column(field, header))
 
     for item in data:
         row = [_get_field(item, field) for field, _ in columns]
