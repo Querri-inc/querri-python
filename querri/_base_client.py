@@ -39,6 +39,7 @@ def _default_headers(config: ClientConfig) -> dict[str, str]:
     headers: dict[str, str] = {
         "User-Agent": config.user_agent,
         "Accept": "application/json",
+        "X-Querri-Client": config.client_header,
     }
     if config.session_token:
         headers["X-Embed-Session"] = config.session_token

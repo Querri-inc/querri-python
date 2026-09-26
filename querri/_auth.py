@@ -261,6 +261,16 @@ def needs_refresh(profile: TokenProfile) -> bool:
         return True
 
 
+def _cli_headers() -> dict[str, str]:
+    """Headers for the CLI's own token requests (login, refresh)."""
+    from ._version import __version__
+
+    return {
+        "User-Agent": f"querri-python/{__version__}",
+        "X-Querri-Client": f"cli/{__version__}",
+    }
+
+
 def refresh_tokens(
     profile: TokenProfile,
     host: str,
@@ -289,7 +299,7 @@ def refresh_tokens(
     if organization_id:
         payload["organization_id"] = organization_id
     try:
-        response = httpx.post(url, json=payload, timeout=30.0)
+        response = httpx.post(url, json=payload, headers=_cli_headers(), timeout=30.0)
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
         raise RuntimeError(
@@ -790,6 +800,7 @@ def start_oauth_flow(
                 "code": server.auth_code,
                 "code_verifier": code_verifier,
             },
+            headers=_cli_headers(),
             timeout=30.0,
         )
         response.raise_for_status()

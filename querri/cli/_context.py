@@ -15,6 +15,17 @@ from querri._client import Querri
 from querri._exceptions import ConfigError
 
 
+def _as_cli(client: Querri) -> Querri:
+    """Mark a client as built by the CLI, so its requests say ``cli/<ver>``.
+
+    The HTTP client already holds its headers by the time ``Querri()`` returns,
+    so the header is updated alongside the config it was derived from.
+    """
+    client._config.client_kind = "cli"
+    client._http._client.headers["X-Querri-Client"] = client._config.client_header
+    return client
+
+
 def get_client(ctx: typer.Context) -> Querri:
     """Construct a Querri client from CLI context options.
 
@@ -39,7 +50,7 @@ def get_client(ctx: typer.Context) -> Querri:
 
     if api_key:
         try:
-            return Querri(api_key=api_key, org_id=org_id, host=host)
+            return _as_cli(Querri(api_key=api_key, org_id=org_id, host=host))
         except ConfigError as exc:
             _handle_config_error(obj, exc)
             raise typer.Exit(code=2) from None
@@ -47,7 +58,7 @@ def get_client(ctx: typer.Context) -> Querri:
     # 2. Environment variables — let resolve_config handle them
     if os.environ.get("QUERRI_API_KEY") or os.environ.get("QUERRI_ACCESS_TOKEN"):
         try:
-            return Querri(org_id=org_id, host=host)
+            return _as_cli(Querri(org_id=org_id, host=host))
         except ConfigError as exc:
             _handle_config_error(obj, exc)
             raise typer.Exit(code=2) from None
@@ -78,10 +89,12 @@ def get_client(ctx: typer.Context) -> Querri:
                     # early as a buffer. Fall through to use it anyway.
                     pass
 
-            return Querri(
-                access_token=profile.access_token,
-                org_id=profile.org_id or org_id,
-                host=resolved_host,
+            return _as_cli(
+                Querri(
+                    access_token=profile.access_token,
+                    org_id=profile.org_id or org_id,
+                    host=resolved_host,
+                )
             )
     except Exception as exc:
         # Token store error — print debug info in verbose mode and fall through
