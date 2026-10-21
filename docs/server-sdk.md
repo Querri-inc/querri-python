@@ -1231,10 +1231,13 @@ permissions to grant it.
 - A key acts for its `bound_user_id`, else for the person who created it in
   Settings → API keys. At every call it keeps only the scopes that person
   currently holds, so demoting or removing the creator narrows the key.
-- Settings refuses to mint a key with scopes beyond its creator's
-  (`403 permission_denied`, reason `scope_exceeds_role`).
-- A key created through this API has no Settings creator to follow. Pass
-  `bound_user_id` when the key should follow that person's role.
+- A new key can't carry more than the person minting it holds, nor more
+  than the user it is bound to holds, whether it is created in Settings or
+  with `client.keys.create()` (`PermissionError`, code `permission_denied`,
+  reason `scope_exceeds_role`). A key created with `client.keys.create()`
+  acts for the same person as the key that created it.
+- Pass `bound_user_id` when a key should follow one specific person's role
+  instead.
 
 ##### Roles API (not wrapped)
 
