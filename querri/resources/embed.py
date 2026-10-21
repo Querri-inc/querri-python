@@ -81,7 +81,7 @@ class Embed:
         body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
         if origin is not None:
             body["origin"] = origin
-        if role is not None:
+        if role:
             body["role"] = role
         resp = self._http.post("/embed/sessions", json=body)
         return EmbedSession.model_validate(resp.json())
@@ -293,7 +293,7 @@ class AsyncEmbed:
         body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
         if origin is not None:
             body["origin"] = origin
-        if role is not None:
+        if role:
             body["role"] = role
         resp = await self._http.post("/embed/sessions", json=body)
         return EmbedSession.model_validate(resp.json())

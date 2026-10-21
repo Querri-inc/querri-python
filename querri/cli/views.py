@@ -15,6 +15,7 @@ from querri.cli._output import (
     print_error,
     print_id,
     print_json,
+    print_json_error,
     print_success,
     print_table,
 )
@@ -347,7 +348,7 @@ def run_views(
             )
     except TimeoutError as exc:
         if is_json:
-            print_json({"error": str(exc)})
+            print_json_error("timeout", str(exc), 1)
         else:
             print_error(str(exc))
         raise typer.Exit(code=1) from None

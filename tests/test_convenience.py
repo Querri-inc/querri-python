@@ -241,6 +241,15 @@ class TestSyncGetSessionRole:
         assert "role_id" not in result
 
     @respx.mock
+    def test_empty_role_not_sent(self):
+        route = _mock_get_session_routes(
+            {"session_token": "es_1", "expires_in": 3600, "user_id": "usr_1"}
+        )
+        sync_get_session(SyncHTTPClient(_make_config()), user=_USER, role="")
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"user_id": "usr_1", "ttl": 3600}
+
+    @respx.mock
     def test_role_error_surfaces_code(self):
         respx.put(f"{BASE}/users/external/cust-42").mock(
             return_value=httpx.Response(200, json={"id": "usr_1"})
@@ -288,6 +297,15 @@ class TestAsyncGetSessionRole:
         assert body == {"user_id": "usr_1", "ttl": 1800, "role": "analyst"}
         assert result["role_id"] == "role_analyst"
         assert result["external_id"] == "cust-42"
+
+    @respx.mock
+    async def test_empty_role_not_sent(self):
+        route = _mock_get_session_routes(
+            {"session_token": "es_1", "expires_in": 3600, "user_id": "usr_1"}
+        )
+        await async_get_session(AsyncHTTPClient(_make_config()), user=_USER, role="")
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"user_id": "usr_1", "ttl": 3600}
 
     @respx.mock
     async def test_no_role_key_when_unset(self):

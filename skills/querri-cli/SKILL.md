@@ -260,7 +260,7 @@ Valid scopes (an unknown name is rejected with `400 invalid_parameters`):
 - `admin:library:read` / `admin:library:write` / `admin:library:seed`
 - `*` (every scope)
 
-Scopes follow a person's role: a key keeps only the scopes its bound user (else the person who created it in Settings → API keys) currently holds, and a JWT login gets its active role's scopes. Bind SDK-minted keys with `bound_user_id` when they should follow a person's role.
+Scopes follow a person's role: a key keeps only the scopes both its creator and its bound user currently hold, a new key can't carry more than they hold (`permission_denied`, reason `scope_exceeds_role`), only an Admin may bind a key to someone else, and a JWT login gets its active role's scopes (Guest is read-only). Servers released after 2026-10-21 apply this to every key; earlier servers cap only keys created in Settings.
 
 ## Users
 
@@ -336,7 +336,9 @@ See `references/json-shapes.md` for the exact fields returned by each command.
 With `--json`, an API error prints `{"error", "message", "exit_code", "status", "code", ...}`:
 `exit_code` is the process exit code and `code` is the API error code (e.g. `permission_denied`).
 A `permission_denied` error also carries `permission` (the permission needed) and `reason`
-(`role_denied`, `not_in_plan`, `flag_off`, `embed_disabled`, `dependency_unmet`, `forbidden`).
+(`role_denied`, `not_in_plan`, `flag_off`, `embed_disabled`, `dependency_unmet`, `forbidden`,
+`scope_exceeds_role`; the server may add more). `permission` is absent when no single permission
+applies (e.g. `scope_exceeds_role`).
 
 ## Troubleshooting
 

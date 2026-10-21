@@ -140,7 +140,11 @@ def refresh_session(
         print_success("Refreshed session")
         print_detail(
             session,
-            [("session_token", "Token"), ("expires_in", "Expires In (s)")],
+            [
+                ("session_token", "Token"),
+                ("expires_in", "Expires In (s)"),
+                ("role_id", "Role ID"),
+            ],
         )
 
 

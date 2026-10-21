@@ -10,17 +10,24 @@
   is not `user["role"]` (the org role used when creating a user). Decide it
   on your server, never from the browser's request. `EmbedSession.role_id`
   and `EmbedSessionListItem.role_id` carry the applied role (`None` without
-  one); `refresh_session()` returns it too, and the `get_session()` dict
+  one; servers released after 2026-10-21 also return it from refresh and
+  list, earlier ones only from create); `refresh_session()` returns it too,
+  and the `get_session()` dict
   carries `role_id` when a role was applied. CLI: `querri session new
   --role` / `querri session get --role`; `session new` prints `Role ID`.
 - **`APIError.permission` and `APIError.reason`.** A `403
   permission_denied` names the permission the call needed (from the body,
   else the `X-Permission-Denied` header) and why it was refused
   (`role_denied`, `not_in_plan`, `flag_off`, `embed_disabled`,
-  `dependency_unmet`, `forbidden`). `RateLimitError` keeps them too.
+  `dependency_unmet`, `forbidden`, `scope_exceeds_role`; the server may add
+  more). The header is used only when it holds a permission key (contains a
+  `.`), not an error code. The in-app flat body `{"detail": {"error":
+  "<code>", ...}}` is parsed too. `RateLimitError` keeps them too.
 - **Error-code constants**: `querri.ROLE_DISABLED`, `querri.PERMISSION_DENIED`,
   … (23 in all) and the `querri.ErrorCode` / `querri.PermissionDeniedReason`
-  `Literal`s. docs/server-sdk.md has an Error codes table.
+  `Literal`s — the codes for authentication, access, Custom Roles and embed
+  sessions; the API sends other codes too, so treat `code` as a string.
+  docs/server-sdk.md has an Error codes table.
 - `embed:role:assign` in the `querri key new` scope picker.
 - **`X-Querri-Client` header.** Every client sends `X-Querri-Client:
   sdk/<version>`; clients built by the `querri` command, and its
@@ -42,13 +49,20 @@
   depended on the error). Scripts reading `code` as the exit code should
   read `exit_code`; the other CLI JSON errors carry both keys.
 - Docs: API-key scopes follow a person's role — a key keeps only the scopes
-  its bound user (else its Settings creator) currently holds; bind
-  SDK-minted keys with `bound_user_id`. The real scope list replaces the
+  both its creator and its bound user currently hold (servers released after
+  2026-10-21; earlier servers cap only keys created in Settings). The real scope list replaces the
   invented names in the CLI skill. `as_user` calls can raise
   `permission_denied` under the session's role.
 
 ### Fixed
 
+- **Streaming calls keep their error details.** A streamed request
+  (`projects.chats.stream()`, view streams) that failed raised an
+  `APIError` with no `code`, `message`, `permission` or `reason`, because
+  the unread body could not be parsed. The body is now read (and the
+  response closed) before raising.
+- `create_session(role="")` / `get_session(role="")` no longer send an
+  empty `role`.
 - **`querri view list` no longer truncates IDs.** The Rich table clipped
   36-character view UUIDs with `…`, and pasting the clipped ID into `querri
   view chat` failed with a misleading 403. ID/UUID columns now never wrap

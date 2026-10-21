@@ -5,15 +5,18 @@ Maps Stripe-style API error responses to typed Python exceptions.
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 # ---------------------------------------------------------------------------
 # Documented API error codes
 # ---------------------------------------------------------------------------
-# ``APIError.code`` carries one of these strings (or ``None`` when the server
-# sent no code). Compare against the constants rather than string literals so
-# a typo fails loudly at import time. The class of the exception still follows
-# the HTTP status (``PermissionError`` for 403, ``NotFoundError`` for 404, …).
+# The codes for authentication, access, Custom Roles and embed sessions. The
+# API sends other codes too, so treat ``APIError.code`` as a string (``None``
+# when the server sent no code). Compare against the constants rather than
+# string literals so a typo fails loudly at import time. The class of the
+# exception still follows the HTTP status (``PermissionError`` for 403,
+# ``NotFoundError`` for 404, …).
 
 MISSING_API_KEY = "missing_api_key"
 INVALID_API_KEY = "invalid_api_key"
@@ -64,7 +67,9 @@ ErrorCode = Literal[
     "refresh_failed",
     "membership_check_failed",
 ]
-"""Every documented ``APIError.code`` value (see docs/server-sdk.md, Error codes)."""
+"""The ``APIError.code`` values for authentication, access, Custom Roles and
+embed sessions (see docs/server-sdk.md, Error codes). The API sends other codes
+too, so treat ``APIError.code`` as a string; this Literal is not exhaustive."""
 
 PermissionDeniedReason = Literal[
     "role_denied",
@@ -73,8 +78,11 @@ PermissionDeniedReason = Literal[
     "embed_disabled",
     "dependency_unmet",
     "forbidden",
+    "scope_exceeds_role",
 ]
-"""Values of ``APIError.reason`` on a ``permission_denied`` error."""
+"""Known values of ``APIError.reason`` on a ``permission_denied`` error.
+
+The server may add more, so treat ``reason`` as a string."""
 
 
 class QuerriError(Exception):
@@ -96,11 +104,14 @@ class APIError(QuerriError):
         request_id: Unique request identifier for support (from the
             ``X-Request-Id`` response header).
         permission: On ``permission_denied``, the permission key the call
-            needed (e.g. ``"dashboards.list.view"``). Read from the error
-            body, falling back to the ``X-Permission-Denied`` header.
+            needed (e.g. ``"dashboards.list.view"``), or ``None`` when no
+            single permission applies (e.g. reason ``scope_exceeds_role``).
+            Read from the error body, falling back to the
+            ``X-Permission-Denied`` header when that holds a permission key.
         reason: On ``permission_denied``, why it was refused — one of
             ``role_denied``, ``not_in_plan``, ``flag_off``,
-            ``embed_disabled``, ``dependency_unmet``, ``forbidden``.
+            ``embed_disabled``, ``dependency_unmet``, ``forbidden``,
+            ``scope_exceeds_role``. The server may add more.
     """
 
     def __init__(
@@ -236,6 +247,10 @@ _STATUS_MAP: dict[int, type[APIError]] = {
 }
 
 
+#: An error code: lowercase snake_case (no spaces or dots).
+_CODE_SHAPE = re.compile(r"[a-z][a-z0-9_]*")
+
+
 def _format_validation_detail(detail: list[object]) -> str:
     """Render FastAPI's 422 ``detail`` list as one readable line.
 
@@ -262,6 +277,16 @@ def _optional_str(value: object) -> str | None:
     return str(value) if value else None
 
 
+def _header_permission(value: str | None) -> str | None:
+    """Return the ``X-Permission-Denied`` header when it holds a permission key.
+
+    The server also sends an error code there (``permission_denied``) when no
+    single permission applies. Permission keys always contain a dot
+    (``dashboards.list.view``, ``org.admin``); error codes never do.
+    """
+    return value if value and "." in value else None
+
+
 def raise_for_status(
     status: int,
     body: dict[str, object],
@@ -278,6 +303,8 @@ def raise_for_status(
     * FastAPI's envelope ``{"detail": {"error": {...}}}`` — what every
       ``/api/v1`` error looks like on the wire — and a bare
       ``{"detail": {"type", "code", "message"}}``.
+    * The in-app flat shape ``{"detail": {"error": "<code>", "permission",
+      "reason", "layer"}}``, whose ``error`` is the code string.
     * ``{"detail": "message"}``.
     * FastAPI request validation, ``422 {"detail": [{"loc", "msg", ...}]}``,
       raised as :class:`ValidationError` with a readable message.
@@ -290,7 +317,9 @@ def raise_for_status(
         request_id: Request ID from the ``X-Request-Id`` response header.
         retry_after: Retry-After value from response headers.
         permission_denied: The ``X-Permission-Denied`` response header —
-            fallback for ``permission`` when the body does not carry it.
+            fallback for ``permission`` when the body does not carry it. Used
+            only when it holds a permission key (contains a ``.``); the server
+            puts an error code there when no single permission applies.
     """
     err_type = ""
     err_code = ""
@@ -313,6 +342,15 @@ def raise_for_status(
             nested_error = detail.get("error")
             if isinstance(nested_error, dict) and nested_error:
                 error = nested_error
+            elif isinstance(nested_error, str) and nested_error:
+                # In-app flat shape: ``{"detail": {"error": "permission_denied",
+                # "permission", "reason", "layer"}}`` — the code is the string,
+                # when it is code-shaped (some bodies put a sentence there).
+                error = {
+                    **detail,
+                    "code": nested_error if _CODE_SHAPE.fullmatch(nested_error) else None,
+                    "message": detail.get("message") or nested_error,
+                }
             elif "code" in detail or "message" in detail:
                 error = detail
 
@@ -354,7 +392,9 @@ def raise_for_status(
         "code": err_code or None,
         "doc_url": _optional_str(err_doc_url),
         "request_id": request_id,
-        "permission": _optional_str(err_permission) or permission_denied or None,
+        "permission": (
+            _optional_str(err_permission) or _header_permission(permission_denied)
+        ),
         "reason": _optional_str(err_reason),
     }
 

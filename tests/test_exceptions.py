@@ -206,7 +206,8 @@ class TestRaiseForStatus:
 # Real /v1 envelopes, through the HTTP clients (respx at the boundary)
 # ---------------------------------------------------------------------------
 
-_BASE = "https://test.querri.com/api/v1"
+_HOST = "https://test.querri.com"
+_BASE = f"{_HOST}/api/v1"
 
 # Verbatim bodies captured from the live server (2026-10-21).
 _LIVE_401_BODY = {
@@ -367,6 +368,144 @@ class TestLiveEnvelopes:
         )
 
 
+_SCOPE_EXCEEDS_ROLE_BODY = {
+    "detail": {
+        "error": {
+            "code": "permission_denied",
+            "reason": "scope_exceeds_role",
+            "scopes": ["*"],
+        }
+    }
+}
+
+_STREAM_403_BODY = {
+    "detail": {
+        "error": {
+            "type": "permission_error",
+            "code": "permission_denied",
+            "message": "This action needs the projects.chat.use permission.",
+            "permission": "projects.chat.use",
+            "reason": "role_denied",
+        }
+    }
+}
+
+
+class TestPermissionHeaderFallback:
+    """The ``X-Permission-Denied`` header is a permission only when it has a dot."""
+
+    @respx.mock
+    def test_error_code_in_header_is_not_a_permission(self):
+        from querri._base_client import SyncHTTPClient
+
+        respx.post(f"{_BASE}/keys").mock(
+            return_value=httpx.Response(
+                403,
+                json=_SCOPE_EXCEEDS_ROLE_BODY,
+                headers={"x-permission-denied": "permission_denied"},
+            )
+        )
+        with pytest.raises(PermissionError) as exc_info:
+            SyncHTTPClient(_http_config()).post("/keys", json={"scopes": ["*"]})
+        err = exc_info.value
+        assert err.code == PERMISSION_DENIED
+        assert err.reason == "scope_exceeds_role"
+        assert err.permission is None
+
+    def test_org_admin_header_is_a_permission(self):
+        with pytest.raises(PermissionError) as exc_info:
+            raise_for_status(403, {}, permission_denied="org.admin")
+        assert exc_info.value.permission == "org.admin"
+
+
+class TestInAppFlatShape:
+    """``{"detail": {"error": "<code>", ...}}`` — the in-app 403 body."""
+
+    def test_string_error_is_the_code(self):
+        body = {
+            "detail": {
+                "error": "permission_denied",
+                "permission": "dashboards.list.view",
+                "reason": "role_denied",
+                "layer": "role",
+            }
+        }
+        with pytest.raises(PermissionError) as exc_info:
+            raise_for_status(403, body)
+        err = exc_info.value
+        assert err.code == PERMISSION_DENIED
+        assert err.permission == "dashboards.list.view"
+        assert err.reason == "role_denied"
+        assert err.message == "permission_denied"
+
+    def test_message_used_when_present(self):
+        body = {
+            "detail": {
+                "error": "permission_denied",
+                "message": "Your role cannot do that.",
+                "permission": "projects.create",
+                "reason": "not_in_plan",
+            }
+        }
+        with pytest.raises(PermissionError) as exc_info:
+            raise_for_status(403, body)
+        assert exc_info.value.message == "Your role cannot do that."
+        assert exc_info.value.code == PERMISSION_DENIED
+        assert exc_info.value.reason == "not_in_plan"
+
+
+class TestStreamingErrorBody:
+    """A ``send(stream=True)`` error must still surface the body's details."""
+
+    @respx.mock
+    def test_sync_streaming_403_keeps_code_permission_reason(self):
+        from querri._base_client import SyncHTTPClient
+
+        respx.post(f"{_BASE}/projects/p1/chats/c1/stream").mock(
+            return_value=httpx.Response(403, json=_STREAM_403_BODY)
+        )
+        with pytest.raises(PermissionError) as exc_info:
+            SyncHTTPClient(_http_config()).post(
+                "/projects/p1/chats/c1/stream", json={"prompt": "hi"}, stream=True
+            )
+        err = exc_info.value
+        assert err.code == PERMISSION_DENIED
+        assert err.permission == "projects.chat.use"
+        assert err.reason == "role_denied"
+        assert err.message == "This action needs the projects.chat.use permission."
+
+    @respx.mock
+    async def test_async_streaming_403_keeps_code_permission_reason(self):
+        from querri._base_client import AsyncHTTPClient
+
+        respx.post(f"{_BASE}/projects/p1/chats/c1/stream").mock(
+            return_value=httpx.Response(403, json=_STREAM_403_BODY)
+        )
+        with pytest.raises(PermissionError) as exc_info:
+            await AsyncHTTPClient(_http_config()).post(
+                "/projects/p1/chats/c1/stream", json={"prompt": "hi"}, stream=True
+            )
+        err = exc_info.value
+        assert err.code == PERMISSION_DENIED
+        assert err.permission == "projects.chat.use"
+        assert err.reason == "role_denied"
+        assert err.message == "This action needs the projects.chat.use permission."
+
+    @respx.mock
+    def test_sync_chat_stream_resource_surfaces_permission(self):
+        """End to end through ``client.projects.chats.stream()``."""
+        from querri import Querri
+
+        respx.post(f"{_BASE}/projects/p1/chats/c1/stream").mock(
+            return_value=httpx.Response(403, json=_STREAM_403_BODY)
+        )
+        client = Querri(api_key="qk_test", org_id="org_test", host=_HOST)
+        with pytest.raises(PermissionError) as exc_info:
+            client.projects.chats.stream("p1", "c1", prompt="hi", user_id="u1")
+        assert exc_info.value.permission == "projects.chat.use"
+        assert exc_info.value.reason == "role_denied"
+
+
 class TestPermissionFields:
     """``permission`` / ``reason`` parsing in ``raise_for_status``."""
 
@@ -474,3 +613,11 @@ class TestErrorCodeConstants:
             assert getattr(_exceptions, name) == value
             assert getattr(querri, name) == value
             assert name in querri.__all__
+
+
+def test_a_sentence_in_detail_error_is_a_message_not_a_code():
+    body = {"detail": {"error": "Something went wrong here"}}
+    with pytest.raises(APIError) as exc_info:
+        raise_for_status(403, body)
+    assert exc_info.value.code is None
+    assert exc_info.value.message == "Something went wrong here"

@@ -188,6 +188,9 @@ def sync_get_session(
             ``user["role"]``: that is the org role (``admin``/``member``)
             used when the user is created. Decide ``role`` on your server
             from your own auth; never read it from the browser's request.
+            The user is created/updated and access policies applied before
+            the session is requested, so if the role is refused those steps
+            have still happened.
 
     Returns:
         Embed session dict with ``session_token``, ``expires_in``, ``user_id``,
@@ -270,7 +273,7 @@ def sync_get_session(
     session_body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
     if origin is not None:
         session_body["origin"] = origin
-    if role is not None:
+    if role:
         session_body["role"] = role
 
     resp = http.post("/embed/sessions", json=session_body)
@@ -465,7 +468,7 @@ async def async_get_session(
     session_body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
     if origin is not None:
         session_body["origin"] = origin
-    if role is not None:
+    if role:
         session_body["role"] = role
 
     resp = await http.post("/embed/sessions", json=session_body)

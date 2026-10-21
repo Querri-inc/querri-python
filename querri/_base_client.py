@@ -85,6 +85,33 @@ def _parse_error_response(response: httpx.Response) -> dict[str, Any]:
         return {}
 
 
+def _read_streamed_error(response: httpx.Response) -> None:
+    """Load the body of a streamed error response, then close it.
+
+    A response from ``send(stream=True)`` has not read its body, so
+    ``response.json()`` raises ``ResponseNotRead`` and the error's code,
+    message, permission and reason would be lost. Reading it first lets
+    :func:`_parse_error_response` see the body. The response is closed
+    either way, since no caller will consume a stream that raised.
+    """
+    try:
+        response.read()
+    except httpx.HTTPError:
+        pass  # The body is unreadable; the status alone still raises.
+    finally:
+        response.close()
+
+
+async def _aread_streamed_error(response: httpx.Response) -> None:
+    """Async counterpart of :func:`_read_streamed_error`."""
+    try:
+        await response.aread()
+    except httpx.HTTPError:
+        pass  # The body is unreadable; the status alone still raises.
+    finally:
+        await response.aclose()
+
+
 def _get_retry_after(response: httpx.Response) -> float | None:
     """Parse Retry-After header as seconds.
 
@@ -175,10 +202,14 @@ class SyncHTTPClient:
                         response.status_code,
                         delay,
                     )
+                    if stream:
+                        response.close()
                     time.sleep(delay)
                     continue
 
                 # Not retryable — raise
+                if stream:
+                    _read_streamed_error(response)
                 body = _parse_error_response(response)
                 request_id = response.headers.get("x-request-id")
                 retry_after = _get_retry_after(response)
@@ -317,9 +348,13 @@ class AsyncHTTPClient:
                         response.status_code,
                         delay,
                     )
+                    if stream:
+                        await response.aclose()
                     await asyncio.sleep(delay)
                     continue
 
+                if stream:
+                    await _aread_streamed_error(response)
                 body = _parse_error_response(response)
                 request_id = response.headers.get("x-request-id")
                 retry_after = _get_retry_after(response)

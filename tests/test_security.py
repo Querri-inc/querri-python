@@ -227,7 +227,7 @@ class TestExitCodeMapping:
         assert code == 5
 
     def test_handle_api_error_permission_denied_text(self, capsys) -> None:
-        """403 exits 6 and names the code, permission and reason."""
+        """403 exits 6 and names the code (once), permission and reason."""
         from querri._exceptions import PermissionError as QuerriPermissionError
         from querri.cli._output import handle_api_error
 
@@ -242,10 +242,9 @@ class TestExitCodeMapping:
 
         assert code == 6
         err = capsys.readouterr().err
-        assert (
-            "code: permission_denied, permission: dashboards.list.view, "
-            "reason: role_denied" in err
-        )
+        assert "(permission: dashboards.list.view, reason: role_denied)" in err
+        assert "Code: permission_denied" in err
+        assert err.count("permission_denied") == 1
 
     def test_handle_api_error_json_mode(self, capsys) -> None:
         """JSON mode outputs structured error."""

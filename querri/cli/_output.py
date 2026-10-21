@@ -244,7 +244,7 @@ def print_json_error(
     *,
     hint: str | None = None,
 ) -> None:
-    """Print a JSON-formatted error to stderr.
+    """Print a JSON-formatted error to stdout.
 
     ``exit_code`` is the process exit code; ``code`` repeats it for
     backward compatibility.
@@ -306,10 +306,11 @@ def handle_api_error(exc: Exception, *, is_json: bool | None = False) -> int:
         exit_code = EXIT_FORBIDDEN
         error_type = "forbidden"
         message = str(exc)
+        # ``code`` is not repeated here: text mode prints it on its own
+        # ``Code:`` line, and ``--json`` carries it as a key.
         extras = [
             f"{label}: {value}"
             for label, value in (
-                ("code", exc.code),
                 ("permission", exc.permission),
                 ("reason", exc.reason),
             )

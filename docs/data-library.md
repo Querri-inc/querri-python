@@ -180,5 +180,6 @@ Library routes require API-key scopes:
 The wildcard `*` superadmin scope satisfies both. With JWT auth (the CLI after
 `querri auth login`) the scopes follow your active role (Custom Roles), so
 whether you hold the write scope depends on that role; a Guest role is
-read-only. An API key keeps only the scopes its bound user — else the person
-who created it in Settings → API keys — currently holds.
+read-only. An API key keeps only the scopes both its creator and its bound
+user currently hold (servers released after 2026-10-21; earlier servers cap
+only keys created in Settings).

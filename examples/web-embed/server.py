@@ -143,10 +143,14 @@ def sdk_explorer():
 
     POST {"action": "users.list", "params": {...}}
 
-    A local developer tool: it forwards whatever the page sends (user ids,
-    ``role``, …) straight to the SDK. Never expose a router like this in
-    production — a real session endpoint decides the user and the role on
-    the server, as ``querri_session`` above does.
+    WARNING — LOCAL DEV TOOL ONLY. NEVER DEPLOY THIS.
+    This explorer lets the browser pick ANY parameter — user ids, access,
+    and the Custom Role (``role``) of the sessions it creates — and runs it
+    with your admin API key. The server also binds 0.0.0.0 with Flask debug
+    on (see the bottom of this file). Anyone who can reach it can mint a
+    session as any user with any role. Real endpoints decide the user and
+    the role on the server from your own auth, as ``querri_session`` above
+    does.
     """
     body = request.get_json(force=True)
     action = body.get("action", "")
@@ -212,6 +216,10 @@ def _dispatch(action: str, p: dict):
         return client.users.remove_external_id(p["external_id"])
 
     # ─── Embed ─────────────────────────────────────────────
+    # WARNING: ``role`` below comes straight from the browser. That is only
+    # acceptable because this explorer is a local dev tool (0.0.0.0, debug
+    # on) that must never be deployed. A real endpoint decides ``role``
+    # server-side — see ``querri_session`` above.
     if action == "embed.createSession":
         return client.embed.create_session(
             user_id=p["user_id"],

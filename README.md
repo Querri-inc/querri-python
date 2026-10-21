@@ -219,12 +219,17 @@ session = client.embed.get_session(user="customer-42", role="analyst")
 session.get("role_id")    # str — present only when a role was applied
 ```
 
+`role_id` is a custom role's id (`role_…`) or a built-in role's
+(`system:creator`).
+
 `role` is not `user["role"]` (the org role, `admin`/`member`, used when the
 user is created). **Decide `role` on your server from your own auth — never
 read it from the browser's request.** Granting a role the user does not yet
 hold needs an API key with the `embed:role:assign` scope. Failures raise
 `NotFoundError` (`role_not_found`) or `PermissionError` (`role_not_allowed`,
-`role_disabled`, `insufficient_scope`, `seat_change_required`).
+`role_disabled`, `insufficient_scope`, `seat_change_required`). The user is
+created/updated and access policies applied before the session is requested,
+so if the role is refused those steps have still happened.
 
 You can also pass pre-created policy IDs directly:
 
@@ -301,8 +306,11 @@ QuerriError
 
 Every `APIError` carries `status`, `message`, `type`, `code`, `doc_url` and
 `request_id`. A `403 permission_denied` (the caller's role does not allow the
-action) also carries `permission` and `reason`. Compare `code` against the
-exported constants:
+action) also carries `permission` and `reason` (`role_denied`,
+`not_in_plan`, `flag_off`, `embed_disabled`, `dependency_unmet`, `forbidden`,
+`scope_exceeds_role` — the server may add more). Compare `code` against the
+exported constants (they cover authentication, access, Custom Roles and embed
+sessions; the API sends other codes too, so treat `code` as a string):
 
 ```python
 from querri import PermissionError, PERMISSION_DENIED  # shadows the builtin
@@ -314,7 +322,7 @@ except PermissionError as e:
         print(f"needs {e.permission} ({e.reason})")
 ```
 
-See [docs/server-sdk.md](docs/server-sdk.md#error-codes) for every code.
+See [docs/server-sdk.md](docs/server-sdk.md#error-codes) for the code table.
 
 The SDK automatically retries **429** (always) and **5xx** (idempotent methods only) with exponential backoff + jitter.
 

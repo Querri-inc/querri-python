@@ -18,6 +18,7 @@ from querri._config import DEFAULT_HOST
 from querri.cli._output import (
     print_error,
     print_json,
+    print_json_error,
     print_success,
 )
 
@@ -478,9 +479,7 @@ def switch_org(
     all_orgs = profile.all_organizations
     if not all_orgs or len(all_orgs) < 2:
         if is_json:
-            print_json(
-                {"error": "single_org", "message": "Only one organization available."}
-            )
+            print_json_error("single_org", "Only one organization available.", 1)
         else:
             print_error("Only one organization available. Nothing to switch to.")
         raise typer.Exit(code=1)

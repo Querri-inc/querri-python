@@ -1765,6 +1765,19 @@ class TestEmbedCommands:
         assert data["code"] == "insufficient_scope"
         assert data["status"] == "403"
 
+    def test_session_refresh_prints_role_id(self) -> None:
+        mock_client = MagicMock()
+        mock_client.embed.refresh_session.return_value = self._make_session(
+            session_token="es_new", role_id="system:creator"
+        )
+        with patch("querri.cli.embed.get_client", return_value=mock_client):
+            result = runner.invoke(
+                main_app, [*_GLOBAL, "session", "refresh", "--token", "es_old"]
+            )
+        assert result.exit_code == 0, result.output
+        assert "Role ID" in result.output
+        assert "system:creator" in result.output
+
     # -- revoke -------------------------------------------------------------
 
     def test_session_revoke_by_id(self) -> None:
@@ -2468,3 +2481,72 @@ class TestSharingCommands:
             [*_GLOBAL, "share", "project", "remove", "proj_1"],
         )
         assert result.exit_code != 0
+
+
+class TestCliErrorEmitters:
+    """Error output: the API code once in text mode, ``exit_code`` in JSON."""
+
+    @respx.mock
+    def test_text_mode_403_prints_code_once(self) -> None:
+        respx.get("https://cli-test.querri.com/api/v1/embed/sessions").mock(
+            return_value=httpx.Response(
+                403,
+                json={
+                    "detail": {
+                        "error": {
+                            "type": "permission_error",
+                            "code": "permission_denied",
+                            "message": "Denied.",
+                            "permission": "dashboards.list.view",
+                            "reason": "role_denied",
+                        }
+                    }
+                },
+            )
+        )
+        result = runner.invoke(
+            main_app,
+            [*_GLOBAL, "--host", "https://cli-test.querri.com", "session", "list"],
+        )
+        assert result.exit_code == 6
+        assert result.output.count("permission_denied") == 1, result.output
+        assert "Code: permission_denied" in result.output
+        assert "permission: dashboards.list.view" in result.output
+        assert "reason: role_denied" in result.output
+
+    def test_view_run_timeout_json_carries_exit_code(self) -> None:
+        mock_client = MagicMock()
+        mock_client.views.run.side_effect = TimeoutError(
+            "View run run_xyz did not finish within 1800.0s"
+        )
+        with patch("querri.cli.views.get_client", return_value=mock_client):
+            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "view", "run"])
+        assert result.exit_code == 1
+        data = json.loads(result.output)
+        assert data["exit_code"] == 1
+        assert data["error"] == "timeout"
+        assert data["message"] == "View run run_xyz did not finish within 1800.0s"
+
+    def test_switch_org_single_org_json_carries_exit_code(self) -> None:
+        from querri._auth import TokenProfile, TokenStore
+
+        store = TokenStore(
+            profiles={
+                "default": TokenProfile(
+                    access_token="at",
+                    refresh_token="rt",
+                    org_id="org_1",
+                    all_organizations={"org_1": "Only Org"},
+                )
+            }
+        )
+        with patch("querri.cli.auth.TokenStore.load", return_value=store):
+            result = runner.invoke(main_app, [*_JSON, "auth", "switch-org"])
+        assert result.exit_code == 1, result.output
+        data = json.loads(result.output)
+        assert data == {
+            "error": "single_org",
+            "message": "Only one organization available.",
+            "code": 1,
+            "exit_code": 1,
+        }
