@@ -4,6 +4,7 @@ Demonstrates:
 - The exception hierarchy
 - Catching specific error types
 - Accessing error attributes (status, type, code, message, request_id)
+- PermissionError: permission_denied (permission + reason) vs other 403 codes
 - Retry pattern for rate limits
 - ConfigError for missing credentials
 
@@ -21,9 +22,12 @@ from querri import (
     AuthenticationError,
     ConfigError,
     NotFoundError,
+    PermissionError,  # shadows the builtin PermissionError — import it explicitly
     RateLimitError,
     ValidationError,
     ServerError,
+    PERMISSION_DENIED,
+    INSUFFICIENT_SCOPE,
 )
 
 
@@ -57,6 +61,16 @@ def main():
         print("  User not found (404)")
     except AuthenticationError:
         print("  Bad API key (401)")
+    except PermissionError as e:
+        # 403s carry a code. permission_denied means the caller's role
+        # (Custom Roles) does not allow the action; it names the permission
+        # and why.
+        if e.code == PERMISSION_DENIED:
+            print(f"  Role lacks {e.permission} (reason: {e.reason})")
+        elif e.code == INSUFFICIENT_SCOPE:
+            print("  The API key is missing a scope for this call")
+        else:
+            print(f"  Forbidden ({e.code}): {e.message}")
     except ValidationError as e:
         print(f"  Bad request (400): {e.message}")
     except ServerError as e:

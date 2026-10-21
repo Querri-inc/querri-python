@@ -55,6 +55,12 @@ DEMO_USER = {
 #   }
 DEMO_ACCESS = None
 
+# Optional: the Custom Role (id or key) the demo user's session runs as.
+# Decide the role HERE, on the server, from your own auth — never read it
+# from the page's request, or any visitor could ask for any role.
+#   DEMO_ROLE = "analyst"
+DEMO_ROLE = None
+
 
 # -- Helpers ----------------------------------------------------------------
 
@@ -99,10 +105,15 @@ def querri_session():
         kwargs = dict(user=DEMO_USER, origin=request.headers.get("Origin"), ttl=3600)
         if DEMO_ACCESS:
             kwargs["access"] = DEMO_ACCESS
+        if DEMO_ROLE:
+            kwargs["role"] = DEMO_ROLE
         session = client.embed.get_session(**kwargs)
         return jsonify(session)
     except APIError as e:
-        return jsonify({"error": e.message, "code": e.code}), e.status
+        return jsonify({
+            "error": e.message, "code": e.code,
+            "permission": e.permission, "reason": e.reason, "doc_url": e.doc_url,
+        }), e.status
     except QuerriError as e:
         return jsonify({"error": str(e)}), 500
 
@@ -111,7 +122,7 @@ def querri_session():
 def user_projects():
     """List FGA-filtered projects — mirrors PHP user-projects.php."""
     try:
-        session = client.embed.get_session(user=DEMO_USER, ttl=900)
+        session = client.embed.get_session(user=DEMO_USER, ttl=900, role=DEMO_ROLE)
         with client.as_user(session) as uc:
             projects = [{"id": p.id, "name": p.name, "status": p.status}
                         for p in uc.projects.list(limit=50)]
@@ -131,6 +142,11 @@ def sdk_explorer():
     """SDK action router — mirrors PHP sdk.php.
 
     POST {"action": "users.list", "params": {...}}
+
+    A local developer tool: it forwards whatever the page sends (user ids,
+    ``role``, …) straight to the SDK. Never expose a router like this in
+    production — a real session endpoint decides the user and the role on
+    the server, as ``querri_session`` above does.
     """
     body = request.get_json(force=True)
     action = body.get("action", "")
@@ -144,6 +160,7 @@ def sdk_explorer():
         return jsonify({
             "error": e.message, "code": e.code,
             "type": e.type, "status": e.status,
+            "permission": e.permission, "reason": e.reason,
         }), e.status
     except QuerriError as e:
         return jsonify({"error": str(e)}), 500
@@ -200,6 +217,7 @@ def _dispatch(action: str, p: dict):
             user_id=p["user_id"],
             origin=p.get("origin"),
             ttl=p.get("ttl", 3600),
+            role=p.get("role"),
         )
     if action == "embed.refreshSession":
         return client.embed.refresh_session(session_token=p["session_token"])
@@ -215,6 +233,7 @@ def _dispatch(action: str, p: dict):
             access=p.get("access"),
             origin=p.get("origin"),
             ttl=p.get("ttl", 3600),
+            role=p.get("role"),
         )
 
     # ─── Policies ──────────────────────────────────────────

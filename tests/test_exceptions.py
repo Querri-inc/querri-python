@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import httpx
 import pytest
+import respx
 
 from querri._exceptions import (
+    MISSING_API_KEY,
+    PERMISSION_DENIED,
+    RATE_LIMIT_EXCEEDED,
+    ROLE_NOT_ALLOWED,
     APIError,
     AuthenticationError,
     ConfigError,
@@ -194,3 +200,277 @@ class TestRaiseForStatus:
         with pytest.raises(APIError) as exc_info:
             raise_for_status(500, body)
         assert exc_info.value.message == "real message here"
+
+
+# ---------------------------------------------------------------------------
+# Real /v1 envelopes, through the HTTP clients (respx at the boundary)
+# ---------------------------------------------------------------------------
+
+_BASE = "https://test.querri.com/api/v1"
+
+# Verbatim bodies captured from the live server (2026-10-21).
+_LIVE_401_BODY = {
+    "detail": {
+        "error": {
+            "type": "authentication_error",
+            "code": "missing_api_key",
+            "message": (
+                "Authorization required. Provide a Bearer qk_ API key or a "
+                "valid JWT token."
+            ),
+            "doc_url": "https://docs.querri.com/api/errors#missing_api_key",
+        }
+    }
+}
+_LIVE_403_PERMISSION_DENIED_BODY = {
+    "detail": {
+        "error": {
+            "type": "permission_error",
+            "code": "permission_denied",
+            "message": "This action needs the dashboards.list.view permission.",
+            "permission": "dashboards.list.view",
+            "reason": "role_denied",
+            "doc_url": "https://docs.querri.com/api/errors#permission_denied",
+        }
+    }
+}
+_LIVE_422_BODY = {
+    "detail": [
+        {
+            "type": "greater_than_equal",
+            "loc": ["body", "ttl"],
+            "msg": "Input should be greater than or equal to 900",
+            "input": 1,
+        }
+    ]
+}
+
+
+def _http_config():
+    from querri._config import ClientConfig
+
+    return ClientConfig(
+        api_key="qk_test",
+        org_id="org_test",
+        base_url=_BASE,
+        timeout=10.0,
+        max_retries=0,
+    )
+
+
+class TestLiveEnvelopes:
+    """Every /v1 error is ``{"detail": {"error": {...}}}`` on the wire."""
+
+    @respx.mock
+    def test_verbatim_live_401(self):
+        from querri._base_client import SyncHTTPClient
+
+        respx.get(f"{_BASE}/dashboards").mock(
+            return_value=httpx.Response(
+                401,
+                json=_LIVE_401_BODY,
+                headers={"x-request-id": "req_bcd3adccd74d40429159b73182bd6962"},
+            )
+        )
+        with pytest.raises(AuthenticationError) as exc_info:
+            SyncHTTPClient(_http_config()).get("/dashboards")
+        err = exc_info.value
+        assert err.status == 401
+        assert err.type == "authentication_error"
+        assert err.code == MISSING_API_KEY
+        assert err.message == (
+            "Authorization required. Provide a Bearer qk_ API key or a valid "
+            "JWT token."
+        )
+        assert err.doc_url == "https://docs.querri.com/api/errors#missing_api_key"
+        assert err.request_id == "req_bcd3adccd74d40429159b73182bd6962"
+        assert err.permission is None
+        assert err.reason is None
+
+    @respx.mock
+    def test_permission_denied_body_and_header(self):
+        from querri._base_client import SyncHTTPClient
+
+        respx.get(f"{_BASE}/dashboards").mock(
+            return_value=httpx.Response(
+                403,
+                json=_LIVE_403_PERMISSION_DENIED_BODY,
+                headers={"x-permission-denied": "dashboards.list.view"},
+            )
+        )
+        with pytest.raises(PermissionError) as exc_info:
+            SyncHTTPClient(_http_config()).get("/dashboards")
+        err = exc_info.value
+        assert err.code == PERMISSION_DENIED
+        assert err.type == "permission_error"
+        assert err.permission == "dashboards.list.view"
+        assert err.reason == "role_denied"
+        assert err.message == "This action needs the dashboards.list.view permission."
+
+    @respx.mock
+    async def test_async_permission_from_header_when_body_lacks_it(self):
+        """``permission`` falls back to the X-Permission-Denied header."""
+        from querri._base_client import AsyncHTTPClient
+
+        body = {
+            "detail": {
+                "error": {
+                    "type": "permission_error",
+                    "code": "permission_denied",
+                    "message": "Denied.",
+                }
+            }
+        }
+        respx.get(f"{_BASE}/dashboards").mock(
+            return_value=httpx.Response(
+                403,
+                json=body,
+                headers={"x-permission-denied": "dashboards.list.view"},
+            )
+        )
+        with pytest.raises(PermissionError) as exc_info:
+            await AsyncHTTPClient(_http_config()).get("/dashboards")
+        assert exc_info.value.permission == "dashboards.list.view"
+        assert exc_info.value.reason is None
+
+    @respx.mock
+    def test_sync_permission_from_header_on_non_json_body(self):
+        from querri._base_client import SyncHTTPClient
+
+        respx.get(f"{_BASE}/dashboards").mock(
+            return_value=httpx.Response(
+                403,
+                content=b"Forbidden",
+                headers={"x-permission-denied": "dashboards.list.view"},
+            )
+        )
+        with pytest.raises(PermissionError) as exc_info:
+            SyncHTTPClient(_http_config()).get("/dashboards")
+        assert exc_info.value.permission == "dashboards.list.view"
+        assert exc_info.value.message == "HTTP 403"
+
+    @respx.mock
+    async def test_async_live_422_validation(self):
+        from querri._base_client import AsyncHTTPClient
+
+        respx.post(f"{_BASE}/embed/sessions").mock(
+            return_value=httpx.Response(422, json=_LIVE_422_BODY)
+        )
+        with pytest.raises(ValidationError) as exc_info:
+            await AsyncHTTPClient(_http_config()).post(
+                "/embed/sessions", json={"user_id": "u", "ttl": 1}
+            )
+        err = exc_info.value
+        assert err.status == 422
+        assert err.message == (
+            "Validation failed: body.ttl: Input should be greater than or equal to 900"
+        )
+
+
+class TestPermissionFields:
+    """``permission`` / ``reason`` parsing in ``raise_for_status``."""
+
+    def test_stripe_style_body_carries_permission_and_reason(self):
+        body = {
+            "error": {
+                "type": "permission_error",
+                "code": "permission_denied",
+                "message": "nope",
+                "permission": "projects.create",
+                "reason": "not_in_plan",
+            }
+        }
+        with pytest.raises(PermissionError) as exc_info:
+            raise_for_status(403, body)
+        assert exc_info.value.permission == "projects.create"
+        assert exc_info.value.reason == "not_in_plan"
+
+    def test_body_permission_wins_over_header(self):
+        with pytest.raises(PermissionError) as exc_info:
+            raise_for_status(
+                403,
+                _LIVE_403_PERMISSION_DENIED_BODY,
+                permission_denied="something.else",
+            )
+        assert exc_info.value.permission == "dashboards.list.view"
+
+    def test_bare_detail_dict_without_error_envelope(self):
+        body = {"detail": {"type": "permission_error", "code": "role_not_allowed",
+                           "message": "That role cannot be granted."}}
+        with pytest.raises(PermissionError) as exc_info:
+            raise_for_status(403, body)
+        assert exc_info.value.code == ROLE_NOT_ALLOWED
+        assert exc_info.value.message == "That role cannot be granted."
+
+    def test_rate_limit_error_keeps_permission_and_reason(self):
+        body = {
+            "detail": {
+                "error": {
+                    "type": "rate_limit_error",
+                    "code": "rate_limit_exceeded",
+                    "message": "slow down",
+                    "permission": "p.k",
+                    "reason": "forbidden",
+                }
+            }
+        }
+        with pytest.raises(RateLimitError) as exc_info:
+            raise_for_status(429, body, retry_after=7.0)
+        err = exc_info.value
+        assert err.retry_after == 7.0
+        assert err.code == RATE_LIMIT_EXCEEDED
+        assert err.permission == "p.k"
+        assert err.reason == "forbidden"
+
+    def test_rate_limit_error_constructor_accepts_new_kwargs(self):
+        err = RateLimitError("x", permission="a.b", reason="flag_off")
+        assert err.permission == "a.b"
+        assert err.reason == "flag_off"
+
+
+class TestValidationDetail:
+    """FastAPI 422 ``detail`` lists become readable ValidationErrors."""
+
+    def test_422_maps_to_validation_error(self):
+        with pytest.raises(ValidationError) as exc_info:
+            raise_for_status(422, _LIVE_422_BODY)
+        assert exc_info.value.message == (
+            "Validation failed: body.ttl: Input should be greater than or equal to 900"
+        )
+        assert exc_info.value.type == "validation_error"
+
+    def test_multiple_entries_joined(self):
+        body = {
+            "detail": [
+                {"loc": ["body", "ttl"], "msg": "too small", "type": "x"},
+                {"loc": ["body", "role"], "msg": "too long", "type": "y"},
+            ]
+        }
+        with pytest.raises(ValidationError) as exc_info:
+            raise_for_status(422, body)
+        assert exc_info.value.message == (
+            "Validation failed: body.ttl: too small; body.role: too long"
+        )
+
+    def test_non_dict_body_does_not_crash(self):
+        with pytest.raises(ServerError) as exc_info:
+            raise_for_status(500, ["unexpected"])  # type: ignore[arg-type]
+        assert exc_info.value.message == "HTTP 500"
+
+
+class TestErrorCodeConstants:
+    """The exported constants and the ``ErrorCode`` Literal agree."""
+
+    def test_constants_match_literal(self):
+        import typing
+
+        import querri
+        from querri import _exceptions
+
+        literal_values = set(typing.get_args(_exceptions.ErrorCode))
+        assert len(literal_values) == 23
+        for value in literal_values:
+            name = value.upper()
+            assert getattr(_exceptions, name) == value
+            assert getattr(querri, name) == value
+            assert name in querri.__all__

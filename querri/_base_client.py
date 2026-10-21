@@ -187,6 +187,7 @@ class SyncHTTPClient:
                     body,
                     request_id=request_id,
                     retry_after=retry_after,
+                    permission_denied=response.headers.get("x-permission-denied"),
                 )
 
             except (httpx.ConnectError, httpx.TimeoutException) as exc:
@@ -327,6 +328,7 @@ class AsyncHTTPClient:
                     body,
                     request_id=request_id,
                     retry_after=retry_after,
+                    permission_denied=response.headers.get("x-permission-denied"),
                 )
 
             except (httpx.ConnectError, httpx.TimeoutException) as exc:

@@ -8,6 +8,8 @@ Each test class covers a single resource and verifies that:
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 import respx
@@ -1778,13 +1780,174 @@ class TestEmbed:
         assert result.session_token == "es_new"
 
     @respx.mock
+    def test_refresh_session_parses_role_id(self):
+        """Refresh echoes the session's Custom Role as ``role_id``."""
+        respx.post(f"{BASE}/embed/sessions/refresh").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_token": "es_new",
+                    "expires_in": 3600,
+                    "user_id": "usr_1",
+                    "role_id": "role_analyst",
+                },
+            )
+        )
+        from querri.resources.embed import Embed
+
+        result = Embed(_http()).refresh_session(session_token="es_old")
+        assert result.role_id == "role_analyst"
+
+    @respx.mock
+    async def test_async_refresh_session_parses_role_id(self):
+        respx.post(f"{BASE}/embed/sessions/refresh").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_token": "es_new",
+                    "expires_in": 3600,
+                    "user_id": None,
+                    "role_id": "role_analyst",
+                },
+            )
+        )
+        from querri._base_client import AsyncHTTPClient
+        from querri.resources.embed import AsyncEmbed
+
+        embed = AsyncEmbed(AsyncHTTPClient(_make_config()))
+        result = await embed.refresh_session(session_token="es_old")
+        assert result.role_id == "role_analyst"
+        assert result.user_id is None
+
+    @respx.mock
+    def test_create_session_sends_role_and_parses_role_id(self):
+        route = respx.post(f"{BASE}/embed/sessions").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_token": "es_r",
+                    "expires_in": 3600,
+                    "user_id": "usr_1",
+                    "role_id": "role_analyst",
+                },
+            )
+        )
+        from querri.resources.embed import Embed
+
+        result = Embed(_http()).create_session(user_id="usr_1", role="analyst")
+        assert json.loads(route.calls[0].request.content) == {
+            "user_id": "usr_1",
+            "ttl": 3600,
+            "role": "analyst",
+        }
+        assert result.role_id == "role_analyst"
+
+    @respx.mock
+    def test_create_session_omits_role_when_unset(self):
+        route = respx.post(f"{BASE}/embed/sessions").mock(
+            return_value=httpx.Response(
+                200, json={"session_token": "es_r", "expires_in": 3600}
+            )
+        )
+        from querri.resources.embed import Embed
+
+        result = Embed(_http()).create_session(user_id="usr_1")
+        assert json.loads(route.calls[0].request.content) == {
+            "user_id": "usr_1",
+            "ttl": 3600,
+        }
+        assert result.role_id is None
+
+    @respx.mock
+    async def test_async_create_session_sends_role_and_parses_role_id(self):
+        route = respx.post(f"{BASE}/embed/sessions").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_token": "es_r",
+                    "expires_in": 3600,
+                    "user_id": "usr_1",
+                    "role_id": "role_analyst",
+                },
+            )
+        )
+        from querri._base_client import AsyncHTTPClient
+        from querri.resources.embed import AsyncEmbed
+
+        embed = AsyncEmbed(AsyncHTTPClient(_make_config()))
+        result = await embed.create_session(user_id="usr_1", role="analyst")
+        assert json.loads(route.calls[0].request.content) == {
+            "user_id": "usr_1",
+            "ttl": 3600,
+            "role": "analyst",
+        }
+        assert result.role_id == "role_analyst"
+
+    @respx.mock
+    async def test_async_create_session_omits_role_when_unset(self):
+        route = respx.post(f"{BASE}/embed/sessions").mock(
+            return_value=httpx.Response(
+                200, json={"session_token": "es_r", "expires_in": 3600}
+            )
+        )
+        from querri._base_client import AsyncHTTPClient
+        from querri.resources.embed import AsyncEmbed
+
+        embed = AsyncEmbed(AsyncHTTPClient(_make_config()))
+        result = await embed.create_session(user_id="usr_1")
+        assert json.loads(route.calls[0].request.content) == {
+            "user_id": "usr_1",
+            "ttl": 3600,
+        }
+        assert result.role_id is None
+
+    @respx.mock
+    def test_create_session_role_disabled_error(self):
+        """The verbatim live ``role_disabled`` body maps to PermissionError."""
+        respx.post(f"{BASE}/embed/sessions").mock(
+            return_value=httpx.Response(
+                403,
+                json={
+                    "detail": {
+                        "error": {
+                            "type": "permission_error",
+                            "code": "role_disabled",
+                            "message": (
+                                "That role is a draft; an admin must enable "
+                                "it first."
+                            ),
+                            "doc_url": "https://docs.querri.com/api/errors#role_disabled",
+                        }
+                    }
+                },
+            )
+        )
+        from querri._exceptions import ROLE_DISABLED, PermissionError
+        from querri.resources.embed import Embed
+
+        with pytest.raises(PermissionError) as exc_info:
+            Embed(_http()).create_session(user_id="usr_1", role="draft_role")
+        err = exc_info.value
+        assert err.code == ROLE_DISABLED
+        assert err.type == "permission_error"
+        assert err.message == "That role is a draft; an admin must enable it first."
+        assert err.doc_url == "https://docs.querri.com/api/errors#role_disabled"
+        # Embed role errors carry no permission/reason.
+        assert err.permission is None
+        assert err.reason is None
+
+    @respx.mock
     def test_list_sessions(self):
         respx.get(f"{BASE}/embed/sessions").mock(
             return_value=httpx.Response(
                 200,
                 json={
                     "data": [
-                        {"session_token": "es_1", "user_id": "usr_1"},
+                        {
+                            "session_token": "es_1",
+                            "user_id": "usr_1",
+                            "role_id": "role_analyst",
+                        },
                         {"session_token": "es_2", "user_id": "usr_2"},
                     ],
                     "has_more": False,
@@ -1799,6 +1962,8 @@ class TestEmbed:
         assert isinstance(result, EmbedSessionList)
         assert len(result.data) == 2
         assert result.data[0].session_token == "es_1"
+        assert result.data[0].role_id == "role_analyst"
+        assert result.data[1].role_id is None
 
     @respx.mock
     def test_revoke_session_by_id(self):

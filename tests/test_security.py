@@ -226,6 +226,27 @@ class TestExitCodeMapping:
         code = handle_api_error(exc, is_json=False)
         assert code == 5
 
+    def test_handle_api_error_permission_denied_text(self, capsys) -> None:
+        """403 exits 6 and names the code, permission and reason."""
+        from querri._exceptions import PermissionError as QuerriPermissionError
+        from querri.cli._output import handle_api_error
+
+        exc = QuerriPermissionError(
+            "This action needs the dashboards.list.view permission.",
+            status=403,
+            code="permission_denied",
+            permission="dashboards.list.view",
+            reason="role_denied",
+        )
+        code = handle_api_error(exc, is_json=False)
+
+        assert code == 6
+        err = capsys.readouterr().err
+        assert (
+            "code: permission_denied, permission: dashboards.list.view, "
+            "reason: role_denied" in err
+        )
+
     def test_handle_api_error_json_mode(self, capsys) -> None:
         """JSON mode outputs structured error."""
         from querri._exceptions import AuthenticationError
@@ -240,7 +261,32 @@ class TestExitCodeMapping:
         output = captured.err or captured.out  # CliRunner may route differently
         data = json.loads(output)
         assert data["error"] == "auth_failed"
-        assert data["code"] == 2
+        assert data["exit_code"] == 2
+        # ``code`` is reserved for the API error code; this error has none.
+        assert "code" not in data
+
+    def test_handle_api_error_json_mode_keeps_exit_and_api_codes_apart(
+        self, capsys
+    ) -> None:
+        """The API code no longer overwrites the exit code in JSON mode."""
+        from querri._exceptions import PermissionError as QuerriPermissionError
+        from querri.cli._output import handle_api_error
+
+        exc = QuerriPermissionError(
+            "This action needs the dashboards.list.view permission.",
+            status=403,
+            code="permission_denied",
+            permission="dashboards.list.view",
+            reason="role_denied",
+        )
+        code = handle_api_error(exc, is_json=True)
+
+        assert code == 6
+        data = json.loads(capsys.readouterr().out)
+        assert data["exit_code"] == 6
+        assert data["code"] == "permission_denied"
+        assert data["permission"] == "dashboards.list.view"
+        assert data["reason"] == "role_denied"
 
 
 # ---------------------------------------------------------------------------

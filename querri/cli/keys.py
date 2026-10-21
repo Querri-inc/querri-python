@@ -28,7 +28,7 @@ _SCOPE_GROUPS: list[tuple[str, list[str]]] = [
     ("Keys", ["admin:keys:manage"]),
     ("Policies", ["admin:policies:read", "admin:policies:write"]),
     ("Permissions", ["admin:permissions:read", "admin:permissions:write"]),
-    ("Embed", ["embed:session:create"]),
+    ("Embed", ["embed:session:create", "embed:role:assign"]),
     ("Usage", ["admin:usage:read"]),
     ("Audit", ["admin:audit:read"]),
     ("Skills", ["admin:skills:read", "admin:skills:write"]),

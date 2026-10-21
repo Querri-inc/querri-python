@@ -13,6 +13,7 @@ Demonstrates:
 - Inline access spec (sources + filters)
 - policy_ids reference
 - Origin locking
+- Running the session as a Custom Role (role=...)
 
 Tip: For data source sharing without inline access specs, see also
 client.sharing.share_source() and client.sharing.org_share_source()
@@ -26,7 +27,7 @@ Prerequisites:
 import os
 import uuid
 
-from querri import Querri
+from querri import APIError, Querri
 
 def main():
     client = Querri(
@@ -114,6 +115,26 @@ def main():
         session = client.embed.get_session(user=ext_id)
         print(f"  session_token: {session['session_token']}")
         client.embed.revoke_session(session["session_token"])
+
+        # ---------------------------------------------------------------
+        # 6. Custom Role — run the session as one of the org's roles
+        # ---------------------------------------------------------------
+        # role is a role id or key from Settings → Roles. It is NOT the
+        # user dict's "role" (the org role, admin/member). Decide it on the
+        # server from your own auth — never take it from the browser.
+        # Set QUERRI_EXAMPLE_ROLE to try it (e.g. "analyst").
+        role = os.environ.get("QUERRI_EXAMPLE_ROLE")
+        if role:
+            print("\n=== Custom Role ===")
+            try:
+                session = client.embed.get_session(user=ext_id, role=role)
+                print(f"  role_id:       {session.get('role_id')}")
+                client.embed.revoke_session(session["session_token"])
+            except APIError as e:
+                # role_not_found (404), role_not_allowed, role_disabled,
+                # insufficient_scope (granting a role the user does not hold
+                # needs embed:role:assign) or seat_change_required (403).
+                print(f"  {type(e).__name__} {e.code}: {e.message}")
 
     finally:
         # Cleanup

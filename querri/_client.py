@@ -202,6 +202,11 @@ class Querri:
         (projects, dashboards read-only, sources, chats). All queries are
         automatically filtered by the user's access policies.
 
+        Calls are also subject to the session's role (its Custom Role when
+        ``get_session(role=...)`` set one): an action the role does not allow
+        raises :class:`~querri.PermissionError` with ``code ==
+        "permission_denied"``, ``permission`` and ``reason``.
+
         Args:
             session: Result from ``get_session()`` containing ``session_token``.
         """
@@ -393,6 +398,11 @@ class AsyncQuerri:
         embed session token and only exposes resources visible to the user
         (projects, dashboards read-only, sources, chats). All queries are
         automatically filtered by the user's access policies.
+
+        Calls are also subject to the session's role (its Custom Role when
+        ``get_session(role=...)`` set one): an action the role does not allow
+        raises :class:`~querri.PermissionError` with ``code ==
+        "permission_denied"``, ``permission`` and ``reason``.
 
         Args:
             session: Result from ``get_session()`` containing ``session_token``.

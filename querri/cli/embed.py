@@ -32,6 +32,11 @@ def new_session(
     ),
     origin: str | None = typer.Option(None, "--origin", help="Allowed origin URL."),
     ttl: int = typer.Option(3600, "--ttl", help="Session TTL in seconds."),
+    role: str | None = typer.Option(
+        None,
+        "--role",
+        help="Custom Role id or key the session runs as (not the org role).",
+    ),
 ) -> None:
     """Create a new embedded analytics session."""
     if not user_id:
@@ -50,7 +55,9 @@ def new_session(
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
     try:
-        session = client.embed.create_session(user_id=user_id, origin=origin, ttl=ttl)
+        session = client.embed.create_session(
+            user_id=user_id, origin=origin, ttl=ttl, role=role
+        )
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
 
@@ -66,6 +73,7 @@ def new_session(
                 ("session_token", "Token"),
                 ("expires_in", "Expires In (s)"),
                 ("user_id", "User ID"),
+                ("role_id", "Role ID"),
             ],
         )
 
@@ -209,6 +217,11 @@ def get_session(
     origin: str | None = typer.Option(None, "--origin", help="Allowed origin."),
     ttl: int = typer.Option(3600, "--ttl", help="Session TTL in seconds."),
     access: str | None = typer.Option(None, "--access", help="JSON access config."),
+    role: str | None = typer.Option(
+        None,
+        "--role",
+        help="Custom Role id or key the session runs as (not the org role).",
+    ),
 ) -> None:
     """Get or create a session using the convenience method."""
     if not user:
@@ -243,7 +256,7 @@ def get_session(
 
     try:
         result = client.embed.get_session(
-            user=user_obj, access=access_obj, origin=origin, ttl=ttl
+            user=user_obj, access=access_obj, origin=origin, ttl=ttl, role=role
         )
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None

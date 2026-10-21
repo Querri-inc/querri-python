@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
+import httpx
+import respx
 from typer.testing import CliRunner
 
 from querri.cli._app import main_app
@@ -1624,6 +1626,144 @@ class TestEmbedCommands:
     def test_session_new_missing_user_id(self) -> None:
         result = runner.invoke(main_app, [*_GLOBAL, "session", "new"])
         assert result.exit_code != 0
+
+    # -- Custom Roles -------------------------------------------------------
+
+    def test_session_new_forwards_role(self) -> None:
+        mock_client = MagicMock()
+        mock_client.embed.create_session.return_value = self._make_session(
+            role_id="role_analyst"
+        )
+        with patch("querri.cli.embed.get_client", return_value=mock_client):
+            result = runner.invoke(
+                main_app,
+                [*_GLOBAL, "session", "new", "--user-id", "usr_1", "--role", "analyst"],
+            )
+        assert result.exit_code == 0
+        mock_client.embed.create_session.assert_called_once_with(
+            user_id="usr_1", origin=None, ttl=3600, role="analyst"
+        )
+        assert "role_analyst" in result.output
+
+    def test_session_new_without_role_passes_none(self) -> None:
+        mock_client = MagicMock()
+        mock_client.embed.create_session.return_value = self._make_session()
+        with patch("querri.cli.embed.get_client", return_value=mock_client):
+            result = runner.invoke(
+                main_app, [*_GLOBAL, "session", "new", "--user-id", "usr_1"]
+            )
+        assert result.exit_code == 0
+        mock_client.embed.create_session.assert_called_once_with(
+            user_id="usr_1", origin=None, ttl=3600, role=None
+        )
+
+    def test_session_get_forwards_role(self) -> None:
+        mock_client = MagicMock()
+        mock_client.embed.get_session.return_value = {
+            "session_token": "es_abc123",
+            "expires_in": 3600,
+            "user_id": "usr_1",
+            "external_id": "cust-42",
+            "role_id": "role_analyst",
+        }
+        with patch("querri.cli.embed.get_client", return_value=mock_client):
+            result = runner.invoke(
+                main_app,
+                [
+                    *_GLOBAL,
+                    *_JSON,
+                    "session",
+                    "get",
+                    "--user",
+                    "cust-42",
+                    "--role",
+                    "analyst",
+                ],
+            )
+        assert result.exit_code == 0
+        mock_client.embed.get_session.assert_called_once_with(
+            user="cust-42", access=None, origin=None, ttl=3600, role="analyst"
+        )
+        assert json.loads(result.output)["role_id"] == "role_analyst"
+
+    @respx.mock
+    def test_session_new_role_end_to_end_over_http(self) -> None:
+        """No mocked client: the real SDK sends ``role`` on the wire."""
+        route = respx.post("https://cli-test.querri.com/api/v1/embed/sessions").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "session_token": "es_wire",
+                    "expires_in": 3600,
+                    "user_id": "usr_1",
+                    "role_id": "role_analyst",
+                },
+            )
+        )
+        result = runner.invoke(
+            main_app,
+            [
+                *_GLOBAL,
+                "--host",
+                "https://cli-test.querri.com",
+                *_JSON,
+                "session",
+                "new",
+                "--user-id",
+                "usr_1",
+                "--role",
+                "analyst",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert json.loads(route.calls[0].request.content) == {
+            "user_id": "usr_1",
+            "ttl": 3600,
+            "role": "analyst",
+        }
+        assert json.loads(result.output)["role_id"] == "role_analyst"
+
+    @respx.mock
+    def test_session_new_permission_denied_exit_code_over_http(self) -> None:
+        """A real 403 envelope exits 6 with the API code kept apart."""
+        respx.post("https://cli-test.querri.com/api/v1/embed/sessions").mock(
+            return_value=httpx.Response(
+                403,
+                json={
+                    "detail": {
+                        "error": {
+                            "type": "permission_error",
+                            "code": "insufficient_scope",
+                            "message": "This key cannot grant that role.",
+                            "doc_url": (
+                                "https://docs.querri.com/api/errors#insufficient_scope"
+                            ),
+                        }
+                    }
+                },
+            )
+        )
+        result = runner.invoke(
+            main_app,
+            [
+                *_GLOBAL,
+                "--host",
+                "https://cli-test.querri.com",
+                *_JSON,
+                "session",
+                "new",
+                "--user-id",
+                "usr_1",
+                "--role",
+                "analyst",
+            ],
+        )
+        assert result.exit_code == 6
+        data = json.loads(result.output)
+        assert data["error"] == "forbidden"
+        assert data["exit_code"] == 6
+        assert data["code"] == "insufficient_scope"
+        assert data["status"] == "403"
 
     # -- revoke -------------------------------------------------------------
 

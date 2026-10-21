@@ -50,6 +50,7 @@ class Embed:
         user_id: str,
         origin: str | None = None,
         ttl: int = 3600,
+        role: str | None = None,
     ) -> EmbedSession:
         """Create an embed session for a user.
 
@@ -59,23 +60,37 @@ class Embed:
                 configures an embed-domain allowlist (else the server
                 responds ``400 origin_required``).
             ttl: Session TTL in seconds (900-86400, default 3600).
+            role: Custom Roles — id or key of the role the session runs as
+                (max 100 characters). Sent only when set. Distinct from
+                ``user["role"]``, the org role (``admin``/``member``) used
+                when creating a user. Decide it on your server from your own
+                auth; never read it from the browser's request. The response
+                carries ``role_id`` when a role was applied.
 
         Raises:
             ValueError: If ``ttl`` is outside [900, 86400].
             OriginRequiredError: If the org has a domain allowlist and no
                 ``origin`` was passed.
+            NotFoundError: ``role_not_found`` — no role with that id or key.
+            PermissionError: ``role_not_allowed``, ``role_disabled``,
+                ``insufficient_scope`` (granting a role the user does not
+                hold needs the ``embed:role:assign`` scope) or
+                ``seat_change_required``.
         """
         validate_ttl(ttl)
         body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
         if origin is not None:
             body["origin"] = origin
+        if role is not None:
+            body["role"] = role
         resp = self._http.post("/embed/sessions", json=body)
         return EmbedSession.model_validate(resp.json())
 
     def refresh_session(self, *, session_token: str) -> EmbedSession:
         """Refresh an expiring embed session.
 
-        Returns a new session token with the same user context.
+        Returns a new session token with the same user context (and the
+        same Custom Role, echoed as ``role_id`` when the session has one).
         The old session is revoked.
 
         Args:
@@ -128,6 +143,7 @@ class Embed:
         access: dict[str, Any] | None = None,
         origin: str | None = None,
         ttl: int = 3600,
+        role: str | None = None,
     ) -> dict[str, Any]:
         """Flagship convenience method.
 
@@ -138,12 +154,22 @@ class Embed:
             access: Dict with policy_ids or inline spec (sources, filters).
             origin: Allowed origin for the embed session.
             ttl: Session TTL in seconds (900-86400).
+            role: Custom Roles — id or key of the role the session runs as.
+                Sent only when set. Distinct from ``user["role"]``, the org
+                role used when creating the user. Decide it on your server
+                from your own auth; never read it from the browser's request.
 
         Returns:
-            Embed session dict with token, expires_in, user_id, etc.
+            Embed session dict with session_token, expires_in, user_id and
+            external_id, plus role_id when a role was applied.
         """
         return sync_get_session(
-            self._http, user=user, access=access, origin=origin, ttl=ttl
+            self._http,
+            user=user,
+            access=access,
+            origin=origin,
+            ttl=ttl,
+            role=role,
         )
 
     def get_ui_config(self, org: str) -> dict[str, Any]:
@@ -236,6 +262,7 @@ class AsyncEmbed:
         user_id: str,
         origin: str | None = None,
         ttl: int = 3600,
+        role: str | None = None,
     ) -> EmbedSession:
         """Create an embed session for a user.
 
@@ -245,23 +272,37 @@ class AsyncEmbed:
                 configures an embed-domain allowlist (else the server
                 responds ``400 origin_required``).
             ttl: Session TTL in seconds (900-86400, default 3600).
+            role: Custom Roles — id or key of the role the session runs as
+                (max 100 characters). Sent only when set. Distinct from
+                ``user["role"]``, the org role (``admin``/``member``) used
+                when creating a user. Decide it on your server from your own
+                auth; never read it from the browser's request. The response
+                carries ``role_id`` when a role was applied.
 
         Raises:
             ValueError: If ``ttl`` is outside [900, 86400].
             OriginRequiredError: If the org has a domain allowlist and no
                 ``origin`` was passed.
+            NotFoundError: ``role_not_found`` — no role with that id or key.
+            PermissionError: ``role_not_allowed``, ``role_disabled``,
+                ``insufficient_scope`` (granting a role the user does not
+                hold needs the ``embed:role:assign`` scope) or
+                ``seat_change_required``.
         """
         validate_ttl(ttl)
         body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
         if origin is not None:
             body["origin"] = origin
+        if role is not None:
+            body["role"] = role
         resp = await self._http.post("/embed/sessions", json=body)
         return EmbedSession.model_validate(resp.json())
 
     async def refresh_session(self, *, session_token: str) -> EmbedSession:
         """Refresh an expiring embed session.
 
-        Returns a new session token with the same user context.
+        Returns a new session token with the same user context (and the
+        same Custom Role, echoed as ``role_id`` when the session has one).
         The old session is revoked.
 
         Args:
@@ -314,6 +355,7 @@ class AsyncEmbed:
         access: dict[str, Any] | None = None,
         origin: str | None = None,
         ttl: int = 3600,
+        role: str | None = None,
     ) -> dict[str, Any]:
         """Flagship convenience method.
 
@@ -324,12 +366,22 @@ class AsyncEmbed:
             access: Dict with policy_ids or inline spec (sources, filters).
             origin: Allowed origin for the embed session.
             ttl: Session TTL in seconds (900-86400).
+            role: Custom Roles — id or key of the role the session runs as.
+                Sent only when set. Distinct from ``user["role"]``, the org
+                role used when creating the user. Decide it on your server
+                from your own auth; never read it from the browser's request.
 
         Returns:
-            Embed session dict with token, expires_in, user_id, etc.
+            Embed session dict with session_token, expires_in, user_id and
+            external_id, plus role_id when a role was applied.
         """
         return await async_get_session(
-            self._http, user=user, access=access, origin=origin, ttl=ttl
+            self._http,
+            user=user,
+            access=access,
+            origin=origin,
+            ttl=ttl,
+            role=role,
         )
 
     async def get_ui_config(self, org: str) -> dict[str, Any]:

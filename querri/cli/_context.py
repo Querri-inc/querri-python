@@ -125,6 +125,7 @@ def _handle_config_error(obj: dict[str, Any], exc: ConfigError) -> None:
             "hint": "Run 'querri auth login' or set QUERRI_API_KEY and QUERRI_ORG_ID "
             "environment variables.",
             "code": 2,
+            "exit_code": 2,
         }
         print(json.dumps(error_obj))
     else:

@@ -157,6 +157,7 @@ def sync_get_session(
     access: dict[str, Any] | None = None,
     origin: str | None = None,
     ttl: int = 3600,
+    role: str | None = None,
 ) -> dict[str, Any]:
     """Flagship convenience method — get-or-create user, apply policy, create session.
 
@@ -182,14 +183,22 @@ def sync_get_session(
             If ``None``, no policy changes are made (user keeps existing access).
         origin: Allowed origin for the embed session (e.g. ``https://app.customer.com``).
         ttl: Session time-to-live in seconds (default 3600, min 900, max 86400).
+        role: Custom Roles — id or key of the role the session runs as (max
+            100 characters). Sent only when set. This is **not**
+            ``user["role"]``: that is the org role (``admin``/``member``)
+            used when the user is created. Decide ``role`` on your server
+            from your own auth; never read it from the browser's request.
 
     Returns:
         Embed session dict with ``session_token``, ``expires_in``, ``user_id``,
-        and ``external_id``.
+        and ``external_id``, plus ``role_id`` when a role was applied.
 
     Raises:
         ValueError: If ``user`` is a string and no user with that external_id exists.
         ValidationError: If request parameters are invalid.
+        NotFoundError: ``role_not_found`` — ``role`` matches no role.
+        PermissionError: ``role_not_allowed``, ``role_disabled``,
+            ``insufficient_scope`` or ``seat_change_required`` for ``role``.
         APIError: On any HTTP error from the Querri API.
 
     Example — string shorthand (user must exist)::
@@ -261,6 +270,8 @@ def sync_get_session(
     session_body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
     if origin is not None:
         session_body["origin"] = origin
+    if role is not None:
+        session_body["role"] = role
 
     resp = http.post("/embed/sessions", json=session_body)
     session = resp.json()
@@ -399,6 +410,7 @@ async def async_get_session(
     access: dict[str, Any] | None = None,
     origin: str | None = None,
     ttl: int = 3600,
+    role: str | None = None,
 ) -> dict[str, Any]:
     """Async version of :func:`sync_get_session`.
 
@@ -453,6 +465,8 @@ async def async_get_session(
     session_body: dict[str, Any] = {"user_id": user_id, "ttl": ttl}
     if origin is not None:
         session_body["origin"] = origin
+    if role is not None:
+        session_body["role"] = role
 
     resp = await http.post("/embed/sessions", json=session_body)
     session = resp.json()

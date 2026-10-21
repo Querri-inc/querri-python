@@ -384,6 +384,7 @@ def new_data_source(
                         "error": "validation_error",
                         "message": "Expected a JSON array of objects.",
                         "code": 1,
+                        "exit_code": 1,
                     }
                 )
             raise typer.Exit(code=1)

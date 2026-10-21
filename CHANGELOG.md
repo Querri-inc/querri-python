@@ -1,5 +1,59 @@
 # Changelog
 
+## 2.2.0 (unreleased)
+
+### Added
+
+- **Custom Roles on embed sessions.** `client.embed.create_session()` and
+  `client.embed.get_session()` (sync and async) take `role=` — the id or key
+  of the Custom Role the session runs as. It is sent only when set, and it
+  is not `user["role"]` (the org role used when creating a user). Decide it
+  on your server, never from the browser's request. `EmbedSession.role_id`
+  and `EmbedSessionListItem.role_id` carry the applied role (`None` without
+  one); `refresh_session()` returns it too, and the `get_session()` dict
+  carries `role_id` when a role was applied. CLI: `querri session new
+  --role` / `querri session get --role`; `session new` prints `Role ID`.
+- **`APIError.permission` and `APIError.reason`.** A `403
+  permission_denied` names the permission the call needed (from the body,
+  else the `X-Permission-Denied` header) and why it was refused
+  (`role_denied`, `not_in_plan`, `flag_off`, `embed_disabled`,
+  `dependency_unmet`, `forbidden`). `RateLimitError` keeps them too.
+- **Error-code constants**: `querri.ROLE_DISABLED`, `querri.PERMISSION_DENIED`,
+  … (23 in all) and the `querri.ErrorCode` / `querri.PermissionDeniedReason`
+  `Literal`s. docs/server-sdk.md has an Error codes table.
+- `embed:role:assign` in the `querri key new` scope picker.
+- **`X-Querri-Client` header.** Every client sends `X-Querri-Client:
+  sdk/<version>`; clients built by the `querri` command, and its
+  login/refresh token requests, send `cli/<version>`, so the server can tell
+  CLI use from library use.
+
+### Changed
+
+- **`422` request-validation errors raise `ValidationError`** (was the base
+  `APIError`) with a readable message — `"Validation failed: body.ttl: Input
+  should be greater than or equal to 900"` — instead of the raw `detail`
+  list. A bare `{"detail": {"code", "message"}}` body is parsed like the
+  `error` envelope.
+- **CLI: 403 exits `6`** (`forbidden`) instead of `1`, and the message names
+  the code, permission and reason.
+- **CLI `--json` errors: `exit_code` holds the process exit code.** In
+  `handle_api_error` output, `code` is now only the API error code (it used
+  to hold the exit code, which the API code then overwrote, so its meaning
+  depended on the error). Scripts reading `code` as the exit code should
+  read `exit_code`; the other CLI JSON errors carry both keys.
+- Docs: API-key scopes follow a person's role — a key keeps only the scopes
+  its bound user (else its Settings creator) currently holds; bind
+  SDK-minted keys with `bound_user_id`. The real scope list replaces the
+  invented names in the CLI skill. `as_user` calls can raise
+  `permission_denied` under the session's role.
+
+### Fixed
+
+- **`querri view list` no longer truncates IDs.** The Rich table clipped
+  36-character view UUIDs with `…`, and pasting the clipped ID into `querri
+  view chat` failed with a misleading 403. ID/UUID columns now never wrap
+  (QUE-135).
+
 ## 2.1.0 (2026-09-24)
 
 ### Added

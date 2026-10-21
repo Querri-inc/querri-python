@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Querri Python SDK — a typed Python client for the Querri API, providing both sync (`Querri`) and async (`AsyncQuerri`) clients. Built on httpx + Pydantic v2. Requires Python >=3.9.
+Querri Python SDK — a typed Python client for the Querri API, providing both sync (`Querri`) and async (`AsyncQuerri`) clients. Built on httpx + Pydantic v2. Requires Python >=3.10.
 
 ## Commands
 
@@ -37,7 +37,7 @@ ruff check querri/ tests/
 `Querri` / `AsyncQuerri` (`_client.py`) are the public entry points. They hold lazily-initialized resource namespaces (e.g., `client.users`, `client.projects`) and support context-manager usage. They delegate HTTP to `SyncHTTPClient` / `AsyncHTTPClient` (`_base_client.py`), which handle auth headers (Bearer token + X-Tenant-ID), retries with exponential backoff, and error-to-exception mapping.
 
 ### User-Scoped Client
-`UserQuerri` / `AsyncUserQuerri` (`_user_client.py`) are created via `client.as_user(session)`. They use `X-Embed-Session` auth against the internal API (`/api` instead of `/api/v1`). Only expose FGA-filtered resources: `projects`, `dashboards`, `sources`, `data`, `chats`.
+`UserQuerri` / `AsyncUserQuerri` (`_user_client.py`) are created via `client.as_user(session)`. They use `X-Embed-Session` auth against the same public API (`/api/v1`) as the admin client. Only expose FGA-filtered resources: `projects`, `dashboards` (read-only), `sources`, `chats`. Calls are subject to the session's role and can raise `PermissionError` (`permission_denied`).
 
 ### Resource Pattern
 Each API resource lives in `querri/resources/` with paired sync/async classes (e.g., `Users` / `AsyncUsers`). Resources receive the HTTP client at init and expose CRUD methods that return Pydantic models from `querri/types/`. Projects has a nested `Chats` sub-resource for chat streaming.
@@ -88,8 +88,8 @@ Every resource, pagination class, and stream has mirrored sync/async implementat
 
 ## Code Quality
 
-- **mypy**: Strict mode, target Python 3.9
-- **ruff**: Rules E, F, I, N, UP, B, SIM (target Python 3.9)
+- **mypy**: Strict mode, target Python 3.10
+- **ruff**: Rules E, F, I, N, UP, B, SIM (target Python 3.10)
 - **Tests**: pytest + pytest-asyncio (mode: auto) + respx for HTTP mocking
 
 ## Releasing

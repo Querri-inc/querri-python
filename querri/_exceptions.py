@@ -5,6 +5,77 @@ Maps Stripe-style API error responses to typed Python exceptions.
 
 from __future__ import annotations
 
+from typing import Literal
+
+# ---------------------------------------------------------------------------
+# Documented API error codes
+# ---------------------------------------------------------------------------
+# ``APIError.code`` carries one of these strings (or ``None`` when the server
+# sent no code). Compare against the constants rather than string literals so
+# a typo fails loudly at import time. The class of the exception still follows
+# the HTTP status (``PermissionError`` for 403, ``NotFoundError`` for 404, …).
+
+MISSING_API_KEY = "missing_api_key"
+INVALID_API_KEY = "invalid_api_key"
+MISSING_TENANT_ID = "missing_tenant_id"
+INVALID_JWT = "invalid_jwt"
+INVALID_EMBED_SESSION = "invalid_embed_session"
+IP_NOT_ALLOWED = "ip_not_allowed"
+ORG_SCHEDULED_FOR_DELETION = "org_scheduled_for_deletion"
+RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
+INSUFFICIENT_SCOPE = "insufficient_scope"
+PERMISSION_DENIED = "permission_denied"
+ROLE_NOT_FOUND = "role_not_found"
+ROLE_NOT_ALLOWED = "role_not_allowed"
+ROLE_DISABLED = "role_disabled"
+SEAT_CHANGE_REQUIRED = "seat_change_required"
+NOT_ORG_MEMBER = "not_org_member"
+USER_NOT_FOUND = "user_not_found"
+ORIGIN_REQUIRED = "origin_required"
+ORIGIN_NOT_ALLOWED = "origin_not_allowed"
+SESSION_NOT_FOUND = "session_not_found"
+ORG_MISMATCH = "org_mismatch"
+SESSION_CREATION_FAILED = "session_creation_failed"
+REFRESH_FAILED = "refresh_failed"
+MEMBERSHIP_CHECK_FAILED = "membership_check_failed"
+
+ErrorCode = Literal[
+    "missing_api_key",
+    "invalid_api_key",
+    "missing_tenant_id",
+    "invalid_jwt",
+    "invalid_embed_session",
+    "ip_not_allowed",
+    "org_scheduled_for_deletion",
+    "rate_limit_exceeded",
+    "insufficient_scope",
+    "permission_denied",
+    "role_not_found",
+    "role_not_allowed",
+    "role_disabled",
+    "seat_change_required",
+    "not_org_member",
+    "user_not_found",
+    "origin_required",
+    "origin_not_allowed",
+    "session_not_found",
+    "org_mismatch",
+    "session_creation_failed",
+    "refresh_failed",
+    "membership_check_failed",
+]
+"""Every documented ``APIError.code`` value (see docs/server-sdk.md, Error codes)."""
+
+PermissionDeniedReason = Literal[
+    "role_denied",
+    "not_in_plan",
+    "flag_off",
+    "embed_disabled",
+    "dependency_unmet",
+    "forbidden",
+]
+"""Values of ``APIError.reason`` on a ``permission_denied`` error."""
+
 
 class QuerriError(Exception):
     """Base exception for all SDK errors."""
@@ -22,7 +93,14 @@ class APIError(QuerriError):
         type: Error type from the API response (e.g., "authentication_error").
         code: Error code from the API response (e.g., "invalid_api_key").
         doc_url: Link to documentation about this error.
-        request_id: Unique request identifier for support.
+        request_id: Unique request identifier for support (from the
+            ``X-Request-Id`` response header).
+        permission: On ``permission_denied``, the permission key the call
+            needed (e.g. ``"dashboards.list.view"``). Read from the error
+            body, falling back to the ``X-Permission-Denied`` header.
+        reason: On ``permission_denied``, why it was refused — one of
+            ``role_denied``, ``not_in_plan``, ``flag_off``,
+            ``embed_disabled``, ``dependency_unmet``, ``forbidden``.
     """
 
     def __init__(
@@ -34,6 +112,8 @@ class APIError(QuerriError):
         code: str | None = None,
         doc_url: str | None = None,
         request_id: str | None = None,
+        permission: str | None = None,
+        reason: str | None = None,
     ) -> None:
         super().__init__(message)
         self.status = status
@@ -41,6 +121,8 @@ class APIError(QuerriError):
         self.code = code
         self.doc_url = doc_url
         self.request_id = request_id
+        self.permission = permission
+        self.reason = reason
 
     def __repr__(self) -> str:
         return (
@@ -58,15 +140,25 @@ class AuthenticationError(APIError):
 
 
 class PermissionError(APIError):
-    """403 — Insufficient scope or access denied."""
+    """403 — Insufficient scope or access denied.
+
+    Inspect ``code`` to tell the cases apart: ``permission_denied`` (the
+    caller's role lacks ``permission``; see ``reason``),
+    ``insufficient_scope``, or an embed role refusal (``role_not_allowed``,
+    ``role_disabled``, ``seat_change_required``).
+    """
 
 
 class NotFoundError(APIError):
-    """404 — Resource not found."""
+    """404 — Resource not found (``code`` e.g. ``role_not_found``)."""
 
 
 class ValidationError(APIError):
-    """400 — Bad request parameters."""
+    """400 or 422 — Bad request parameters.
+
+    A 422 is FastAPI request validation; its message lists each failing
+    field, e.g. ``"Validation failed: body.ttl: Input should be ..."``.
+    """
 
 
 class ConflictError(APIError):
@@ -102,7 +194,7 @@ class RateLimitError(APIError):
         api_kwargs = {
             k: v
             for k, v in kwargs.items()
-            if k in ("type", "code", "doc_url", "request_id")
+            if k in ("type", "code", "doc_url", "request_id", "permission", "reason")
         }
         super().__init__(message, status=status, **api_kwargs)  # type: ignore[arg-type]
         self.retry_after = retry_after
@@ -136,11 +228,38 @@ _STATUS_MAP: dict[int, type[APIError]] = {
     403: PermissionError,
     404: NotFoundError,
     409: ConflictError,
+    422: ValidationError,
     429: RateLimitError,
     500: ServerError,
     502: ServerError,
     503: ServerError,
 }
+
+
+def _format_validation_detail(detail: list[object]) -> str:
+    """Render FastAPI's 422 ``detail`` list as one readable line.
+
+    ``[{"loc": ["body", "ttl"], "msg": "Input should be ..."}]`` becomes
+    ``"Validation failed: body.ttl: Input should be ..."``; several entries
+    are joined with ``"; "``.
+    """
+    parts: list[str] = []
+    for item in detail:
+        if isinstance(item, dict):
+            loc = item.get("loc")
+            msg = str(item.get("msg", "invalid"))
+            if isinstance(loc, (list, tuple)) and loc:
+                parts.append(f"{'.'.join(str(p) for p in loc)}: {msg}")
+            else:
+                parts.append(msg)
+        else:
+            parts.append(str(item))
+    return "Validation failed: " + "; ".join(parts) if parts else "Validation failed"
+
+
+def _optional_str(value: object) -> str | None:
+    """Return ``str(value)`` for a non-empty value, else ``None``."""
+    return str(value) if value else None
 
 
 def raise_for_status(
@@ -149,47 +268,70 @@ def raise_for_status(
     *,
     request_id: str | None = None,
     retry_after: float | None = None,
+    permission_denied: str | None = None,
 ) -> None:
     """Raise the appropriate exception for an error response.
 
-    Parses Stripe-style error response bodies of the form
-    ``{"error": {"type": ..., "code": ..., "message": ...}}``.
-    Falls back to a generic message if the body format doesn't match.
+    Understands every error shape the API sends:
+
+    * Stripe-style ``{"error": {"type", "code", "message", "doc_url"}}``.
+    * FastAPI's envelope ``{"detail": {"error": {...}}}`` — what every
+      ``/api/v1`` error looks like on the wire — and a bare
+      ``{"detail": {"type", "code", "message"}}``.
+    * ``{"detail": "message"}``.
+    * FastAPI request validation, ``422 {"detail": [{"loc", "msg", ...}]}``,
+      raised as :class:`ValidationError` with a readable message.
+
+    A ``permission_denied`` error also carries ``permission`` and ``reason``.
 
     Args:
         status: HTTP status code.
-        body: Parsed JSON response body (expects Stripe-style {"error": {...}}).
-        request_id: Request ID from response headers.
+        body: Parsed JSON response body.
+        request_id: Request ID from the ``X-Request-Id`` response header.
         retry_after: Retry-After value from response headers.
+        permission_denied: The ``X-Permission-Denied`` response header —
+            fallback for ``permission`` when the body does not carry it.
     """
+    err_type = ""
+    err_code = ""
+    err_doc_url: object = None
+    err_permission: object = None
+    err_reason: object = None
+
+    if not isinstance(body, dict):
+        # A JSON array or scalar body carries no error envelope.
+        body = {}
+
     error = body.get("error", {})
-    if isinstance(error, dict) and error:
-        err_type = str(error.get("type", ""))
-        err_code = str(error.get("code", ""))
-        err_message = str(error.get("message", f"HTTP {status}"))
-        err_doc_url = error.get("doc_url")
-    else:
-        # FastAPI's `HTTPException(detail=...)` produces `{"detail": ...}`
-        # with no `error` envelope. Prefer the `detail` payload over a
-        # generic "HTTP {status}" so admin-gate / validation errors carry
-        # the helpful server-side message through to the CLI user.
-        # `detail` may be a string OR a nested dict (FastAPI lets you raise
-        # an HTTPException with a structured detail).
+    if not (isinstance(error, dict) and error):
+        # FastAPI's `HTTPException(detail=...)` produces `{"detail": ...}`.
+        # `detail` may be a string, a structured dict (with or without the
+        # `error` envelope), or — for request validation — a list.
         detail = body.get("detail")
-        err_type = ""
-        err_code = ""
-        err_doc_url = None
-        if isinstance(detail, str) and detail:
-            err_message = detail
-        elif isinstance(detail, dict) and detail:
+        error = None
+        if isinstance(detail, dict) and detail:
             nested_error = detail.get("error")
             if isinstance(nested_error, dict) and nested_error:
-                err_type = str(nested_error.get("type", ""))
-                err_code = str(nested_error.get("code", ""))
-                err_message = str(nested_error.get("message", f"HTTP {status}"))
-                err_doc_url = nested_error.get("doc_url")
-            else:
-                err_message = str(detail)
+                error = nested_error
+            elif "code" in detail or "message" in detail:
+                error = detail
+
+    if isinstance(error, dict) and error:
+        err_type = str(error.get("type") or "")
+        err_code = str(error.get("code") or "")
+        err_message = str(error.get("message") or f"HTTP {status}")
+        err_doc_url = error.get("doc_url")
+        err_permission = error.get("permission")
+        err_reason = error.get("reason")
+    else:
+        detail = body.get("detail")
+        if isinstance(detail, str) and detail:
+            err_message = detail
+        elif isinstance(detail, list) and detail:
+            err_type = "validation_error"
+            err_message = _format_validation_detail(detail)
+        elif isinstance(detail, dict) and detail:
+            err_message = str(detail)
         else:
             err_message = str(body) if body else f"HTTP {status}"
 
@@ -210,8 +352,10 @@ def raise_for_status(
         "status": status,
         "type": err_type or None,
         "code": err_code or None,
-        "doc_url": str(err_doc_url) if err_doc_url else None,
+        "doc_url": _optional_str(err_doc_url),
         "request_id": request_id,
+        "permission": _optional_str(err_permission) or permission_denied or None,
+        "reason": _optional_str(err_reason),
     }
 
     if exc_class is RateLimitError:

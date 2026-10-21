@@ -2,13 +2,33 @@
 
 from __future__ import annotations
 
-import pytest
+import json
 
+import httpx
+import pytest
+import respx
+
+from querri._base_client import AsyncHTTPClient, SyncHTTPClient
+from querri._config import ClientConfig
 from querri._convenience import (
     _build_policy_body,
     _hash_access_spec,
     _resolve_user_param,
+    async_get_session,
+    sync_get_session,
 )
+
+BASE = "https://test.querri.com/api/v1"
+
+
+def _make_config() -> ClientConfig:
+    return ClientConfig(
+        api_key="qk_test",
+        org_id="org_test",
+        base_url=BASE,
+        timeout=10.0,
+        max_retries=0,
+    )
 
 
 class TestHashAccessSpec:
@@ -167,3 +187,114 @@ class TestResolveUserParam:
         )
         assert "first_name" not in body
         assert "last_name" not in body
+
+
+# ---------------------------------------------------------------------------
+# get_session end to end (respx at the HTTP boundary)
+# ---------------------------------------------------------------------------
+
+_USER = {"external_id": "cust-42", "email": "alice@example.com", "role": "member"}
+
+
+def _mock_get_session_routes(session_json: dict[str, object]) -> respx.Route:
+    """Mock the user upsert and the session create; return the session route."""
+    respx.put(f"{BASE}/users/external/cust-42").mock(
+        return_value=httpx.Response(200, json={"id": "usr_1", "created": False})
+    )
+    return respx.post(f"{BASE}/embed/sessions").mock(
+        return_value=httpx.Response(200, json=session_json)
+    )
+
+
+class TestSyncGetSessionRole:
+    """``sync_get_session`` forwards the Custom Role and returns ``role_id``."""
+
+    @respx.mock
+    def test_role_sent_and_role_id_returned(self):
+        route = _mock_get_session_routes(
+            {
+                "session_token": "es_1",
+                "expires_in": 3600,
+                "user_id": "usr_1",
+                "role_id": "role_analyst",
+            }
+        )
+        result = sync_get_session(
+            SyncHTTPClient(_make_config()), user=_USER, role="analyst", ttl=1800
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"user_id": "usr_1", "ttl": 1800, "role": "analyst"}
+        assert result["role_id"] == "role_analyst"
+        assert result["external_id"] == "cust-42"
+
+    @respx.mock
+    def test_user_org_role_is_not_the_session_role(self):
+        """``user["role"]`` goes to the user upsert, never to the session."""
+        route = _mock_get_session_routes(
+            {"session_token": "es_1", "expires_in": 3600, "user_id": "usr_1"}
+        )
+        result = sync_get_session(SyncHTTPClient(_make_config()), user=_USER)
+        upsert = json.loads(respx.calls[0].request.content)
+        assert upsert["role"] == "member"
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"user_id": "usr_1", "ttl": 3600}
+        assert "role_id" not in result
+
+    @respx.mock
+    def test_role_error_surfaces_code(self):
+        respx.put(f"{BASE}/users/external/cust-42").mock(
+            return_value=httpx.Response(200, json={"id": "usr_1"})
+        )
+        respx.post(f"{BASE}/embed/sessions").mock(
+            return_value=httpx.Response(
+                404,
+                json={
+                    "detail": {
+                        "error": {
+                            "type": "not_found_error",
+                            "code": "role_not_found",
+                            "message": "No role with that id or key.",
+                            "doc_url": "https://docs.querri.com/api/errors#role_not_found",
+                        }
+                    }
+                },
+            )
+        )
+        from querri._exceptions import ROLE_NOT_FOUND, NotFoundError
+
+        with pytest.raises(NotFoundError) as exc_info:
+            sync_get_session(SyncHTTPClient(_make_config()), user=_USER, role="nope")
+        assert exc_info.value.code == ROLE_NOT_FOUND
+        assert exc_info.value.type == "not_found_error"
+
+
+class TestAsyncGetSessionRole:
+    """``async_get_session`` mirrors the sync behaviour."""
+
+    @respx.mock
+    async def test_role_sent_and_role_id_returned(self):
+        route = _mock_get_session_routes(
+            {
+                "session_token": "es_1",
+                "expires_in": 3600,
+                "user_id": "usr_1",
+                "role_id": "role_analyst",
+            }
+        )
+        result = await async_get_session(
+            AsyncHTTPClient(_make_config()), user=_USER, role="analyst", ttl=1800
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"user_id": "usr_1", "ttl": 1800, "role": "analyst"}
+        assert result["role_id"] == "role_analyst"
+        assert result["external_id"] == "cust-42"
+
+    @respx.mock
+    async def test_no_role_key_when_unset(self):
+        route = _mock_get_session_routes(
+            {"session_token": "es_1", "expires_in": 3600, "user_id": "usr_1"}
+        )
+        result = await async_get_session(AsyncHTTPClient(_make_config()), user=_USER)
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"user_id": "usr_1", "ttl": 3600}
+        assert "role_id" not in result

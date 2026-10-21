@@ -73,7 +73,9 @@ class AsyncUserDashboards:
 class UserQuerri:
     """User-scoped synchronous client with FGA-filtered resources.
 
-    Calls the public API (``/api/v1``) using an embed session token.
+    Calls the public API (``/api/v1``) using an embed session token. Calls
+    are subject to the session's role and can raise ``PermissionError``
+    with ``code == "permission_denied"`` (see ``permission`` / ``reason``).
     Only exposes resources visible to the session user; dashboards are
     read-only, and there is no ``embed`` accessor (a session cannot mint
     or manage sessions — that is the admin client's job).
@@ -151,7 +153,9 @@ class UserQuerri:
 class AsyncUserQuerri:
     """User-scoped asynchronous client with FGA-filtered resources.
 
-    Calls the public API (``/api/v1``) using an embed session token.
+    Calls the public API (``/api/v1``) using an embed session token. Calls
+    are subject to the session's role and can raise ``PermissionError``
+    with ``code == "permission_denied"`` (see ``permission`` / ``reason``).
     Only exposes resources visible to the session user; dashboards are
     read-only, and there is no ``embed`` accessor.
 

@@ -245,11 +245,22 @@ querri key new --name "My Key" --scopes "admin:projects:read,admin:projects:writ
 querri key delete <key_id>
 ```
 
-Scopes follow `admin:<resource>:<action>` pattern. Common scopes:
+Valid scopes (an unknown name is rejected with `400 invalid_parameters`):
+- `data:read` / `data:write`
+- `embed:session:create`, `embed:role:assign` (grant a Custom Role the user does not hold at session create; needs `api.write_scopes.use` + `admin.embed.manage` + `admin.people.manage`)
+- `admin:users:read` / `admin:users:write`
+- `admin:policies:read` / `admin:policies:write`
 - `admin:projects:read` / `admin:projects:write`
-- `admin:files:read` / `admin:files:write`
+- `admin:dashboards:read` / `admin:dashboards:write`
 - `admin:sources:read` / `admin:sources:write`
-- `admin:chats:read` / `admin:chats:write`
+- `admin:files:read` / `admin:files:upload` / `admin:files:delete`
+- `admin:keys:manage`, `admin:audit:read`, `admin:usage:read`
+- `admin:permissions:read` / `admin:permissions:write`
+- `admin:skills:read` / `admin:skills:write`
+- `admin:library:read` / `admin:library:write` / `admin:library:seed`
+- `*` (every scope)
+
+Scopes follow a person's role: a key keeps only the scopes its bound user (else the person who created it in Settings → API keys) currently holds, and a JWT login gets its active role's scopes. Bind SDK-minted keys with `bound_user_id` when they should follow a person's role.
 
 ## Users
 
@@ -278,9 +289,9 @@ querri policy delete <id>
 ## Embedded Analytics (Sessions)
 
 ```bash
-querri session new --user-id <user_id> [--origin <url>] [--ttl 3600]
+querri session new --user-id <user_id> [--origin <url>] [--ttl 3600] [--role <role id or key>]
 querri session list
-querri session get --user <user_id>                # get-or-create convenience
+querri session get --user <user_id> [--role <role id or key>]   # get-or-create convenience
 querri session refresh --token <token>
 querri session revoke --session-id <session_id>
 querri session ui-config --org <org_id>            # public embed UI config (chrome/theme/privacy)
@@ -309,6 +320,23 @@ querri audit list --action "project.create"        # filter by action
 ## JSON Output Shape Reference
 
 See `references/json-shapes.md` for the exact fields returned by each command.
+
+## Errors and Exit Codes
+
+| Exit | Meaning |
+|---|---|
+| 0 | Success |
+| 1 | Other error |
+| 2 | Authentication failed |
+| 3 | Not found |
+| 4 | Rate limited |
+| 5 | Server error |
+| 6 | Forbidden (403) — e.g. `permission_denied`, `insufficient_scope`, an embed role refusal |
+
+With `--json`, an API error prints `{"error", "message", "exit_code", "status", "code", ...}`:
+`exit_code` is the process exit code and `code` is the API error code (e.g. `permission_denied`).
+A `permission_denied` error also carries `permission` (the permission needed) and `reason`
+(`role_denied`, `not_in_plan`, `flag_off`, `embed_disabled`, `dependency_unmet`, `forbidden`).
 
 ## Troubleshooting
 

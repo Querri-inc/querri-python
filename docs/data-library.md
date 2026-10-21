@@ -177,4 +177,8 @@ Library routes require API-key scopes:
 | `admin:library:read` | GET `/library/nodes`, `/library/nodes/{id}`, `/library/status`, `/library/health`, POST `/library/search`, `/library/zoom` |
 | `admin:library:write` | POST `/library/libraries`, `/library/collections`, `/library/questions/*`, `/library/edges`, `/library/facts`, `/library/backfill`, `/library/seed-fixture`, `/library/chat` |
 
-The wildcard `*` superadmin scope satisfies both. JWT auth gives both scopes to `member` role.
+The wildcard `*` superadmin scope satisfies both. With JWT auth (the CLI after
+`querri auth login`) the scopes follow your active role (Custom Roles), so
+whether you hold the write scope depends on that role; a Guest role is
+read-only. An API key keeps only the scopes its bound user — else the person
+who created it in Settings → API keys — currently holds.

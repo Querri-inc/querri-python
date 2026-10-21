@@ -211,6 +211,21 @@ session["expires_in"]     # int — seconds until expiry
 session["user_id"]        # str — Querri user ID
 ```
 
+To run the session as one of your org's **Custom Roles**, pass `role` (a role
+id or key); the result carries `role_id` when it was applied:
+
+```python
+session = client.embed.get_session(user="customer-42", role="analyst")
+session.get("role_id")    # str — present only when a role was applied
+```
+
+`role` is not `user["role"]` (the org role, `admin`/`member`, used when the
+user is created). **Decide `role` on your server from your own auth — never
+read it from the browser's request.** Granting a role the user does not yet
+hold needs an API key with the `embed:role:assign` scope. Failures raise
+`NotFoundError` (`role_not_found`) or `PermissionError` (`role_not_allowed`,
+`role_disabled`, `insufficient_scope`, `seat_change_required`).
+
 You can also pass pre-created policy IDs directly:
 
 ```python
@@ -272,7 +287,7 @@ All errors extend `QuerriError`:
 ```
 QuerriError
 ├── APIError                — HTTP error responses
-│   ├── ValidationError     — 400
+│   ├── ValidationError     — 400 / 422
 │   │   └── OriginRequiredError — 400 origin_required (org has an embed-domain allowlist)
 │   ├── AuthenticationError — 401
 │   ├── PermissionError     — 403
@@ -283,6 +298,23 @@ QuerriError
 ├── StreamError             — SSE stream issues
 └── ConfigError             — missing/invalid configuration
 ```
+
+Every `APIError` carries `status`, `message`, `type`, `code`, `doc_url` and
+`request_id`. A `403 permission_denied` (the caller's role does not allow the
+action) also carries `permission` and `reason`. Compare `code` against the
+exported constants:
+
+```python
+from querri import PermissionError, PERMISSION_DENIED  # shadows the builtin
+
+try:
+    client.dashboards.list()
+except PermissionError as e:
+    if e.code == PERMISSION_DENIED:
+        print(f"needs {e.permission} ({e.reason})")
+```
+
+See [docs/server-sdk.md](docs/server-sdk.md#error-codes) for every code.
 
 The SDK automatically retries **429** (always) and **5xx** (idempotent methods only) with exponential backoff + jitter.
 

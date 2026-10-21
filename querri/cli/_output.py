@@ -244,11 +244,16 @@ def print_json_error(
     *,
     hint: str | None = None,
 ) -> None:
-    """Print a JSON-formatted error to stderr."""
+    """Print a JSON-formatted error to stderr.
+
+    ``exit_code`` is the process exit code; ``code`` repeats it for
+    backward compatibility.
+    """
     error_obj: dict[str, Any] = {
         "error": error_type,
         "message": message,
         "code": exit_code,
+        "exit_code": exit_code,
     }
     if hint:
         error_obj["hint"] = hint
@@ -261,6 +266,7 @@ def print_json_error(
 
 
 EXIT_SERVER_ERROR = 5
+EXIT_FORBIDDEN = 6
 
 
 def handle_api_error(exc: Exception, *, is_json: bool | None = False) -> int:
@@ -270,10 +276,16 @@ def handle_api_error(exc: Exception, *, is_json: bool | None = False) -> int:
         exc: The exception from the SDK.
         is_json: Whether --json mode is active. ``None`` is treated as ``False``.
 
+    In ``--json`` mode the printed object carries ``exit_code`` (the process
+    exit code) and, for API errors, ``code`` (the API error code, e.g.
+    ``permission_denied``), plus ``permission`` / ``reason`` when set.
+
     Returns:
         Exit code to use.
     """
     is_json = bool(is_json)
+    # Imported here, and by module path: ``querri.PermissionError`` shadows
+    # the builtin, so a bare ``PermissionError`` would test the wrong class.
     from querri._exceptions import (
         APIError,
         AuthenticationError,
@@ -281,6 +293,7 @@ def handle_api_error(exc: Exception, *, is_json: bool | None = False) -> int:
         RateLimitError,
         ServerError,
     )
+    from querri._exceptions import PermissionError as QuerriPermissionError
 
     if isinstance(exc, AuthenticationError):
         exit_code = EXIT_AUTH_ERROR
@@ -289,6 +302,21 @@ def handle_api_error(exc: Exception, *, is_json: bool | None = False) -> int:
             "Authentication failed. Check your API key"
             " or set QUERRI_API_KEY environment variable."
         )
+    elif isinstance(exc, QuerriPermissionError):
+        exit_code = EXIT_FORBIDDEN
+        error_type = "forbidden"
+        message = str(exc)
+        extras = [
+            f"{label}: {value}"
+            for label, value in (
+                ("code", exc.code),
+                ("permission", exc.permission),
+                ("reason", exc.reason),
+            )
+            if value
+        ]
+        if extras:
+            message = f"{message} ({', '.join(extras)})"
     elif isinstance(exc, NotFoundError):
         exit_code = EXIT_NOT_FOUND
         error_type = "not_found"
@@ -331,12 +359,19 @@ def handle_api_error(exc: Exception, *, is_json: bool | None = False) -> int:
             details["request_id"] = exc.request_id
         if exc.doc_url:
             details["doc_url"] = exc.doc_url
+        if exc.permission:
+            details["permission"] = exc.permission
+        if exc.reason:
+            details["reason"] = exc.reason
 
     if is_json:
+        # ``exit_code`` is the process exit code. ``code`` is the API error
+        # code when the server sent one (it used to share the key with the
+        # exit code, which the API code then overwrote).
         error_obj: dict[str, object] = {
             "error": error_type,
             "message": message,
-            "code": exit_code,
+            "exit_code": exit_code,
         }
         error_obj.update(details)
         print(json.dumps(error_obj))

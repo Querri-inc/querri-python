@@ -330,8 +330,18 @@ Create a new embed session token for a user.
 
 ```python
 create_session(*, user_id: str, origin: str | None = None,
-               ttl: int = 3600) -> EmbedSession
+               ttl: int = 3600, role: str | None = None) -> EmbedSession
 ```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_id` | `str` | Querri user ID or external ID. Required. |
+| `origin` | `str \| None` | Page origin that embeds Querri. Required when the org has an embed-domain allowlist. |
+| `ttl` | `int` | Session lifetime in seconds, 900–86400 (default 3600). |
+| `role` | `str \| None` | **Custom Roles:** id or key of the role the session runs as (max 100 characters). Sent only when set. |
+
+Returns an `EmbedSession` with `session_token`, `expires_in`, `user_id` and
+`role_id` (the applied Custom Role's id, or `None` when no role was applied).
 
 All parameters are keyword-only. ``ttl`` must be within [900, 86400] seconds
 — the SDK raises ``ValueError`` before sending a TTL the server would
@@ -354,6 +364,30 @@ HTTP `400 origin_required`), and an origin that is not on the allowlist fails
 with `403 origin_not_allowed`. With no allowlist configured, `origin` is
 accepted but not enforced.
 
+##### Running a session as a Custom Role
+
+Pass `role` (a role id or key) to run the session as one of the org's Custom
+Roles. The response's `role_id` is set when the role was applied. `role` is
+**not** the same thing as the `role` key of a `get_session()` user dict or
+`client.users.create(role=...)` — that is the org role (`admin`/`member`)
+the user is created with.
+
+> **Security:** decide `role` on your server from your own auth. Never read
+> it from the browser's request — the page could ask for any role. The
+> browser SDK's `sessionEndpoint` mode POSTs with no body on purpose.
+
+| Outcome | Exception | `code` |
+|---------|-----------|--------|
+| No role with that id or key | `NotFoundError` (404) | `role_not_found` |
+| An admin role, not on the org's embed allowlist, or one the key's creator cannot grant | `PermissionError` (403) | `role_not_allowed` |
+| The role is a draft | `PermissionError` (403) | `role_disabled` |
+| The user does not hold the role and the key lacks `embed:role:assign` | `PermissionError` (403) | `insufficient_scope` |
+| Granting the role would change the user's seat | `PermissionError` (403) | `seat_change_required` |
+
+A role the user already holds is simply selected. Granting one they do not
+hold needs a key with the `embed:role:assign` scope (see [Keys](#keys)) and
+the role on the org's embed allowlist (Settings → Embed); the grant is audited.
+
 > **Removed in v2.0.0:** `source_scope`. The server never enforced it —
 > passing it now raises `TypeError`. Scope sessions with access policies
 > instead (see [`get_session()`](#clientembedget_session) `access=`), which
@@ -362,6 +396,7 @@ accepted but not enforced.
 #### `client.embed.refresh_session()`
 
 Refresh a session token. The old token is revoked and a new one is returned.
+The new session keeps the old one's Custom Role, echoed as `role_id`.
 
 ```python
 refresh_session(*, session_token: str) -> EmbedSession
@@ -384,7 +419,7 @@ list_sessions(*, limit: int = 100) -> EmbedSessionList
 ```python
 session_list = client.embed.list_sessions(limit=20)
 for s in session_list.data:
-    print(s.session_token, s.user_id)
+    print(s.session_token, s.user_id, s.role_id)  # role_id: None without a role
 ```
 
 #### `client.embed.revoke_session()`
@@ -446,8 +481,13 @@ The flagship convenience method. See [get_session() Deep Dive](#get_session-deep
 
 ```python
 get_session(*, user: str | dict, access: dict | None = None,
-            origin: str | None = None, ttl: int = 3600) -> dict
+            origin: str | None = None, ttl: int = 3600,
+            role: str | None = None) -> dict
 ```
+
+`role` is the session's Custom Role (see
+[Running a session as a Custom Role](#running-a-session-as-a-custom-role));
+the returned dict carries `role_id` when one was applied.
 
 ```python
 session = client.embed.get_session(
@@ -1157,6 +1197,52 @@ key = client.keys.create(
 print(key.secret)  # only returned once at creation
 ```
 
+##### Scopes
+
+| Scope | Grants |
+|-------|--------|
+| `data:read`, `data:write` | Read / write source data |
+| `embed:session:create` | Create, refresh, list and revoke embed sessions |
+| `embed:role:assign` | Grant a Custom Role the user does not yet hold when creating an embed session |
+| `admin:users:read`, `admin:users:write` | Users |
+| `admin:policies:read`, `admin:policies:write` | Access policies |
+| `admin:projects:read`, `admin:projects:write` | Projects |
+| `admin:dashboards:read`, `admin:dashboards:write` | Dashboards |
+| `admin:sources:read`, `admin:sources:write` | Sources and connectors |
+| `admin:files:read`, `admin:files:upload`, `admin:files:delete` | Files |
+| `admin:keys:manage` | API keys |
+| `admin:audit:read` | Audit log |
+| `admin:permissions:read`, `admin:permissions:write` | Sharing and access control |
+| `admin:usage:read` | Usage statistics |
+| `admin:skills:read`, `admin:skills:write` | Skills |
+| `admin:library:read`, `admin:library:write`, `admin:library:seed` | Data Library |
+| `*` | Every scope |
+
+An unknown scope name is rejected with `400 invalid_parameters`.
+
+`embed:role:assign` is a powerful scope: the person creating the key needs the
+`api.write_scopes.use`, `admin.embed.manage` and `admin.people.manage`
+permissions to grant it.
+
+##### Scopes follow a person's role (Custom Roles)
+
+- A JWT caller (the CLI after `querri auth login`) gets the scopes of their
+  active role; a Guest role is read-only.
+- A key acts for its `bound_user_id`, else for the person who created it in
+  Settings → API keys. At every call it keeps only the scopes that person
+  currently holds, so demoting or removing the creator narrows the key.
+- Settings refuses to mint a key with scopes beyond its creator's
+  (`403 permission_denied`, reason `scope_exceeds_role`).
+- A key created through this API has no Settings creator to follow. Pass
+  `bound_user_id` when the key should follow that person's role.
+
+##### Roles API (not wrapped)
+
+Custom Roles themselves are managed in the app (Settings → Roles) and through
+the in-app `/api/roles*` endpoints, which authenticate with the app's
+cookie/JWT session rather than an API key. The SDK does not wrap them; it
+only lets an embed session run as a role (`role=` above).
+
 #### `client.keys.get()`
 
 ```python
@@ -1365,6 +1451,12 @@ This is different from the admin `Querri` client, which authenticates the same p
 - **No `user_client.embed`** — a session cannot mint or manage sessions (`embed:session:create` is excluded). Create sessions from the admin client.
 - **Dashboards are read-only** — `admin:dashboards:write` is excluded, so `user_client.dashboards` exposes only `list()`, `get()`, and `refresh_status()`; there is no `create`/`update`/`delete`/`refresh`.
 
+Calls made with an `es_` session are also subject to the session's role (its
+Custom Role when `get_session(role=...)` set one). An action the role does not
+allow raises `PermissionError` with `code == "permission_denied"`, the needed
+`permission` (e.g. `"dashboards.list.view"`) and a `reason` (e.g.
+`"role_denied"`).
+
 ### Available Resources
 
 | Resource | Example | Description |
@@ -1426,6 +1518,7 @@ session["session_token"]   # str — JWT for the embed
 session["expires_in"]      # int — seconds until expiry
 session["user_id"]         # str — Querri user ID
 session["external_id"]     # str | None — your external ID
+session.get("role_id")     # str — present only when a Custom Role was applied
 ```
 
 ### Parameters
@@ -1437,6 +1530,7 @@ client.embed.get_session(
     access: dict | None = None,
     origin: str | None = None,
     ttl: int = 3600,
+    role: str | None = None,
 ) -> dict
 ```
 
@@ -1446,6 +1540,7 @@ client.embed.get_session(
 | `access` | `dict \| None` | No | Policy IDs or inline sources + filters |
 | `origin` | `str \| None` | No | Origin your page embeds from. If the org configures an embed-domain allowlist, the server rejects a missing origin with `400 origin_required` and a non-allowlisted one with `403 origin_not_allowed` |
 | `ttl` | `int` | No | Session lifetime in seconds (default: `3600`) |
+| `role` | `str \| None` | No | Custom Role id or key the session runs as. Not `user["role"]`, which is the org role (`admin`/`member`) used when the user is created. Decide it on your server, never from the browser's request |
 
 ### Return Value
 
@@ -1455,6 +1550,7 @@ client.embed.get_session(
 | `expires_in` | `int` | Seconds until the token expires |
 | `user_id` | `str` | Querri internal user ID |
 | `external_id` | `str \| None` | Your external ID for the user |
+| `role_id` | `str` | The applied Custom Role's id — present only when `role` was applied |
 
 ### User Resolution
 
@@ -1540,7 +1636,8 @@ When two concurrent requests try to create the same auto-managed policy, the SDK
 ```
 QuerriError
 ├── APIError                — HTTP error response from API
-│   ├── ValidationError     — 400 Bad Request
+│   ├── ValidationError     — 400 Bad Request / 422 Unprocessable Entity
+│   │   └── OriginRequiredError — 400 origin_required
 │   ├── AuthenticationError — 401 Unauthorized
 │   ├── PermissionError     — 403 Forbidden
 │   ├── NotFoundError       — 404 Not Found
@@ -1564,7 +1661,45 @@ All `APIError` subclasses expose:
 | `type` | `str \| None` | Error type from the API |
 | `code` | `str \| None` | Error code from the API |
 | `doc_url` | `str \| None` | Link to relevant documentation |
-| `request_id` | `str \| None` | Request ID for support tickets |
+| `request_id` | `str \| None` | Request ID for support tickets (the `X-Request-Id` response header) |
+| `permission` | `str \| None` | On `permission_denied`: the permission the call needed, e.g. `"dashboards.list.view"` (from the body, else the `X-Permission-Denied` header) |
+| `reason` | `str \| None` | On `permission_denied`: why — `role_denied`, `not_in_plan`, `flag_off`, `embed_disabled`, `dependency_unmet` or `forbidden` |
+
+A `422` request-validation error is a `ValidationError` whose message names
+each failing field, e.g.
+`"Validation failed: body.ttl: Input should be greater than or equal to 900"`.
+
+### Error codes
+
+`APIError.code` is one of these strings. Each is exported as a constant
+(`querri.ROLE_DISABLED == "role_disabled"`, …) and the whole set as the
+`querri.ErrorCode` `Literal`, so you can compare without string typos.
+
+| Code | Status | Meaning |
+|---|---|---|
+| `missing_api_key` | 401 | No `Authorization` header |
+| `invalid_api_key` | 401 | The key is unknown, revoked or expired |
+| `missing_tenant_id` | 400 | No org could be determined for the request |
+| `invalid_jwt` | 401 | The JWT is invalid or expired |
+| `invalid_embed_session` | 401 | The `es_` session is invalid or expired |
+| `ip_not_allowed` | 403 | The caller's IP is not on the key's allowlist |
+| `org_scheduled_for_deletion` | 403 | The organization is being deleted |
+| `rate_limit_exceeded` | 429 | Too many requests; see `retry_after` |
+| `insufficient_scope` | 403 | The key lacks a scope the call needs (for an embed role grant: `embed:role:assign`) |
+| `permission_denied` | 403 | The caller's role does not allow this action; see `permission` and `reason` |
+| `role_not_found` | 404 | No Custom Role with that id or key |
+| `role_not_allowed` | 403 | The role cannot be used for embed sessions (admin role, not on the embed allowlist, or beyond what the key's creator can grant) |
+| `role_disabled` | 403 | The role is a draft; an admin must enable it |
+| `seat_change_required` | 403 | Granting the role would change the user's seat |
+| `not_org_member` | 403 | The user is not a member of this organization |
+| `user_not_found` | 404 | No user with that id or external id (400 when the session body names an unknown user) |
+| `origin_required` | 400 | The org has an embed-domain allowlist and no `origin` was sent (`OriginRequiredError`) |
+| `origin_not_allowed` | 403 | `origin` is not on the org's embed-domain allowlist |
+| `session_not_found` | 404 | No embed session with that token |
+| `org_mismatch` | 403 | The session or user belongs to another organization |
+| `session_creation_failed` | 500 | The server could not create the session |
+| `refresh_failed` | 500 | The server could not refresh the session |
+| `membership_check_failed` | 500 | The server could not verify org membership |
 
 ### Common Patterns
 
@@ -1574,9 +1709,12 @@ from querri import (
     APIError,
     AuthenticationError,
     NotFoundError,
+    PermissionError,  # shadows the builtin — import it explicitly
     RateLimitError,
     ValidationError,
     ConfigError,
+    PERMISSION_DENIED,
+    INSUFFICIENT_SCOPE,
 )
 
 try:
@@ -1585,6 +1723,13 @@ except NotFoundError:
     print("User not found")
 except AuthenticationError:
     print("Invalid API key")
+except PermissionError as e:
+    if e.code == PERMISSION_DENIED:
+        print(f"Your role lacks {e.permission} ({e.reason})")
+    elif e.code == INSUFFICIENT_SCOPE:
+        print("This API key is missing a scope")
+    else:
+        print(f"Forbidden ({e.code}): {e.message}")
 except RateLimitError as e:
     print(f"Rate limited. Retry after {e.retry_after} seconds")
 except ValidationError as e:
