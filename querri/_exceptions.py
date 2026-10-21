@@ -346,9 +346,10 @@ def raise_for_status(
                 # In-app flat shape: ``{"detail": {"error": "permission_denied",
                 # "permission", "reason", "layer"}}`` — the code is the string,
                 # when it is code-shaped (some bodies put a sentence there).
+                is_code = _CODE_SHAPE.fullmatch(nested_error) is not None
                 error = {
                     **detail,
-                    "code": nested_error if _CODE_SHAPE.fullmatch(nested_error) else None,
+                    "code": nested_error if is_code else None,
                     "message": detail.get("message") or nested_error,
                 }
             elif "code" in detail or "message" in detail:
