@@ -205,6 +205,8 @@ Manage users in your organization.
 
 > The `role` field accepts `"admin"` or `"member"` (default). This controls the user's organization-level role. Resource-level permissions (viewer/editor/owner on projects, dashboards, and sources) are managed separately through access policies.
 
+> You can only give or remove a role whose permissions you hold yourself, and the organization must keep an Admin: otherwise `create`, `update` and `delete` raise `PermissionError` (code `escalation_denied`) or `ConflictError` (code `last_admin`). This applies on servers released after 2026-10-21.
+
 #### `client.users.create()`
 
 Create a new user.
