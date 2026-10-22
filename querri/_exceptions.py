@@ -41,6 +41,9 @@ ORG_MISMATCH = "org_mismatch"
 SESSION_CREATION_FAILED = "session_creation_failed"
 REFRESH_FAILED = "refresh_failed"
 MEMBERSHIP_CHECK_FAILED = "membership_check_failed"
+ESCALATION_DENIED = "escalation_denied"
+LAST_ADMIN = "last_admin"
+INVALID_PARAMETERS = "invalid_parameters"
 
 ErrorCode = Literal[
     "missing_api_key",
@@ -66,6 +69,9 @@ ErrorCode = Literal[
     "session_creation_failed",
     "refresh_failed",
     "membership_check_failed",
+    "escalation_denied",
+    "last_admin",
+    "invalid_parameters",
 ]
 """The ``APIError.code`` values for authentication, access, Custom Roles and
 embed sessions (see docs/server-sdk.md, Error codes). The API sends other codes
@@ -112,6 +118,12 @@ class APIError(QuerriError):
             ``role_denied``, ``not_in_plan``, ``flag_off``,
             ``embed_disabled``, ``dependency_unmet``, ``forbidden``,
             ``scope_exceeds_role``. The server may add more.
+        body: The parsed JSON response body (any JSON value), or ``None`` when
+            the response had no JSON body or the error was raised without
+            one. Holds the fields this class does not lift out, e.g.
+            ``body["detail"]["error"]["scopes"]`` on a ``scope_exceeds_role``
+            refusal or ``body["detail"]["error"]["missing"]`` on
+            ``escalation_denied``.
     """
 
     def __init__(
@@ -125,6 +137,7 @@ class APIError(QuerriError):
         request_id: str | None = None,
         permission: str | None = None,
         reason: str | None = None,
+        body: object = None,
     ) -> None:
         super().__init__(message)
         self.status = status
@@ -134,6 +147,7 @@ class APIError(QuerriError):
         self.request_id = request_id
         self.permission = permission
         self.reason = reason
+        self.body = body
 
     def __repr__(self) -> str:
         return (
@@ -205,7 +219,16 @@ class RateLimitError(APIError):
         api_kwargs = {
             k: v
             for k, v in kwargs.items()
-            if k in ("type", "code", "doc_url", "request_id", "permission", "reason")
+            if k
+            in (
+                "type",
+                "code",
+                "doc_url",
+                "request_id",
+                "permission",
+                "reason",
+                "body",
+            )
         }
         super().__init__(message, status=status, **api_kwargs)  # type: ignore[arg-type]
         self.retry_after = retry_after
@@ -289,7 +312,7 @@ def _header_permission(value: str | None) -> str | None:
 
 def raise_for_status(
     status: int,
-    body: dict[str, object],
+    body: object,
     *,
     request_id: str | None = None,
     retry_after: float | None = None,
@@ -313,13 +336,16 @@ def raise_for_status(
 
     Args:
         status: HTTP status code.
-        body: Parsed JSON response body.
+        body: Parsed JSON response body (any JSON value; ``None`` when the
+            response had no JSON body). Kept on the exception as ``body``.
         request_id: Request ID from the ``X-Request-Id`` response header.
         retry_after: Retry-After value from response headers.
         permission_denied: The ``X-Permission-Denied`` response header —
             fallback for ``permission`` when the body does not carry it. Used
-            only when it holds a permission key (contains a ``.``); the server
-            puts an error code there when no single permission applies.
+            only when the error's code is ``permission_denied`` or there is no
+            code, and only when the header holds a permission key (contains a
+            ``.``); the server puts an error code there when no single
+            permission applies.
     """
     err_type = ""
     err_code = ""
@@ -327,6 +353,7 @@ def raise_for_status(
     err_permission: object = None
     err_reason: object = None
 
+    raw_body = body
     if not isinstance(body, dict):
         # A JSON array or scalar body carries no error envelope.
         body = {}
@@ -387,16 +414,24 @@ def raise_for_status(
             "to create_session() or get_session()."
         )
 
+    # The header names a permission only on a role denial. Other refusals
+    # (``escalation_denied``, …) may still send one, and it is not the
+    # permission *their* call needed, so it is not borrowed for them.
+    header_permission = (
+        _header_permission(permission_denied)
+        if err_code in ("", PERMISSION_DENIED)
+        else None
+    )
+
     kwargs: dict[str, object] = {
         "status": status,
         "type": err_type or None,
         "code": err_code or None,
         "doc_url": _optional_str(err_doc_url),
         "request_id": request_id,
-        "permission": (
-            _optional_str(err_permission) or _header_permission(permission_denied)
-        ),
+        "permission": _optional_str(err_permission) or header_permission,
         "reason": _optional_str(err_reason),
+        "body": raw_body,
     }
 
     if exc_class is RateLimitError:

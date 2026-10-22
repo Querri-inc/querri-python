@@ -1578,6 +1578,34 @@ class TestEmbedCommands:
         assert result.exit_code == 0
         assert "es_abc123" in result.output
 
+    @respx.mock
+    def test_session_list_shows_role_id_column(self) -> None:
+        respx.get("https://cli-test.querri.com/api/v1/embed/sessions").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {
+                            "session_token": "es_role",
+                            "user_id": "usr_1",
+                            "role_id": "role_analyst",
+                        },
+                        {"session_token": "es_plain", "user_id": "usr_2"},
+                    ],
+                    "has_more": False,
+                },
+            )
+        )
+        result = runner.invoke(
+            main_app,
+            [*_GLOBAL, "--host", "https://cli-test.querri.com", "session", "list"],
+        )
+        assert result.exit_code == 0, result.output
+        lines = result.stdout.splitlines()
+        assert "Role ID" in lines[0]
+        role_row = next(line for line in lines if "es_role" in line)
+        assert "role_analyst" in role_row
+
     def test_session_list_json(self) -> None:
         mock_client = MagicMock()
         mock_client.embed.list_sessions.return_value = self._make_session_list()
@@ -1725,7 +1753,7 @@ class TestEmbedCommands:
 
     @respx.mock
     def test_session_new_permission_denied_exit_code_over_http(self) -> None:
-        """A real 403 envelope exits 6 with the API code kept apart."""
+        """A real 403 envelope exits 6; JSON keeps the 2.1.0 shape + exit_code."""
         respx.post("https://cli-test.querri.com/api/v1/embed/sessions").mock(
             return_value=httpx.Response(
                 403,
@@ -1760,10 +1788,16 @@ class TestEmbedCommands:
         )
         assert result.exit_code == 6
         data = json.loads(result.output)
-        assert data["error"] == "forbidden"
-        assert data["exit_code"] == 6
-        assert data["code"] == "insufficient_scope"
-        assert data["status"] == "403"
+        # The 2.1.0 JSON shape, plus exit_code.
+        assert data == {
+            "error": "api_error",
+            "message": "This key cannot grant that role.",
+            "code": "insufficient_scope",
+            "status": "403",
+            "type": "permission_error",
+            "doc_url": "https://docs.querri.com/api/errors#insufficient_scope",
+            "exit_code": 6,
+        }
 
     def test_session_refresh_prints_role_id(self) -> None:
         mock_client = MagicMock()
@@ -2484,7 +2518,10 @@ class TestSharingCommands:
 
 
 class TestCliErrorEmitters:
-    """Error output: the API code once in text mode, ``exit_code`` in JSON."""
+    """Error output: the API code once in text mode.
+
+    The ``--json`` error shapes are pinned in tests/test_cli_json_errors.py.
+    """
 
     @respx.mock
     def test_text_mode_403_prints_code_once(self) -> None:
@@ -2513,40 +2550,3 @@ class TestCliErrorEmitters:
         assert "Code: permission_denied" in result.output
         assert "permission: dashboards.list.view" in result.output
         assert "reason: role_denied" in result.output
-
-    def test_view_run_timeout_json_carries_exit_code(self) -> None:
-        mock_client = MagicMock()
-        mock_client.views.run.side_effect = TimeoutError(
-            "View run run_xyz did not finish within 1800.0s"
-        )
-        with patch("querri.cli.views.get_client", return_value=mock_client):
-            result = runner.invoke(main_app, [*_GLOBAL, *_JSON, "view", "run"])
-        assert result.exit_code == 1
-        data = json.loads(result.output)
-        assert data["exit_code"] == 1
-        assert data["error"] == "timeout"
-        assert data["message"] == "View run run_xyz did not finish within 1800.0s"
-
-    def test_switch_org_single_org_json_carries_exit_code(self) -> None:
-        from querri._auth import TokenProfile, TokenStore
-
-        store = TokenStore(
-            profiles={
-                "default": TokenProfile(
-                    access_token="at",
-                    refresh_token="rt",
-                    org_id="org_1",
-                    all_organizations={"org_1": "Only Org"},
-                )
-            }
-        )
-        with patch("querri.cli.auth.TokenStore.load", return_value=store):
-            result = runner.invoke(main_app, [*_JSON, "auth", "switch-org"])
-        assert result.exit_code == 1, result.output
-        data = json.loads(result.output)
-        assert data == {
-            "error": "single_org",
-            "message": "Only one organization available.",
-            "code": 1,
-            "exit_code": 1,
-        }

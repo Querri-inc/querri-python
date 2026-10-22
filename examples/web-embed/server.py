@@ -57,7 +57,10 @@ DEMO_ACCESS = None
 
 # Optional: the Custom Role (id or key) the demo user's session runs as.
 # Decide the role HERE, on the server, from your own auth — never read it
-# from the page's request, or any visitor could ask for any role.
+# from the page's request, or any visitor could ask for any role. A role the
+# user does not already hold is granted PERMANENTLY (it stays on the user,
+# in later sessions and in the app, until an admin removes it in Settings →
+# People; revoking the session does not undo it).
 #   DEMO_ROLE = "analyst"
 DEMO_ROLE = None
 
@@ -474,7 +477,20 @@ def _dispatch(action: str, p: dict):
 
 
 if __name__ == "__main__":
+    # Localhost only, debugger off, by default. This server holds your API key
+    # and its Explorer endpoint calls the admin API on behalf of anyone who can
+    # reach it. Set HOST to bind elsewhere (e.g. HOST=0.0.0.0 in a container).
+    # FLASK_DEBUG=1 turns on Werkzeug's interactive debugger, which executes
+    # arbitrary Python for anyone who can reach the page: NEVER enable it with
+    # HOST set to anything but 127.0.0.1 / localhost.
+    host = os.environ.get("HOST", "127.0.0.1")
+    debug = os.environ.get("FLASK_DEBUG") == "1"
+    if debug and host not in ("127.0.0.1", "localhost", "::1"):
+        sys.exit(
+            "Refusing FLASK_DEBUG=1 with HOST beyond localhost: the debugger "
+            "would let anyone who can reach it run code on this machine."
+        )
     print(f"\n  Querri Python SDK — Embed + Explorer")
     print(f"  Server:  {QUERRI_HOST}")
     print(f"  Open:    http://localhost:5050\n")
-    app.run(host="0.0.0.0", port=5050, debug=True)
+    app.run(host=host, port=5050, debug=debug)

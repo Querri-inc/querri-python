@@ -128,7 +128,14 @@ def main():
             print("\n=== Custom Role ===")
             try:
                 session = client.embed.get_session(user=ext_id, role=role)
+                # No role_id means the role was not applied: an older server
+                # ignores `role` and the session runs as the user's own role.
                 print(f"  role_id:       {session.get('role_id')}")
+                # Revoking ends this session only. A role the user did not
+                # already hold was granted PERMANENTLY: it stays on the user
+                # (later sessions and the app see it) until an admin removes
+                # it in Settings → People. (The cleanup below deletes the
+                # example user altogether.)
                 client.embed.revoke_session(session["session_token"])
             except APIError as e:
                 # role_not_found (404), role_not_allowed, role_disabled,

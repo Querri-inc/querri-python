@@ -17,6 +17,14 @@ class Users:
         user = client.users.create(email="alice@example.com")
         for u in client.users.list():
             print(u.email)
+
+    Role changes follow the People page's rules (servers released after
+    2026-10-21): ``create``, ``update``, ``delete`` and ``get_or_create`` raise
+    ``PermissionError`` (code ``escalation_denied``) when they would give or
+    remove a role with permissions the caller doesn't hold — for an API key,
+    permissions its creator and its bound user don't both hold; the error's
+    ``body["detail"]["error"]["missing"]`` lists them — and ``ConflictError``
+    (code ``last_admin``) when they would leave the org without an Admin.
     """
 
     def __init__(self, http: SyncHTTPClient) -> None:
@@ -166,6 +174,14 @@ class AsyncUsers:
         user = await client.users.create(email="alice@example.com")
         async for u in client.users.list():
             print(u.email)
+
+    Role changes follow the People page's rules (servers released after
+    2026-10-21): ``create``, ``update``, ``delete`` and ``get_or_create`` raise
+    ``PermissionError`` (code ``escalation_denied``) when they would give or
+    remove a role with permissions the caller doesn't hold — for an API key,
+    permissions its creator and its bound user don't both hold; the error's
+    ``body["detail"]["error"]["missing"]`` lists them — and ``ConflictError``
+    (code ``last_admin``) when they would leave the org without an Admin.
     """
 
     def __init__(self, http: AsyncHTTPClient) -> None:

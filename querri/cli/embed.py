@@ -179,6 +179,7 @@ def list_sessions(
             [
                 ("session_token", "Token"),
                 ("user_id", "User ID"),
+                ("role_id", "Role ID"),
                 ("origin", "Origin"),
                 ("created_at", "Created"),
                 ("auth_method", "Auth"),

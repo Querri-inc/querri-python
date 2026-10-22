@@ -190,18 +190,25 @@ def sync_get_session(
             from your own auth; never read it from the browser's request.
             The user is created/updated and access policies applied before
             the session is requested, so if the role is refused those steps
-            have still happened.
+            have still happened. Granting a role the user does not hold is
+            permanent: it stays on the user after the session is revoked,
+            until an admin removes it.
 
     Returns:
         Embed session dict with ``session_token``, ``expires_in``, ``user_id``,
-        and ``external_id``, plus ``role_id`` when a role was applied.
+        and ``external_id``, plus ``role_id`` when a role was applied (no
+        ``role_id`` also means an older server ignored ``role``).
 
     Raises:
         ValueError: If ``user`` is a string and no user with that external_id exists.
         ValidationError: If request parameters are invalid.
         NotFoundError: ``role_not_found`` — ``role`` matches no role.
         PermissionError: ``role_not_allowed``, ``role_disabled``,
-            ``insufficient_scope`` or ``seat_change_required`` for ``role``.
+            ``insufficient_scope`` or ``seat_change_required`` for ``role``;
+            or ``escalation_denied`` when creating a new user (servers
+            released after 2026-10-21).
+        ConflictError: ``last_admin`` when creating a new user (servers
+            released after 2026-10-21).
         APIError: On any HTTP error from the Querri API.
 
     Example — string shorthand (user must exist)::

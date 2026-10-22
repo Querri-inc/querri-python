@@ -109,27 +109,90 @@ Same as upload response but with `columns` and `row_count` populated after proce
 }
 ```
 
-## `querri key create`
+## `querri key new`
 
 ```json
 {
   "id": "<key_uuid>",
   "name": "My Key",
-  "key": "sk_live_...",    // only shown once at creation
+  "key_prefix": "qk_abc1",
   "scopes": ["admin:projects:read"],
+  "status": "active",
+  "created_by": "<user_id>",
   "created_at": "...",
-  "last_used_at": null
+  "last_used_at": null,
+  "expires_at": null,
+  "rate_limit_per_minute": 60,
+  "bound_user_id": null,
+  "source_scope": null,
+  "access_policy_ids": null,
+  "ip_allowlist": null,
+  "secret": "qk_..."        // only returned once, at creation
 }
 ```
 
-## `querri embed create-session`
+`querri key get` prints the same object without `secret`.
+
+## `querri session new` / `querri session refresh`
 
 ```json
 {
-  "token": "es_...",
-  "session_id": "<uuid>",
+  "session_token": "es_...",
+  "expires_in": 3600,
   "user_id": "<user_id>",
-  "expires_at": "...",
-  "project_id": "<project_id>"
+  "role_id": "role_..."     // the applied Custom Role (--role); null without one
 }
 ```
+
+`role_id` is also `null` when `--role` was passed to a server too old to know
+it (the session then runs as the user's own role). A role the user did not
+hold is granted **permanently** — revoking the session does not remove it.
+Servers released after 2026-10-21 return `role_id` from refresh too; earlier
+ones only from `session new`.
+
+## `querri session list`
+
+```json
+{
+  "data": [
+    {
+      "session_token": "es_...",
+      "user_id": "<user_id>",
+      "origin": "https://app.example.com",
+      "created_at": "...",
+      "auth_method": "api_key",
+      "role_id": null
+    }
+  ],
+  "has_more": false
+}
+```
+
+## `querri session get`
+
+The `get_session()` dict: `session_token`, `expires_in`, `user_id`,
+`external_id`, and `role_id` only when a role was applied.
+
+## Errors (`--json`)
+
+Every error prints one object on stdout — the CLI 2.1.0 shape plus
+`exit_code` (the process exit code). An API error:
+
+```json
+{
+  "error": "api_error",          // auth_failed | not_found | rate_limited | server_error | not_implemented | api_error (incl. 403)
+  "message": "...",
+  "code": "permission_denied",   // the API error code, else the exit code (a number)
+  "status": "403",               // string; status/type/request_id/doc_url only when set
+  "type": "permission_error",
+  "request_id": "req_...",
+  "doc_url": "...",
+  "exit_code": 6
+}
+```
+
+Other errors: `{"error": "<kind>", "message": "...", "code": <exit code>,
+"exit_code": <exit code>}` (plus `hint` for missing credentials).
+`querri view run` timing out prints `{"error": "<message>", "exit_code": 1}`;
+`querri auth switch-org` with one org prints `{"error": "single_org",
+"message": "...", "exit_code": 1}`.
