@@ -2,11 +2,14 @@
 
 from ._client import AsyncQuerri, Querri
 from ._exceptions import (
+    ESCALATION_DENIED,
     INSUFFICIENT_SCOPE,
     INVALID_API_KEY,
     INVALID_EMBED_SESSION,
     INVALID_JWT,
+    INVALID_PARAMETERS,
     IP_NOT_ALLOWED,
+    LAST_ADMIN,
     MEMBERSHIP_CHECK_FAILED,
     MISSING_API_KEY,
     MISSING_TENANT_ID,
@@ -94,6 +97,9 @@ __all__ = [
     "SESSION_CREATION_FAILED",
     "REFRESH_FAILED",
     "MEMBERSHIP_CHECK_FAILED",
+    "ESCALATION_DENIED",
+    "LAST_ADMIN",
+    "INVALID_PARAMETERS",
     # Streaming
     "ChatStream",
     "AsyncChatStream",

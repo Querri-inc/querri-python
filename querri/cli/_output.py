@@ -246,17 +246,17 @@ def print_json_error(
 ) -> None:
     """Print a JSON-formatted error to stdout.
 
-    ``exit_code`` is the process exit code; ``code`` repeats it for
-    backward compatibility.
+    The 2.1.0 shape (``error``, ``message``, ``code`` — the exit code — and
+    ``hint`` when set) plus ``exit_code``, the process exit code.
     """
     error_obj: dict[str, Any] = {
         "error": error_type,
         "message": message,
         "code": exit_code,
-        "exit_code": exit_code,
     }
     if hint:
         error_obj["hint"] = hint
+    error_obj["exit_code"] = exit_code
     print(json.dumps(error_obj))
 
 
@@ -276,14 +276,18 @@ def handle_api_error(exc: Exception, *, is_json: bool | None = False) -> int:
         exc: The exception from the SDK.
         is_json: Whether --json mode is active. ``None`` is treated as ``False``.
 
-    In ``--json`` mode the printed object carries ``exit_code`` (the process
-    exit code) and, for API errors, ``code`` (the API error code, e.g.
-    ``permission_denied``), plus ``permission`` / ``reason`` when set.
+    In ``--json`` mode the printed object has exactly the keys and values
+    2.1.0 printed — ``error``, ``message``, ``code`` (the API error code when
+    the server sent one, else the exit code), and ``status``, ``type``,
+    ``request_id``, ``doc_url`` when set — plus ``exit_code``, the process
+    exit code. A 403 is ``"error": "api_error"`` as in 2.1.0; its permission
+    and reason appear in the text-mode message only.
 
     Returns:
         Exit code to use.
     """
     is_json = bool(is_json)
+    text_message: str | None = None
     # Imported here, and by module path: ``querri.PermissionError`` shadows
     # the builtin, so a bare ``PermissionError`` would test the wrong class.
     from querri._exceptions import (
@@ -304,10 +308,12 @@ def handle_api_error(exc: Exception, *, is_json: bool | None = False) -> int:
         )
     elif isinstance(exc, QuerriPermissionError):
         exit_code = EXIT_FORBIDDEN
-        error_type = "forbidden"
+        # ``api_error``, not a 403-specific type: the ``--json`` contract is
+        # unchanged from 2.1.0, which printed every 403 this way.
+        error_type = "api_error"
         message = str(exc)
-        # ``code`` is not repeated here: text mode prints it on its own
-        # ``Code:`` line, and ``--json`` carries it as a key.
+        # Text mode only: ``code`` is not repeated here (it gets its own
+        # ``Code:`` line), and ``--json`` keeps 2.1.0's ``message``.
         extras = [
             f"{label}: {value}"
             for label, value in (
@@ -317,7 +323,7 @@ def handle_api_error(exc: Exception, *, is_json: bool | None = False) -> int:
             if value
         ]
         if extras:
-            message = f"{message} ({', '.join(extras)})"
+            text_message = f"{message} ({', '.join(extras)})"
     elif isinstance(exc, NotFoundError):
         exit_code = EXIT_NOT_FOUND
         error_type = "not_found"
@@ -360,24 +366,21 @@ def handle_api_error(exc: Exception, *, is_json: bool | None = False) -> int:
             details["request_id"] = exc.request_id
         if exc.doc_url:
             details["doc_url"] = exc.doc_url
-        if exc.permission:
-            details["permission"] = exc.permission
-        if exc.reason:
-            details["reason"] = exc.reason
 
     if is_json:
-        # ``exit_code`` is the process exit code. ``code`` is the API error
-        # code when the server sent one (it used to share the key with the
-        # exit code, which the API code then overwrote).
+        # The 2.1.0 shape, unchanged: ``code`` starts as the exit code and the
+        # API error code, when there is one, overwrites it. ``exit_code`` is
+        # the one addition, so a script can always read the exit code.
         error_obj: dict[str, object] = {
             "error": error_type,
             "message": message,
-            "exit_code": exit_code,
+            "code": exit_code,
         }
         error_obj.update(details)
+        error_obj["exit_code"] = exit_code
         print(json.dumps(error_obj))
     else:
-        print_error(message)
+        print_error(text_message or message)
         # Show additional context for server errors and unexpected failures
         if details.get("code"):
             print_error(f"  Code: {details['code']}")

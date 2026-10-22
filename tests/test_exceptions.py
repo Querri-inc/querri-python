@@ -7,6 +7,9 @@ import pytest
 import respx
 
 from querri._exceptions import (
+    ESCALATION_DENIED,
+    INVALID_PARAMETERS,
+    LAST_ADMIN,
     MISSING_API_KEY,
     PERMISSION_DENIED,
     RATE_LIMIT_EXCEEDED,
@@ -607,7 +610,7 @@ class TestErrorCodeConstants:
         from querri import _exceptions
 
         literal_values = set(typing.get_args(_exceptions.ErrorCode))
-        assert len(literal_values) == 23
+        assert len(literal_values) == 26
         for value in literal_values:
             name = value.upper()
             assert getattr(_exceptions, name) == value
@@ -621,3 +624,354 @@ def test_a_sentence_in_detail_error_is_a_message_not_a_code():
         raise_for_status(403, body)
     assert exc_info.value.code is None
     assert exc_info.value.message == "Something went wrong here"
+
+
+class TestNewUserRoleCodes:
+    """``escalation_denied`` / ``last_admin`` / ``invalid_parameters``."""
+
+    def test_constants(self):
+        import querri
+
+        assert ESCALATION_DENIED == querri.ESCALATION_DENIED == "escalation_denied"
+        assert LAST_ADMIN == querri.LAST_ADMIN == "last_admin"
+        assert INVALID_PARAMETERS == querri.INVALID_PARAMETERS == "invalid_parameters"
+
+    def test_last_admin_is_a_conflict(self):
+        body = {"detail": {"error": {"code": "last_admin", "message": "No."}}}
+        with pytest.raises(ConflictError) as exc_info:
+            raise_for_status(409, body)
+        assert exc_info.value.code == LAST_ADMIN
+
+
+_ESCALATION_BODY = {
+    "detail": {
+        "error": {
+            "type": "permission_error",
+            "code": "escalation_denied",
+            "message": "You cannot grant permissions you do not hold.",
+            "missing": ["org.admin", "users.manage"],
+        }
+    }
+}
+
+
+class TestHeaderFallbackOnlyForPermissionDenied:
+    """The ``X-Permission-Denied`` fallback applies to ``permission_denied``
+    (or a code-less body) only — never to another refusal's code."""
+
+    def test_escalation_denied_ignores_a_dotted_header(self):
+        with pytest.raises(PermissionError) as exc_info:
+            raise_for_status(
+                403, _ESCALATION_BODY, permission_denied="users.manage"
+            )
+        assert exc_info.value.code == ESCALATION_DENIED
+        assert exc_info.value.permission is None
+
+    def test_permission_denied_still_uses_a_dotted_header(self):
+        body = {"detail": {"error": {"code": "permission_denied", "message": "x"}}}
+        with pytest.raises(PermissionError) as exc_info:
+            raise_for_status(403, body, permission_denied="users.manage")
+        assert exc_info.value.permission == "users.manage"
+
+    @respx.mock
+    def test_sync_escalation_denied_over_http(self):
+        from querri._base_client import SyncHTTPClient
+
+        respx.post(f"{_BASE}/users").mock(
+            return_value=httpx.Response(
+                403,
+                json=_ESCALATION_BODY,
+                headers={"x-permission-denied": "users.manage"},
+            )
+        )
+        with pytest.raises(PermissionError) as exc_info:
+            SyncHTTPClient(_http_config()).post("/users", json={"email": "a@b.c"})
+        assert exc_info.value.code == ESCALATION_DENIED
+        assert exc_info.value.permission is None
+
+    @respx.mock
+    async def test_async_escalation_denied_over_http(self):
+        from querri._base_client import AsyncHTTPClient
+
+        respx.post(f"{_BASE}/users").mock(
+            return_value=httpx.Response(
+                403,
+                json=_ESCALATION_BODY,
+                headers={"x-permission-denied": "users.manage"},
+            )
+        )
+        with pytest.raises(PermissionError) as exc_info:
+            await AsyncHTTPClient(_http_config()).post(
+                "/users", json={"email": "a@b.c"}
+            )
+        assert exc_info.value.code == ESCALATION_DENIED
+        assert exc_info.value.permission is None
+
+
+class TestErrorBody:
+    """``APIError.body`` holds the parsed response body."""
+
+    @respx.mock
+    def test_sync_body_carries_missing(self):
+        from querri._base_client import SyncHTTPClient
+
+        respx.post(f"{_BASE}/users").mock(
+            return_value=httpx.Response(403, json=_ESCALATION_BODY)
+        )
+        with pytest.raises(PermissionError) as exc_info:
+            SyncHTTPClient(_http_config()).post("/users", json={})
+        assert exc_info.value.body == _ESCALATION_BODY
+        assert exc_info.value.body["detail"]["error"]["missing"] == [
+            "org.admin",
+            "users.manage",
+        ]
+
+    @respx.mock
+    async def test_async_body_carries_scopes(self):
+        from querri._base_client import AsyncHTTPClient
+
+        respx.post(f"{_BASE}/keys").mock(
+            return_value=httpx.Response(403, json=_SCOPE_EXCEEDS_ROLE_BODY)
+        )
+        with pytest.raises(PermissionError) as exc_info:
+            await AsyncHTTPClient(_http_config()).post("/keys", json={})
+        assert exc_info.value.body["detail"]["error"]["scopes"] == ["*"]
+
+    @respx.mock
+    def test_sync_streaming_body_is_kept(self):
+        from querri._base_client import SyncHTTPClient
+
+        respx.post(f"{_BASE}/projects/p1/chats/c1/stream").mock(
+            return_value=httpx.Response(403, json=_STREAM_403_BODY)
+        )
+        with pytest.raises(PermissionError) as exc_info:
+            SyncHTTPClient(_http_config()).post(
+                "/projects/p1/chats/c1/stream", json={}, stream=True
+            )
+        assert exc_info.value.body == _STREAM_403_BODY
+
+    @respx.mock
+    async def test_async_streaming_body_is_kept(self):
+        from querri._base_client import AsyncHTTPClient
+
+        respx.post(f"{_BASE}/projects/p1/chats/c1/stream").mock(
+            return_value=httpx.Response(403, json=_STREAM_403_BODY)
+        )
+        with pytest.raises(PermissionError) as exc_info:
+            await AsyncHTTPClient(_http_config()).post(
+                "/projects/p1/chats/c1/stream", json={}, stream=True
+            )
+        assert exc_info.value.body == _STREAM_403_BODY
+
+    @respx.mock
+    def test_non_json_body_is_none(self):
+        from querri._base_client import SyncHTTPClient
+
+        respx.get(f"{_BASE}/x").mock(
+            return_value=httpx.Response(403, content=b"Forbidden")
+        )
+        with pytest.raises(PermissionError) as exc_info:
+            SyncHTTPClient(_http_config()).get("/x")
+        assert exc_info.value.body is None
+
+    @respx.mock
+    def test_array_body_is_kept_as_is(self):
+        from querri._base_client import SyncHTTPClient
+
+        respx.get(f"{_BASE}/x").mock(
+            return_value=httpx.Response(400, json=["bad", "worse"])
+        )
+        with pytest.raises(ValidationError) as exc_info:
+            SyncHTTPClient(_http_config()).get("/x")
+        assert exc_info.value.body == ["bad", "worse"]
+
+    def test_rate_limit_error_keeps_body(self):
+        body = {"error": {"code": "rate_limit_exceeded", "message": "slow"}}
+        with pytest.raises(RateLimitError) as exc_info:
+            raise_for_status(429, body, retry_after=3.0)
+        assert exc_info.value.body == body
+        assert exc_info.value.retry_after == 3.0
+
+    def test_default_is_none(self):
+        assert APIError("x", status=400).body is None
+
+
+# ---------------------------------------------------------------------------
+# Streaming requests: retries and unreadable error bodies
+# ---------------------------------------------------------------------------
+
+
+def _retry_config(max_retries: int = 2):
+    from querri._config import ClientConfig
+
+    return ClientConfig(
+        api_key="qk_test",
+        org_id="org_test",
+        base_url=_BASE,
+        timeout=10.0,
+        max_retries=max_retries,
+    )
+
+
+class _TrackedStream(httpx.SyncByteStream, httpx.AsyncByteStream):
+    """A response body that counts its closes and can fail mid-read."""
+
+    def __init__(self, chunks: list[bytes], *, fail: bool = False) -> None:
+        self._chunks = chunks
+        self._fail = fail
+        self.closes = 0
+
+    def __iter__(self):
+        yield from self._chunks
+        if self._fail:
+            raise httpx.ReadError("connection dropped mid-body")
+
+    async def __aiter__(self):
+        for chunk in self._chunks:
+            yield chunk
+        if self._fail:
+            raise httpx.ReadError("connection dropped mid-body")
+
+    def close(self) -> None:
+        self.closes += 1
+
+    async def aclose(self) -> None:
+        self.closes += 1
+
+
+_RATE_LIMIT_BYTES = (
+    b'{"detail": {"error": {"type": "rate_limit_error", '
+    b'"code": "rate_limit_exceeded", "message": "Slow down."}}}'
+)
+
+
+def _tracked(status: int, stream: _TrackedStream, **headers: str) -> httpx.Response:
+    return httpx.Response(
+        status,
+        stream=stream,
+        headers={"content-type": "application/json", **headers},
+    )
+
+
+class TestStreamingRetries:
+    """``send(stream=True)`` responses: every discarded one is closed."""
+
+    @respx.mock
+    def test_sync_429_three_times_retries_closes_and_raises(self):
+        from querri._base_client import SyncHTTPClient
+
+        streams = [_TrackedStream([_RATE_LIMIT_BYTES]) for _ in range(3)]
+        route = respx.post(f"{_BASE}/projects/p1/chats/c1/stream").mock(
+            side_effect=[
+                _tracked(429, s, **{"retry-after": "0.01"}) for s in streams
+            ]
+        )
+        with pytest.raises(RateLimitError) as exc_info:
+            SyncHTTPClient(_retry_config(2)).post(
+                "/projects/p1/chats/c1/stream", json={}, stream=True
+            )
+        assert route.call_count == 3
+        assert [s.closes for s in streams] == [1, 1, 1]
+        err = exc_info.value
+        assert err.code == RATE_LIMIT_EXCEEDED
+        assert err.retry_after == 0.01
+        assert err.message == "Slow down."
+
+    @respx.mock
+    async def test_async_429_three_times_retries_closes_and_raises(self):
+        from querri._base_client import AsyncHTTPClient
+
+        streams = [_TrackedStream([_RATE_LIMIT_BYTES]) for _ in range(3)]
+        route = respx.post(f"{_BASE}/projects/p1/chats/c1/stream").mock(
+            side_effect=[
+                _tracked(429, s, **{"retry-after": "0.01"}) for s in streams
+            ]
+        )
+        with pytest.raises(RateLimitError) as exc_info:
+            await AsyncHTTPClient(_retry_config(2)).post(
+                "/projects/p1/chats/c1/stream", json={}, stream=True
+            )
+        assert route.call_count == 3
+        assert [s.closes for s in streams] == [1, 1, 1]
+        err = exc_info.value
+        assert err.code == RATE_LIMIT_EXCEEDED
+        assert err.retry_after == 0.01
+        assert err.message == "Slow down."
+
+    @respx.mock
+    def test_sync_503_on_streaming_get_then_success(self):
+        from querri._base_client import SyncHTTPClient
+
+        failed = _TrackedStream([b'{"detail": "busy"}'])
+        ok = _TrackedStream([b"0:\"hi\"\n"])
+        respx.get(f"{_BASE}/views/v1/stream").mock(
+            side_effect=[
+                _tracked(503, failed, **{"retry-after": "0.01"}),
+                httpx.Response(200, stream=ok),
+            ]
+        )
+        response = SyncHTTPClient(_retry_config(2)).get(
+            "/views/v1/stream", stream=True
+        )
+        assert failed.closes == 1
+        assert response.status_code == 200
+        assert ok.closes == 0  # the caller owns the live stream
+        assert response.read() == b'0:"hi"\n'
+        response.close()
+        assert ok.closes == 1
+
+    @respx.mock
+    async def test_async_503_on_streaming_get_then_success(self):
+        from querri._base_client import AsyncHTTPClient
+
+        failed = _TrackedStream([b'{"detail": "busy"}'])
+        ok = _TrackedStream([b"0:\"hi\"\n"])
+        respx.get(f"{_BASE}/views/v1/stream").mock(
+            side_effect=[
+                _tracked(503, failed, **{"retry-after": "0.01"}),
+                httpx.Response(200, stream=ok),
+            ]
+        )
+        response = await AsyncHTTPClient(_retry_config(2)).get(
+            "/views/v1/stream", stream=True
+        )
+        assert failed.closes == 1
+        assert response.status_code == 200
+        assert ok.closes == 0
+        assert await response.aread() == b'0:"hi"\n'
+        await response.aclose()
+        assert ok.closes == 1
+
+    @respx.mock
+    def test_sync_403_body_fails_mid_read(self):
+        from querri._base_client import SyncHTTPClient
+
+        stream = _TrackedStream([b'{"detail": {"err'], fail=True)
+        respx.post(f"{_BASE}/projects/p1/chats/c1/stream").mock(
+            return_value=_tracked(403, stream)
+        )
+        with pytest.raises(PermissionError) as exc_info:
+            SyncHTTPClient(_retry_config(2)).post(
+                "/projects/p1/chats/c1/stream", json={}, stream=True
+            )
+        assert stream.closes == 1
+        assert exc_info.value.status == 403
+        assert exc_info.value.code is None
+        assert exc_info.value.body is None
+
+    @respx.mock
+    async def test_async_403_body_fails_mid_read(self):
+        from querri._base_client import AsyncHTTPClient
+
+        stream = _TrackedStream([b'{"detail": {"err'], fail=True)
+        respx.post(f"{_BASE}/projects/p1/chats/c1/stream").mock(
+            return_value=_tracked(403, stream)
+        )
+        with pytest.raises(PermissionError) as exc_info:
+            await AsyncHTTPClient(_retry_config(2)).post(
+                "/projects/p1/chats/c1/stream", json={}, stream=True
+            )
+        assert stream.closes == 1
+        assert exc_info.value.status == 403
+        assert exc_info.value.code is None
+        assert exc_info.value.body is None

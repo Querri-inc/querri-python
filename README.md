@@ -220,16 +220,22 @@ session.get("role_id")    # str — present only when a role was applied
 ```
 
 `role_id` is a custom role's id (`role_…`) or a built-in role's
-(`system:creator`).
+(`system:creator`). No `role_id` means the role was not applied — an older
+server ignores `role`, and the session runs as the user's own role.
 
 `role` is not `user["role"]` (the org role, `admin`/`member`, used when the
 user is created). **Decide `role` on your server from your own auth — never
 read it from the browser's request.** Granting a role the user does not yet
-hold needs an API key with the `embed:role:assign` scope. Failures raise
+hold needs an API key with the `embed:role:assign` scope, and **the grant is
+permanent**: the role is added to the user's assignment, so their later
+sessions and the Querri app see it, and revoking the session does not remove
+it (an admin removes it in Settings → People). Failures raise
 `NotFoundError` (`role_not_found`) or `PermissionError` (`role_not_allowed`,
 `role_disabled`, `insufficient_scope`, `seat_change_required`). The user is
 created/updated and access policies applied before the session is requested,
-so if the role is refused those steps have still happened.
+so if the role is refused those steps have still happened. On servers
+released after 2026-10-21, creating that user can itself be refused
+(`escalation_denied`, `last_admin` — see below).
 
 You can also pass pre-created policy IDs directly:
 
@@ -304,11 +310,19 @@ QuerriError
 └── ConfigError             — missing/invalid configuration
 ```
 
-Every `APIError` carries `status`, `message`, `type`, `code`, `doc_url` and
-`request_id`. A `403 permission_denied` (the caller's role does not allow the
-action) also carries `permission` and `reason` (`role_denied`,
-`not_in_plan`, `flag_off`, `embed_disabled`, `dependency_unmet`, `forbidden`,
-`scope_exceeds_role` — the server may add more). Compare `code` against the
+Every `APIError` carries `status`, `message`, `type`, `code`, `doc_url`,
+`request_id` and `body` (the parsed JSON response, `None` when it was not
+JSON — it holds the fields the exception does not lift out, e.g.
+`e.body["detail"]["error"]["scopes"]` on `scope_exceeds_role`). A `403
+permission_denied` (the caller's role does not allow the action) also carries
+`permission` and `reason` (`role_denied`, `not_in_plan`, `flag_off`,
+`embed_disabled`, `dependency_unmet`, `forbidden`, `scope_exceeds_role` — the
+server may add more). On servers
+released after 2026-10-21, `client.users` `create` / `update` / `delete` /
+`get_or_create` — and `get_session()` for a new user — can raise
+`PermissionError` (`escalation_denied`, the permissions you lack in
+`e.body["detail"]["error"]["missing"]`) or `ConflictError` (`last_admin`).
+Compare `code` against the
 exported constants (they cover authentication, access, Custom Roles and embed
 sessions; the API sends other codes too, so treat `code` as a string):
 

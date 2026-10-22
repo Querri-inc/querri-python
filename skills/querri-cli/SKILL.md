@@ -247,7 +247,7 @@ querri key delete <key_id>
 
 Valid scopes (an unknown name is rejected with `400 invalid_parameters`):
 - `data:read` / `data:write`
-- `embed:session:create`, `embed:role:assign` (grant a Custom Role the user does not hold at session create; needs `api.write_scopes.use` + `admin.embed.manage` + `admin.people.manage`)
+- `embed:session:create`, `embed:role:assign` (grant a Custom Role the user does not hold at session create — permanently; needs `api.write_scopes.use` + `admin.embed.manage` + `admin.people.manage`)
 - `admin:users:read` / `admin:users:write`
 - `admin:policies:read` / `admin:policies:write`
 - `admin:projects:read` / `admin:projects:write`
@@ -258,9 +258,9 @@ Valid scopes (an unknown name is rejected with `400 invalid_parameters`):
 - `admin:permissions:read` / `admin:permissions:write`
 - `admin:skills:read` / `admin:skills:write`
 - `admin:library:read` / `admin:library:write` / `admin:library:seed`
-- `*` (every scope)
+- `*` (every scope, including `embed:role:assign`)
 
-Scopes follow a person's role: a key keeps only the scopes both its creator and its bound user currently hold, a new key can't carry more than they hold (`permission_denied`, reason `scope_exceeds_role`), only an Admin may bind a key to someone else, and a JWT login gets its active role's scopes (Guest is read-only). Servers released after 2026-10-21 apply this to every key; earlier servers cap only keys created in Settings.
+Scopes follow a person's role. A JWT login gets its active role's scopes (Guest is read-only). A key acts for its creator **and** its bound user: it keeps only the scopes both currently hold, and permission checks made for it (embed role grants, the user commands' role guards) use the permissions both hold. A new key can't carry more than they hold (`permission_denied`, reason `scope_exceeds_role`; the refused scopes are in the response body's `detail.error.scopes`). Only an Admin may bind a key to someone else (`permission_denied`, permission `org.admin`, reason `role_denied`). `--bound-user-id` can't be a pseudo id (`api_key:…`, `jwt:…`, `embed:…`, `public`, `embed-api`, the service id) — `400`. A key created by another key keeps that key's creator and bound user (a bound key can only create keys bound to the same user, else `400 invalid_parameters`), workspace, sources (equal or narrower) and exactly its access policies; each IP allow-list entry must sit inside one of the parent's IPs/CIDRs, and it can't expire later or have a higher rate limit than the parent. Servers released after 2026-10-21 apply all of this; earlier servers cap only keys created in Settings, and check embed role grants against the bound user, else the creator.
 
 ## Users
 
@@ -271,6 +271,8 @@ querri user new --email "user@example.com" --first-name "..." --last-name "..."
 querri user update <user_id> --role admin --first-name "..."
 querri user delete <user_id>
 ```
+
+On servers released after 2026-10-21, `user new` / `update` / `delete` (and `session get` for a user that doesn't exist yet) can be refused: `escalation_denied` (403, exit 6 — you'd give or remove a role with permissions you don't hold; for a key, permissions its creator and bound user don't both hold; the body lists them under `missing`) or `last_admin` (409, exit 1 — the org must keep an Admin).
 
 ## Access Policies (Row-Level Security)
 
@@ -296,6 +298,8 @@ querri session refresh --token <token>
 querri session revoke --session-id <session_id>
 querri session ui-config --org <org_id>            # public embed UI config (chrome/theme/privacy)
 ```
+
+`--role` grants are **permanent**: a role the user doesn't hold is added to their role assignment (later sessions and the app see it). `session revoke` does not remove it; an admin removes it in Settings → People. No `role_id` in the output with `--role` set means the role was not applied — an older server ignores `--role` and the session runs as the user's own role. `session new`, `session refresh` and `session list` show `Role ID`.
 
 ## Administration
 
@@ -333,12 +337,28 @@ See `references/json-shapes.md` for the exact fields returned by each command.
 | 5 | Server error |
 | 6 | Forbidden (403) — e.g. `permission_denied`, `insufficient_scope`, an embed role refusal |
 
-With `--json`, an API error prints `{"error", "message", "exit_code", "status", "code", ...}`:
-`exit_code` is the process exit code and `code` is the API error code (e.g. `permission_denied`).
-A `permission_denied` error also carries `permission` (the permission needed) and `reason`
-(`role_denied`, `not_in_plan`, `flag_off`, `embed_disabled`, `dependency_unmet`, `forbidden`,
-`scope_exceeds_role`; the server may add more). `permission` is absent when no single permission
-applies (e.g. `scope_exceeds_role`).
+With `--json`, every error prints one JSON object on stdout — the same keys and values as CLI
+2.1.0, plus `exit_code` (the process exit code; added in 2.2.0). An API error prints:
+
+```json
+{"error": "api_error", "message": "...", "code": "permission_denied", "status": "403",
+ "type": "permission_error", "request_id": "req_...", "doc_url": "...", "exit_code": 6}
+```
+
+- `error`: `auth_failed` (401), `not_found` (404), `rate_limited` (429), `server_error` (5xx),
+  `not_implemented` (501), else `api_error` — **a 403 is `api_error`**, as in 2.1.0.
+- `code`: the API error code when the server sent one (e.g. `permission_denied`,
+  `escalation_denied`, `last_admin`), **else the exit code** (a number). Read `exit_code` for
+  the exit code; don't infer it from `code`.
+- `status`, `type`, `request_id`, `doc_url`: present only when set; `status` is a string.
+- `permission` / `reason` are **not** JSON keys (2.1.0 never printed them). Text mode appends them
+  to the message (`(permission: dashboards.list.view, reason: role_denied)`); the Python SDK
+  exposes them as `APIError.permission` / `.reason`.
+
+Other errors print `{"error": "<kind>", "message": "...", "code": <exit code>, "exit_code": <exit
+code>}` (plus `hint` on a missing-credentials error). Two keep their 2.1.0 shape exactly:
+`querri view run` timing out prints `{"error": "<message>", "exit_code": 1}`, and `querri auth
+switch-org` with one org prints `{"error": "single_org", "message": "...", "exit_code": 1}`.
 
 ## Troubleshooting
 

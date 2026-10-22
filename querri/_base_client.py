@@ -77,12 +77,12 @@ def _backoff_delay(attempt: int, retry_after: float | None = None) -> float:
     return base + jitter
 
 
-def _parse_error_response(response: httpx.Response) -> dict[str, Any]:
-    """Try to parse JSON error body, fall back to empty dict."""
+def _parse_error_response(response: httpx.Response) -> Any:
+    """Parse the JSON error body (any JSON value), or ``None`` when it is not JSON."""
     try:
-        return response.json()  # type: ignore[no-any-return]
+        return response.json()
     except Exception:
-        return {}
+        return None
 
 
 def _read_streamed_error(response: httpx.Response) -> None:

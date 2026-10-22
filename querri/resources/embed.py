@@ -65,7 +65,11 @@ class Embed:
                 ``user["role"]``, the org role (``admin``/``member``) used
                 when creating a user. Decide it on your server from your own
                 auth; never read it from the browser's request. The response
-                carries ``role_id`` when a role was applied.
+                carries ``role_id`` when a role was applied; ``None`` also
+                means an older server ignored ``role`` (the session then
+                runs as the user's own role). Granting a role the user does
+                not hold is permanent: it stays on the user after the
+                session is revoked, until an admin removes it.
 
         Raises:
             ValueError: If ``ttl`` is outside [900, 86400].
@@ -277,7 +281,11 @@ class AsyncEmbed:
                 ``user["role"]``, the org role (``admin``/``member``) used
                 when creating a user. Decide it on your server from your own
                 auth; never read it from the browser's request. The response
-                carries ``role_id`` when a role was applied.
+                carries ``role_id`` when a role was applied; ``None`` also
+                means an older server ignored ``role`` (the session then
+                runs as the user's own role). Granting a role the user does
+                not hold is permanent: it stays on the user after the
+                session is revoked, until an admin removes it.
 
         Raises:
             ValueError: If ``ttl`` is outside [900, 86400].

@@ -261,13 +261,14 @@ class TestExitCodeMapping:
         data = json.loads(output)
         assert data["error"] == "auth_failed"
         assert data["exit_code"] == 2
-        # ``code`` is reserved for the API error code; this error has none.
-        assert "code" not in data
+        # As in 2.1.0, ``code`` falls back to the exit code without an API code.
+        assert data["code"] == 2
 
-    def test_handle_api_error_json_mode_keeps_exit_and_api_codes_apart(
+    def test_handle_api_error_json_mode_403_keeps_the_2_1_0_shape(
         self, capsys
     ) -> None:
-        """The API code no longer overwrites the exit code in JSON mode."""
+        """JSON mode: the API code wins ``code``; ``exit_code`` holds 6; the
+        2.1.0 keys only (no permission/reason keys)."""
         from querri._exceptions import PermissionError as QuerriPermissionError
         from querri.cli._output import handle_api_error
 
@@ -282,10 +283,13 @@ class TestExitCodeMapping:
 
         assert code == 6
         data = json.loads(capsys.readouterr().out)
-        assert data["exit_code"] == 6
-        assert data["code"] == "permission_denied"
-        assert data["permission"] == "dashboards.list.view"
-        assert data["reason"] == "role_denied"
+        assert data == {
+            "error": "api_error",
+            "message": "This action needs the dashboards.list.view permission.",
+            "code": "permission_denied",
+            "status": "403",
+            "exit_code": 6,
+        }
 
 
 # ---------------------------------------------------------------------------
