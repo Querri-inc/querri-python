@@ -391,6 +391,7 @@ the user is created with.
 | The role is a draft | `PermissionError` (403) | `role_disabled` |
 | The user does not hold the role and the key lacks `embed:role:assign` | `PermissionError` (403) | `insufficient_scope` |
 | Granting the role would change the user's seat | `PermissionError` (403) | `seat_change_required` |
+| The user holds more than the key's people (creator and bound user), e.g. an Admin from a key a Creator made; servers released after 2026-10-21, with or without `role` | `PermissionError` (403) | `escalation_denied` |
 
 A role the user already holds is simply selected. Granting one they do not
 hold needs a key with the `embed:role:assign` scope (see [Keys](#keys)) and
