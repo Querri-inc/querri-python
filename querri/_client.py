@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from .resources.library import AsyncLibrary, Library
     from .resources.policies import AsyncPolicies, Policies
     from .resources.projects import AsyncProjects, Projects
+    from .resources.roles import AsyncRoles, Roles
     from .resources.sharing import AsyncSharing, Sharing
     from .resources.sources import AsyncSources, Sources
     from .resources.usage import AsyncUsage, Usage
@@ -79,6 +80,7 @@ class Querri:
         self._users: object | None = None
         self._embed: object | None = None
         self._policies: object | None = None
+        self._roles: object | None = None
         self._projects: object | None = None
         self._dashboards: object | None = None
         self._files: object | None = None
@@ -113,6 +115,14 @@ class Querri:
 
             self._policies = Policies(self._http)
         return self._policies  # type: ignore[return-value]
+
+    @property
+    def roles(self) -> "Roles":
+        if self._roles is None:
+            from .resources.roles import Roles
+
+            self._roles = Roles(self._http)
+        return self._roles  # type: ignore[return-value]
 
     @property
     def projects(self) -> "Projects":
@@ -276,6 +286,7 @@ class AsyncQuerri:
         self._users: object | None = None
         self._embed: object | None = None
         self._policies: object | None = None
+        self._roles: object | None = None
         self._projects: object | None = None
         self._dashboards: object | None = None
         self._files: object | None = None
@@ -310,6 +321,14 @@ class AsyncQuerri:
 
             self._policies = AsyncPolicies(self._http)
         return self._policies  # type: ignore[return-value]
+
+    @property
+    def roles(self) -> "AsyncRoles":
+        if self._roles is None:
+            from .resources.roles import AsyncRoles
+
+            self._roles = AsyncRoles(self._http)
+        return self._roles  # type: ignore[return-value]
 
     @property
     def projects(self) -> "AsyncProjects":

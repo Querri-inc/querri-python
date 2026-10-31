@@ -41,6 +41,16 @@ from .project import (
     ProjectRunStatus,
     StepSummary,
 )
+from .role import (
+    CatalogPermission,
+    PermissionCatalog,
+    RoleApplyError,
+    RoleApplyResult,
+    RoleChange,
+    RoleDefinition,
+    RoleDeleteResponse,
+    RoleImportResult,
+)
 from .sharing import ShareEntry
 from .usage import UsageReport
 from .user import ExternalIdDeleteResponse, User, UserDeleteResponse
@@ -66,6 +76,15 @@ __all__ = [
     "RowFilter",
     "ColumnInfo",
     "SourceColumns",
+    # Role
+    "CatalogPermission",
+    "PermissionCatalog",
+    "RoleApplyError",
+    "RoleApplyResult",
+    "RoleChange",
+    "RoleDefinition",
+    "RoleDeleteResponse",
+    "RoleImportResult",
     # Project
     "AddSourceResponse",
     "Project",
