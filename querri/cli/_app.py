@@ -17,6 +17,7 @@ from querri.cli.keys import keys_app
 from querri.cli.library import library_app
 from querri.cli.policies import policies_app
 from querri.cli.projects import projects_app
+from querri.cli.roles import roles_app
 from querri.cli.sharing import sharing_app
 from querri.cli.sources import sources_app
 from querri.cli.steps import steps_app
@@ -244,6 +245,11 @@ main_app.add_typer(
 main_app.add_typer(
     policies_app, name="policy", rich_help_panel="[#f15a24]Administration[/#f15a24]"
 )
+main_app.add_typer(
+    roles_app, name="role", rich_help_panel="[#f15a24]Administration[/#f15a24]"
+)
+# ``querri roles ...`` works too (hidden alias of ``querri role``).
+main_app.add_typer(roles_app, name="roles", hidden=True)
 main_app.add_typer(
     sharing_app, name="share", rich_help_panel="[#f15a24]Administration[/#f15a24]"
 )

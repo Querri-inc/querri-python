@@ -4,6 +4,22 @@
 
 ### Added
 
+- **Custom roles as code.** `client.roles` (sync and async): `list()`,
+  `get(ref)`, `catalog()`, `apply(definition, dry_run=)` (idempotent upsert,
+  `PUT /roles/{key}`), `import_roles(definitions, dry_run=)` (one call, each
+  role independent), `delete(ref, reassign_to=)` and `export()` (definitions
+  with the output-only fields stripped, ready to save and re-apply). New
+  types in `querri.types`: `RoleDefinition`, `RoleApplyResult`,
+  `RoleChange`, `RoleApplyError`, `RoleImportResult`, `RoleDeleteResponse`,
+  `PermissionCatalog`, `CatalogPermission`. Needs the `admin:roles:read` /
+  `admin:roles:write` scopes. See docs/roles.md.
+- **`querri role`** (alias `querri roles`): `list`, `get`, `export`,
+  `apply -f FILE [--dry-run] [--watch]`, `delete [--reassign-to] [--yes]` and
+  `catalog [--area]`. `apply` prints a per-field change summary
+  (`denies: +chat.code.view -tools.dashboards.use`) and exits non-zero when
+  any role failed; `--watch` re-applies whenever the file is saved. JSON
+  files only.
+- The **Roles** scope group in the `querri key new` scope picker.
 - **Custom Roles on embed sessions.** `client.embed.create_session()` and
   `client.embed.get_session()` (sync and async) take `role=` — the id or key
   of the Custom Role the session runs as. It is sent only when set, and it

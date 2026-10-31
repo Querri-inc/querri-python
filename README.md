@@ -342,6 +342,8 @@ The SDK automatically retries **429** (always) and **5xx** (idempotent methods o
 
 ### Full Reference
 
+Custom roles can be managed as code (export, edit, `querri role apply -f role.json --watch`): see **[docs/roles.md](docs/roles.md)**.
+
 See **[docs/server-sdk.md](docs/server-sdk.md)** for complete method signatures, all framework examples, and the `get_session()` deep dive.
 
 ---
