@@ -39,6 +39,9 @@ def _isolated_token_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pa
     monkeypatch.setattr(TokenStore, "STORE_DIR", tmp_path)
     monkeypatch.setattr(TokenStore, "STORE_FILE", tmp_path / "tokens.json")
     monkeypatch.delenv("QUERRI_USER_ID", raising=False)
+    # TokenStore.save() skips persistence when CI is set (GitHub sets it), so a
+    # profile a test saves would never reach the CLI it then invokes.
+    monkeypatch.delenv("CI", raising=False)
     return tmp_path
 
 
