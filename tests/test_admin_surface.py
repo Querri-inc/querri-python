@@ -59,7 +59,10 @@ def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         library_cli, "_LIBRARY_CONTEXT_FILE", tmp_path / "library_context.json"
     )
     for var in ("QUERRI_LIBRARY_ID", "QUERRI_WORKSPACE_ID", "QUERRI_API_KEY",
-                "QUERRI_ACCESS_TOKEN", "QUERRI_ORG_ID", "QUERRI_HOST"):
+                "QUERRI_ACCESS_TOKEN", "QUERRI_ORG_ID", "QUERRI_HOST",
+                # TokenStore.save() is a no-op under CI, which would leave the
+                # profile a test just saved unwritten on the runner.
+                "CI"):
         monkeypatch.delenv(var, raising=False)
     return tmp_path
 
