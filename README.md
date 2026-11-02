@@ -264,16 +264,19 @@ See **[docs/server-sdk.md](docs/server-sdk.md#user-scoped-client-as_user)** for 
 |----------|--------|-------------|
 | `client.embed` | Embed sessions (flagship) | `get_session`, `create_session`, `refresh_session`, `revoke_session`, `list_sessions`, `get_ui_config` |
 | `client.policies` | Row-level access control | `setup`, `create`, `list`, `get`, `update`, `delete`, `assign_users`, `remove_user`, `resolve`, `columns` |
-| `client.users` | User management | `list`, `create`, `get`, `get_or_create`, `update`, `delete` |
+| `client.users` | User management (system role or Custom Role via `role_id`) | `list`, `create`, `get`, `get_or_create`, `update`, `delete` |
+| `client.workspaces` | Workspaces (reads work with API keys) | `list`, `get`, `members`, `create`, `add_member`, `move` |
+| `client.settings` | Org settings (read only) | `get_context` |
+| `client.flags` | Feature flags decided for the org (read only) | `list` |
 | `client.dashboards` | Dashboard management | `list`, `create`, `get`, `update`, `delete`, `refresh`, `refresh_status` |
 | `client.projects` | Analysis projects | `list`, `create`, `get`, `update`, `delete`, `add_source`, `run`, `run_status`, `run_cancel`, `list_steps`, `get_step_data` |
 | `client.projects.chats` | Chats within projects | `create`, `list`, `get`, `stream`, `cancel`, `delete` |
 | `client.sources` | Sources, connectors & data | `list`, `create`, `create_data_source`, `query`, `source_data`, `append_rows`, `replace_data`, `ask`, `sync`, `list_connectors` |
 | `client.views` | SQL-defined views | `list`, `create`, `get`, `update`, `delete`, `run`, `get_run`, `wait_for_run`, `preview`, `chat` |
-| `client.library` | Data Library — graph + librarian agent | `create_library`, `create_collection`, `create_anchor_question`, `create_refining_question`, `link`, `status`, `list_nodes`, `get_node`, `search`, `zoom`, `record_fact`, `chat`, `chat_stream`, `backfill`, `seed_fixture`, `health` |
+| `client.library` | Data Library — graph + librarian agent | `create_library`, `create_collection`, `create_anchor_question`, `create_refining_question`, `link`, `status`, `list_nodes`, `get_node`, `search`, `zoom`, `record_fact`, `list_facts`, `fact_kinds`, `move_node`, `delete_node`, `create_kpi`, `list_kpi_categories`, `build_view`, `chat`, `chat_stream`, `backfill`, `seed_fixture`, `health` |
 | `client.files` | File management | `upload`, `list`, `get`, `delete` |
 | `client.keys` | API key management | `create`, `list`, `get`, `delete` |
-| `client.sharing` | Sharing & permissions | `share_project`, `share_dashboard`, `share_source`, `list_project_shares`, `list_dashboard_shares`, `revoke_project_share`, `revoke_dashboard_share`, `org_share_source` |
+| `client.sharing` | Sharing & permissions | `share_project`, `share_dashboard`, `share_source`, `list_project_shares`, `list_dashboard_shares`, `revoke_project_share`, `revoke_dashboard_share`, `org_share_source`, `share_workspace`, `unshare_workspace`, `list_workspace_shares` |
 | `client.audit` | Audit log | `list` |
 | `client.usage` | Usage metrics | `org_usage`, `user_usage` |
 

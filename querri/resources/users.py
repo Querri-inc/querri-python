@@ -9,6 +9,21 @@ from .._pagination import AsyncCursorPage, SyncCursorPage
 from ..types.user import ExternalIdDeleteResponse, User, UserDeleteResponse
 
 
+def _role_body(
+    body: dict[str, Any], role: str | None, role_id: str | None, *, default: str | None
+) -> dict[str, Any]:
+    """Add ``role`` / ``role_id``. With a ``role_id`` the default role is NOT
+    sent: the server derives the seat from the custom role, and a defaulted
+    ``"member"`` would contradict an Admin-seat role."""
+    if role_id:
+        body["role_id"] = role_id
+        if role is not None:
+            body["role"] = role
+    elif role is not None or default is not None:
+        body["role"] = role if role is not None else default
+    return body
+
+
 class Users:
     """Synchronous user management.
 
@@ -37,7 +52,8 @@ class Users:
         external_id: str | None = None,
         first_name: str | None = None,
         last_name: str | None = None,
-        role: str = "member",
+        role: str | None = None,
+        role_id: str | None = None,
     ) -> User:
         """Create a user in the organization.
 
@@ -46,9 +62,14 @@ class Users:
             external_id: Optional customer-provided external ID.
             first_name: Optional first name.
             last_name: Optional last name.
-            role: ``"admin"`` or ``"member"`` (default).
+            role: ``"admin"``, ``"member"`` (default) or ``"guest"``.
+            role_id: A Custom Role's id or key, held in place of a system
+                role. Its seat decides the system role; send ``role`` too only
+                if it names the same seat.
         """
-        body: dict[str, Any] = {"email": email, "role": role}
+        body: dict[str, Any] = _role_body(
+            {"email": email}, role, role_id, default="member"
+        )
         if external_id is not None:
             body["external_id"] = external_id
         if first_name is not None:
@@ -95,18 +116,20 @@ class Users:
         role: str | None = None,
         first_name: str | None = None,
         last_name: str | None = None,
+        role_id: str | None = None,
     ) -> User:
         """Update a user's role or profile fields.
 
         Args:
             user_id: WorkOS user ID or external ID.
-            role: New role (``"admin"`` or ``"member"``).
+            role: New system role (``"admin"``, ``"member"`` or ``"guest"``).
             first_name: New first name.
             last_name: New last name.
+            role_id: Assign a Custom Role by id or key, in place of a system
+                role. The seat follows the role; ``role`` is only needed if it
+                names the same seat.
         """
-        body: dict[str, Any] = {}
-        if role is not None:
-            body["role"] = role
+        body: dict[str, Any] = _role_body({}, role, role_id, default=None)
         if first_name is not None:
             body["first_name"] = first_name
         if last_name is not None:
@@ -130,7 +153,8 @@ class Users:
         email: str | None = None,
         first_name: str | None = None,
         last_name: str | None = None,
-        role: str = "member",
+        role: str | None = None,
+        role_id: str | None = None,
     ) -> User:
         """Idempotent get-or-create by external ID.
 
@@ -144,9 +168,10 @@ class Users:
                 when retrieving an existing user.
             first_name: First name (used only on creation).
             last_name: Last name (used only on creation).
-            role: Role (used only on creation).
+            role: System role, used only on creation (default ``"member"``).
+            role_id: Custom Role id or key, used only on creation.
         """
-        body: dict[str, Any] = {"role": role}
+        body: dict[str, Any] = _role_body({}, role, role_id, default="member")
         if email is not None:
             body["email"] = email
         if first_name is not None:
@@ -194,7 +219,8 @@ class AsyncUsers:
         external_id: str | None = None,
         first_name: str | None = None,
         last_name: str | None = None,
-        role: str = "member",
+        role: str | None = None,
+        role_id: str | None = None,
     ) -> User:
         """Create a user in the organization.
 
@@ -203,9 +229,14 @@ class AsyncUsers:
             external_id: Optional customer-provided external ID.
             first_name: Optional first name.
             last_name: Optional last name.
-            role: ``"admin"`` or ``"member"`` (default).
+            role: ``"admin"``, ``"member"`` (default) or ``"guest"``.
+            role_id: A Custom Role's id or key, held in place of a system
+                role. Its seat decides the system role; send ``role`` too only
+                if it names the same seat.
         """
-        body: dict[str, Any] = {"email": email, "role": role}
+        body: dict[str, Any] = _role_body(
+            {"email": email}, role, role_id, default="member"
+        )
         if external_id is not None:
             body["external_id"] = external_id
         if first_name is not None:
@@ -252,18 +283,20 @@ class AsyncUsers:
         role: str | None = None,
         first_name: str | None = None,
         last_name: str | None = None,
+        role_id: str | None = None,
     ) -> User:
         """Update a user's role or profile fields.
 
         Args:
             user_id: WorkOS user ID or external ID.
-            role: New role (``"admin"`` or ``"member"``).
+            role: New system role (``"admin"``, ``"member"`` or ``"guest"``).
             first_name: New first name.
             last_name: New last name.
+            role_id: Assign a Custom Role by id or key, in place of a system
+                role. The seat follows the role; ``role`` is only needed if it
+                names the same seat.
         """
-        body: dict[str, Any] = {}
-        if role is not None:
-            body["role"] = role
+        body: dict[str, Any] = _role_body({}, role, role_id, default=None)
         if first_name is not None:
             body["first_name"] = first_name
         if last_name is not None:
@@ -287,7 +320,8 @@ class AsyncUsers:
         email: str | None = None,
         first_name: str | None = None,
         last_name: str | None = None,
-        role: str = "member",
+        role: str | None = None,
+        role_id: str | None = None,
     ) -> User:
         """Idempotent get-or-create by external ID.
 
@@ -297,9 +331,10 @@ class AsyncUsers:
                 when retrieving an existing user.
             first_name: First name (used only on creation).
             last_name: Last name (used only on creation).
-            role: Role (used only on creation).
+            role: System role, used only on creation (default ``"member"``).
+            role_id: Custom Role id or key, used only on creation.
         """
-        body: dict[str, Any] = {"role": role}
+        body: dict[str, Any] = _role_body({}, role, role_id, default="member")
         if email is not None:
             body["email"] = email
         if first_name is not None:

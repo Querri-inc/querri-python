@@ -17,7 +17,8 @@ class Source(BaseModel):
         None  #: Mapping of column name to type string.
     )
     row_count: int | None = None  #: Total number of rows in the source.
-    service: str | None = None  #: Where it came from — ``upload``, ``view``, a connector.
+    #: Where it came from — ``upload``, ``view``, a connector.
+    service: str | None = None
     #: True once the source has a parsed dataframe attached. Only materialized
     #: sources are queryable or usable in a view. An .xlsx upload stays False
     #: until analyzed.

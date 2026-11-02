@@ -21,17 +21,20 @@ $ querri library ask "What is the total of the invoices?"
   → "The total of all invoices is $2,328.60, from 412 invoices."
 ```
 
-## You need to be signed in
+## Signed in, or an API key
 
-```bash
-querri auth login
-```
+Reading workspaces works either way: `querri workspace list` / `show` /
+`members` (and `client.workspaces.list/get/members`) use the public
+`/api/v1/workspaces` routes. A login sees the workspaces it can enter; an API
+key sees every workspace in the organization.
 
-Workspace scoping requires a real user. Under an API key the server has no
-membership roster to validate a workspace claim against, so it ignores the
-header entirely and everything lands in the key owner's personal workspace.
-This is not a bug you can work around by setting the header harder — an
-org-scoped key is org-scoped.
+Library creates (collections, questions, facts, KPIs) send the active workspace
+as `workspace_id`, so an API key can home them too.
+
+Uploads, projects, and `workspace new` / `add-member` / `move` still need a
+signed-in user (`querri auth login`): under an API key the server has no
+membership roster to check the claim against, and those creates land in the key
+owner's personal workspace.
 
 ## Choosing one
 
@@ -117,8 +120,15 @@ answer = client.library.ask(library_id=lib, question="...")
 print(answer.workspace_id)                     # the scope it ANSWERED under
 ```
 
-`client.workspaces` has `list`, `get`, `create`, `members`, `add_member` and
-`move`.
+`client.workspaces` has `list`, `get` and `members` (public API, API keys
+welcome), and `create`, `add_member` and `move` (app routes, login only). Each
+workspace has a `kind`: `personal`, `named` or `company` (the org's shared one).
+
+To share one item with a whole workspace without moving it, use
+`client.sharing.share_workspace(resource_type, resource_id, workspace_id)` or
+`querri share workspace add <type> <id> --to <workspace>`. Library nodes move
+with `client.library.move_node(node_id, workspace_id)` /
+`querri library move <id> --to <workspace>`.
 
 ## Two things worth knowing
 

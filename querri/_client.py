@@ -13,11 +13,13 @@ if TYPE_CHECKING:
     from .resources.dashboards import AsyncDashboards, Dashboards
     from .resources.embed import AsyncEmbed, Embed
     from .resources.files import AsyncFiles, Files
+    from .resources.flags import AsyncFlags, Flags
     from .resources.keys import AsyncKeys, Keys
     from .resources.library import AsyncLibrary, Library
     from .resources.policies import AsyncPolicies, Policies
     from .resources.projects import AsyncProjects, Projects
     from .resources.roles import AsyncRoles, Roles
+    from .resources.settings import AsyncSettings, Settings
     from .resources.sharing import AsyncSharing, Sharing
     from .resources.sources import AsyncSources, Sources
     from .resources.usage import AsyncUsage, Usage
@@ -100,6 +102,8 @@ class Querri:
         self._audit: object | None = None
         self._library: object | None = None
         self._workspaces: object | None = None
+        self._settings: object | None = None
+        self._flags: object | None = None
 
     @property
     def users(self) -> "Users":
@@ -180,6 +184,22 @@ class Querri:
 
             self._keys = Keys(self._http)
         return self._keys  # type: ignore[return-value]
+
+    @property
+    def settings(self) -> "Settings":
+        if self._settings is None:
+            from .resources.settings import Settings
+
+            self._settings = Settings(self._http)
+        return self._settings  # type: ignore[return-value]
+
+    @property
+    def flags(self) -> "Flags":
+        if self._flags is None:
+            from .resources.flags import Flags
+
+            self._flags = Flags(self._http)
+        return self._flags  # type: ignore[return-value]
 
     @property
     def sharing(self) -> "Sharing":
@@ -327,6 +347,8 @@ class AsyncQuerri:
         self._audit: object | None = None
         self._library: object | None = None
         self._workspaces: object | None = None
+        self._settings: object | None = None
+        self._flags: object | None = None
 
     @property
     def users(self) -> "AsyncUsers":
@@ -407,6 +429,22 @@ class AsyncQuerri:
 
             self._keys = AsyncKeys(self._http)
         return self._keys  # type: ignore[return-value]
+
+    @property
+    def settings(self) -> "AsyncSettings":
+        if self._settings is None:
+            from .resources.settings import AsyncSettings
+
+            self._settings = AsyncSettings(self._http)
+        return self._settings  # type: ignore[return-value]
+
+    @property
+    def flags(self) -> "AsyncFlags":
+        if self._flags is None:
+            from .resources.flags import AsyncFlags
+
+            self._flags = AsyncFlags(self._http)
+        return self._flags  # type: ignore[return-value]
 
     @property
     def sharing(self) -> "AsyncSharing":

@@ -5,10 +5,15 @@ from __future__ import annotations
 import glob as globmod
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import typer
 
 from querri.cli._context import get_client
+
+if TYPE_CHECKING:
+    from querri._client import Querri
+    from querri.types.file import File
 from querri.cli._output import (
     handle_api_error,
     print_detail,
@@ -178,12 +183,12 @@ def upload_file(
             continue
         paths.append(file_path)
 
-    def _upload(file_path: Path):
+    def _upload(file_path: Path) -> File:
         return client.files.upload(
             str(file_path), name=name if len(matches) == 1 else None
         )
 
-    results = []
+    results: list[File] = []
     if concurrency > 1 and len(paths) > 1:
         from concurrent.futures import ThreadPoolExecutor
 
@@ -205,16 +210,19 @@ def upload_file(
                     code=handle_api_error(exc, is_json=obj.get("json"))
                 ) from None
 
-    wait_report: dict = {}
+    wait_report: dict[str, dict[str, Any]] = {}
     if wait and results:
         wait_report = _wait_for_uploads(
-            client, [f.id for f in results], timeout=timeout, quiet=bool(obj.get("json"))
+            client,
+            [f.id for f in results],
+            timeout=timeout,
+            quiet=bool(obj.get("json")),
         )
 
     if obj.get("json"):
         payload = [f.model_dump(mode="json") for f in results]
         for row in payload:
-            rec = wait_report.get(row.get("id"))
+            rec = wait_report.get(str(row.get("id")))
             if rec:
                 row["state"] = rec["state"]
                 row["row_count"] = rec["source"].get("row_count")
@@ -245,14 +253,14 @@ def upload_file(
 
 
 def _wait_for_uploads(
-    client, source_ids: list[str], *, timeout: float, quiet: bool
-) -> dict:
+    client: Querri, source_ids: list[str], *, timeout: float, quiet: bool
+) -> dict[str, dict[str, Any]]:
     """Block on processing, printing a live count to stderr.
 
     Progress goes to stderr so ``--json`` output on stdout stays machine-clean.
     """
 
-    def _tick(done: int, total: int, counts: dict) -> None:
+    def _tick(done: int, total: int, counts: dict[str, int]) -> None:
         if quiet:
             return
         detail = " ".join(f"{k}={v}" for k, v in sorted(counts.items()))

@@ -33,7 +33,8 @@ class ClientConfig:
     #: the ``querri`` command built the client. Sent as ``X-Querri-Client`` so
     #: the server can tell the two apart (the User-Agent is the same for both).
     client_kind: str = "sdk"
-    workspace_id: str | None = None  #: Active workspace, sent as ``X-Querri-Workspace``.
+    #: Active workspace, sent as ``X-Querri-Workspace``.
+    workspace_id: str | None = None
     host: str = DEFAULT_HOST  #: Server root, without the ``/api/v1`` suffix.
     #: Name of the token-store profile this client's JWT came from, or None when
     #: the credential was passed in directly. Set only for store-sourced tokens,

@@ -487,6 +487,8 @@ class TestSubAppRegistration:
         "policy",
         "role",
         "share",
+        "settings",
+        "flags",
         "session",
         "usage",
         "audit",

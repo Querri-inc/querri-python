@@ -246,7 +246,8 @@ class SyncHTTPClient:
         # the first real 5xx after a token expiry unretryable.
         renewed = False
 
-        for attempt in range(max_retries + 1):
+        attempt = 0
+        while attempt <= max_retries:
             try:
                 if stream:
                     # For streaming, caller manages the response lifecycle
@@ -306,6 +307,7 @@ class SyncHTTPClient:
                     if stream:
                         response.close()
                     time.sleep(delay)
+                    attempt += 1
                     continue
 
                 # Not retryable — raise
@@ -336,6 +338,7 @@ class SyncHTTPClient:
                         exc,
                     )
                     time.sleep(delay)
+                    attempt += 1
                     continue
                 raise APIError(
                     f"Connection failed after {max_retries + 1} attempts: {exc}",
@@ -412,7 +415,8 @@ class AsyncHTTPClient:
         # the first real 5xx after a token expiry unretryable.
         renewed = False
 
-        for attempt in range(max_retries + 1):
+        attempt = 0
+        while attempt <= max_retries:
             try:
                 if stream:
                     req = self._client.build_request(
@@ -468,6 +472,7 @@ class AsyncHTTPClient:
                     if stream:
                         await response.aclose()
                     await asyncio.sleep(delay)
+                    attempt += 1
                     continue
 
                 if stream:
@@ -497,6 +502,7 @@ class AsyncHTTPClient:
                         exc,
                     )
                     await asyncio.sleep(delay)
+                    attempt += 1
                     continue
                 raise APIError(
                     f"Connection failed after {max_retries + 1} attempts: {exc}",

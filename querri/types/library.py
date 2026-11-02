@@ -214,7 +214,18 @@ class ChatToolCall(_LibraryBase):
 class ChatResponse(_LibraryBase):
     chat_id: str
     library_id: str
+    #: The server's text for the agent's LAST turn only. A run that writes its
+    #: findings, calls a tool, then closes with one sentence holds only that
+    #: sentence here — read :attr:`narrative` for what a person should see.
     assistant_message: str
+    #: Every text segment the agent streamed this run, in order, separated by
+    #: blank lines. Falls back to ``assistant_message`` when nothing streamed.
+    narrative: str = ""
+    #: The ``ask_choices`` card the agent ended on, if any: ``question``,
+    #: ``options`` (each with a ``label``), ``multi_select``, ``allow_other``,
+    #: and for a creation review ``review`` + ``confirm_label``. Answer it by
+    #: sending the chosen option's ``label`` as the next message in the chat.
+    choices: dict[str, Any] | None = None
     tool_calls: list[ChatToolCall] = []
     turns_used: int = 0
     stop_reason: str = ""
@@ -233,6 +244,11 @@ class FactResponse(_LibraryBase):
     confidence: float = 1.0
     node_kind: str = "Fact"
     library_id: str
+    workspace_id: str | None = None  #: Home workspace.
+    #: Non-fatal problems, e.g. ``{"code": "targets_not_visible",
+    #: "node_ids": [...], "message": ...}`` when an ABOUT target cannot be
+    #: seen from the Fact's home workspace.
+    warnings: list[dict[str, Any]] = []
 
 
 class ZoomResponse(_LibraryBase):

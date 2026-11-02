@@ -12,9 +12,9 @@ it searches. Everything after ``querri workspace use`` carries that claim:
 ``querri workspace use --none`` clears it (the "Everything" position: creates go
 to your personal workspace, reads are unscoped).
 
-Workspace scoping needs a signed-in user — ``querri auth login``. Under an API
-key the server has no membership to check the claim against, so it ignores the
-header entirely and everything lands in the key owner's personal workspace.
+``list``, ``show`` and ``members`` work with an API key or a login. ``new``,
+``add-member`` and ``move`` still need a signed-in user (``querri auth login``):
+they have no public API route yet.
 """
 
 from __future__ import annotations
@@ -41,16 +41,22 @@ workspace_app = typer.Typer(
 )
 
 
+def _legacy_kind(w: dict[str, Any]) -> str:
+    """``kind`` for a pre-v1 payload (``is_default`` / ``is_private`` flags)."""
+    if w.get("is_default"):
+        return "company"
+    return "personal" if w.get("is_private") else "named"
+
+
 def _rows(workspaces: list[dict[str, Any]], active: str) -> list[dict[str, str]]:
     return [
         {
             "id": str(w.get("id", "")),
             "slug": str(w.get("slug", "")),
             "name": str(w.get("name", "")),
-            "kind": (
-                "default"
-                if w.get("is_default")
-                else ("personal" if w.get("is_private") else "shared")
+            "kind": str(w.get("kind") or _legacy_kind(w)),
+            "members": (
+                "" if w.get("member_count") is None else str(w["member_count"])
             ),
             "active": "*" if w.get("id") == active else "",
         }
@@ -60,10 +66,11 @@ def _rows(workspaces: list[dict[str, Any]], active: str) -> list[dict[str, str]]
 
 @workspace_app.command("list")
 def list_workspaces(ctx: typer.Context) -> None:
-    """List the workspaces you can enter.
+    """List workspaces.
 
-    Membership-driven — a workspace you are not a member of is not listed and
-    could not be entered if it were.
+    Signed in: the workspaces you can enter. With an API key: every workspace
+    in the organization. Kind is personal, named, or company (the org's shared
+    workspace).
     """
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
@@ -91,7 +98,7 @@ def list_workspaces(ctx: typer.Context) -> None:
     print_table(
         _rows(workspaces, active or ""),
         [("active", ""), ("name", "Name"), ("slug", "Slug"),
-         ("kind", "Kind"), ("id", "ID")],
+         ("kind", "Kind"), ("members", "Members"), ("id", "ID")],
         ctx=ctx,
     )
 
@@ -226,7 +233,9 @@ def use_workspace(
 def new_workspace(
     ctx: typer.Context,
     name: str = typer.Argument(..., help="Display name."),
-    slug: str | None = typer.Option(None, "--slug", help="URL slug (derived from name)."),
+    slug: str | None = typer.Option(
+        None, "--slug", help="URL slug (derived from name)."
+    ),
     description: str = typer.Option("", "--description", "-d"),
     use: bool = typer.Option(
         False, "--use", help="Make it the active workspace after creating."
@@ -257,7 +266,9 @@ def new_workspace(
     elif obj.get("quiet"):
         print_id(ws_id)
     else:
-        print_success(f"Created workspace {ws.get('name')} ({ws.get('slug')}) → {ws_id}")
+        print_success(
+            f"Created workspace {ws.get('name')} ({ws.get('slug')}) → {ws_id}"
+        )
         if use:
             print_success("It is now the active workspace.")
 
@@ -266,7 +277,9 @@ def new_workspace(
 def move_item(
     ctx: typer.Context,
     source_ids: list[str] = typer.Argument(..., help="Source/file UUIDs to re-home."),
-    to: str = typer.Option(..., "--to", help="Destination workspace slug, name, or id."),
+    to: str = typer.Option(
+        ..., "--to", help="Destination workspace slug, name, or id."
+    ),
     transfer_ownership: bool = typer.Option(
         False,
         "--transfer-ownership",
@@ -337,21 +350,30 @@ def list_members(
             raise typer.Exit(code=1)
         ws_id = str(found["id"])
     try:
-        payload = client.workspaces.members(ws_id)
+        members = client.workspaces.members(ws_id)
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
     if obj.get("json"):
-        print_json(payload)
+        print_json(members)
         return
-    members = payload.get("members", payload)
-    print_table(members, [("user_id", "User"), ("role", "Role")], ctx=ctx)
+    if obj.get("quiet"):
+        for m in members:
+            print_id(str(m.get("user_id", "")))
+        return
+    print_table(
+        members,
+        [("name", "Name"), ("email", "Email"), ("role", "Role"), ("user_id", "User")],
+        ctx=ctx,
+    )
 
 
 @workspace_app.command("add-member")
 def add_member(
     ctx: typer.Context,
     user_id: str = typer.Argument(..., help="User id to add."),
-    workspace: str | None = typer.Option(None, "--to", help="Workspace (default: active)."),
+    workspace: str | None = typer.Option(
+        None, "--to", help="Workspace (default: active)."
+    ),
     role: str = typer.Option("member", "--role", help="member | creator | admin."),
 ) -> None:
     """Add someone to a workspace."""

@@ -145,8 +145,19 @@ result = client.library.chat(
     message="What collections relate to revenue?",
     chat_id=None,                       # omit to start fresh
 )
-print(result.assistant_message)
+print(result.narrative)                 # every text segment the agent streamed
 print(result.tool_calls)                # list of {name, input, result, duration_ms}
+# result.assistant_message is the LAST turn's text only — a run that writes its
+# findings, calls a tool, then closes with one sentence holds just that sentence.
+
+# The agent may end on a choice card ("Build this view?"). Answer it by sending
+# the chosen option's label as the next message in the same chat:
+from querri.resources.library import choice_label
+if result.choices:
+    label = choice_label(result.choices, "1")   # number or label, any case
+    result = client.library.chat(
+        library_id="lib_...", message=label, chat_id=result.chat_id,
+    )
 
 # Chat — streaming events (sync iterator)
 for event in client.library.chat_stream(

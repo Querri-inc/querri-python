@@ -524,6 +524,14 @@ def switch_org(
         profile = refresh_tokens(profile, host, organization_id=target_org_id)
         profile.org_id = target_org_id
         profile.org_name = target_org_name
+        # A workspace and a project belong to ONE organization. Carrying the
+        # old org's ids across would send a workspace claim the new org cannot
+        # match (the server fails closed to your personal workspace, silently)
+        # and point `--project`-less commands at a project that is not there.
+        profile.active_workspace_id = ""
+        profile.active_workspace_name = ""
+        profile.active_project_id = ""
+        profile.active_project_name = ""
         store.save_profile(profile_name, profile)
     except RuntimeError as exc:
         print_error(f"Failed to switch organization: {exc}")

@@ -286,9 +286,65 @@ existing dashboards. `dashboard new` takes only `--name`/`--description` (no `--
 Note: a Querri **project** already renders its own charts as a stacked "Data Flow" view, so a
 single project can stand in for a lightweight dashboard when you can't create a real one via CLI.
 
+## Workspaces
+
+A workspace is where things are homed: it decides who sees them by default and
+what an agent searches. The active one rides on every request.
+
+```bash
+querri workspace list                     # kind: personal | named | company
+querri workspace use finance              # slug, name or id; --none clears
+querri workspace members finance          # user_id, email, name, role
+querri --workspace finance <command>      # one command, without changing the stored one
+```
+
+`list` / `show` / `members` work with an API key (every workspace in the org) or
+a login (the ones you can enter). `new`, `add-member` and `move` (files) need
+`querri auth login`. `querri auth switch-org` clears the active workspace and
+project — they belong to the old org.
+
+## Data Library
+
+The active library is stored per host + organization (`querri library use <id>`),
+so switching org never aims commands at another org's library.
+
+```bash
+querri library list-libraries / use <id> / status
+querri library get <node_id>                       # Views: build status, rows, workspace, shared to
+querri library facts [--in finance]                # list Facts
+querri library fact-kinds                          # what record-fact --kind accepts
+querri library record-fact "Net revenue excludes tax" --kind rule -a <node_id>
+querri library kpi-create "ARR" -c efficiency      # categories match any case
+querri library move <node_id>... --to finance      # re-home Facts/KPIs/Collections/questions
+querri library delete <node_id> [--yes]
+querri library view-build "Revenue" -s "Orders 2026" -s customers   # names or ids
+querri library chat "build a view of orders by month"
+querri library chat "build a view of orders by month" --answer 1    # answer its choice card
+```
+
+Library creates (collections, questions, facts, KPIs) are homed in the active
+workspace — sent as `workspace_id`, so it holds for an API key too.
+`record-fact` prints server warnings (e.g. `targets_not_visible`: an attached
+node can't be seen from the fact's workspace) on stderr; the fact is still saved.
+A KPI is one measure with no breakdown — for "by region", build a View.
+
+**Choice cards.** When the Librarian ends on a question ("Build this view?"),
+`library chat` prints it with numbered options. In a terminal it prompts; in a
+script pass `--answer <number|label>` (same chat). Approving needs the option's
+exact label — "yes" / "Sí" is read as a revision, not an approval. `--json`
+returns the card as `choices`; with `--answer`, `{"turns": [...]}`. The printed
+reply is every text segment the agent streamed (`narrative`), not just its last
+sentence.
+
 ## Sharing & Access
 
 ```bash
+# Any item → a whole workspace (type passes through; the server says what it shares)
+querri share workspace add collection <id> --to finance [--relation editor]
+querri share workspace remove collection <id> --from finance
+querri share workspace list collection <id>
+querri share project add <project_id> --workspace finance [--permission edit]
+
 # Projects
 querri share project add <project_id> --user-id <user_id> [--permission view]
 querri share project remove <project_id> <user_id>
@@ -338,9 +394,14 @@ Scopes follow a person's role. A JWT login gets its active role's scopes (Guest 
 querri user list
 querri user get <user_id>
 querri user new --email "user@example.com" --first-name "..." --last-name "..."
-querri user update <user_id> --role admin --first-name "..."
+querri user update <user_id> --role admin --first-name "..."   # admin | member | guest
+querri user update <user_id> --role-id ev-datapro            # a Custom Role, by id or key
+querri user new --email "user@example.com" --role-id ev-datapro
 querri user delete <user_id>
 ```
+
+With `--role-id` the seat follows the custom role; pass `--role` too only if it
+names the same seat (else `role_conflict`). `querri role list` shows the roles.
 
 On servers released after 2026-10-21, `user new` / `update` / `delete` (and `session get` for a user that doesn't exist yet) can be refused: `escalation_denied` (403, exit 6 — you'd give or remove a role with permissions you don't hold; for a key, permissions its creator and bound user don't both hold; the body lists them under `missing`) or `last_admin` (409, exit 1 — the org must keep an Admin).
 
@@ -378,6 +439,8 @@ querri usage org                                   # org-wide usage report
 querri usage user <user_id>                        # per-user usage
 querri audit list                                  # audit log events
 querri audit list --action "project.create"        # filter by action
+querri settings context                            # the org's AI context (Settings → Customize)
+querri flags list [--on]                           # feature flags decided for this org
 ```
 
 ## Environment Variables

@@ -58,14 +58,39 @@ querri --project <uuid> chat -p "..."        # or pass explicitly
 
 ---
 
-## `invalid token format` from curl
+## Raw API calls with curl (`invalid token format`, 401 after a while)
 
-The JWT stored in `~/.querri/tokens.json` is a Querri-internal token, not a raw WorkOS JWT. It can't be used directly in `Authorization: Bearer` headers with curl. Use the API key flow instead:
+Don't copy the token out of `~/.querri/tokens.json`: it ages out within minutes
+and the file's copy is not refreshed until the CLI next runs. Ask the CLI for a
+current one at the moment of the call — `querri auth token` refreshes it first:
 
 ```bash
-export QUERRI_API_KEY="sk_live_..."
-querri --json project list
+curl -s -H "Authorization: Bearer $(querri auth token)" \
+  https://app.querri.com/api/v1/workspaces
 ```
+
+For long scripts, call `$(querri auth token)` per request, or use an API key
+(`Authorization: Bearer qk_...` plus `X-Tenant-ID: org_...`). The SDK and every
+CLI command (Library chat and view builds included) renew the login token
+themselves when the server says it expired.
+
+---
+
+## `library chat` stops at a question / "Sí" didn't approve it
+
+The Librarian asked you to choose (a choice card). It approves only when the
+next message is the option's exact label. Answer with the number or label:
+
+```bash
+querri library chat "<same message>" --answer 1
+querri library chat "Build the view"            # or send the label itself
+```
+
+## `No active library for this organization`
+
+The active library is stored per host + organization. After `auth switch-org`
+(or on another host) run `querri library use <id>` once. If the message names
+the library that used to be global, use it only if it belongs to this org.
 
 ---
 

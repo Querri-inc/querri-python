@@ -86,7 +86,7 @@ def _active_workspace(ctx: typer.Context) -> str | None:
         profile = _get_profile(ctx)
     except Exception:
         return None
-    if profile and getattr(profile, "active_workspace_id", ""):
+    if profile is not None and profile.active_workspace_id:
         return str(profile.active_workspace_id)
     return None
 
@@ -140,9 +140,12 @@ def get_client(ctx: typer.Context) -> Querri:
             profile = store.profiles.get(profile_name)
 
             if profile and profile.access_token:
-                # Use the host stored in the profile (from login), CLI flag, env, or default
+                # Host: CLI flag, env, the profile's (from login), or default
                 resolved_host = (
-                    host or os.environ.get("QUERRI_HOST") or profile.host or DEFAULT_HOST
+                    host
+                    or os.environ.get("QUERRI_HOST")
+                    or profile.host
+                    or DEFAULT_HOST
                 )
 
                 # Auto-refresh if near expiry

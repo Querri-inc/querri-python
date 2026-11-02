@@ -528,7 +528,7 @@ class AsyncSources:
         while pending and time.monotonic() < deadline:
             states = await asyncio.gather(*(self.ready_state(sid) for sid in pending))
             still: builtins.list[str] = []
-            for sid, (state, src) in zip(pending, states):
+            for sid, (state, src) in zip(pending, states, strict=True):
                 if state == "processing":
                     still.append(sid)
                 else:

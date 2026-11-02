@@ -63,7 +63,7 @@ def new_view(
     Examples:
         querri view new                                                   # interactive
         querri view new --prompt "monthly revenue by product line"       # AI agent
-        querri view new --name "Orders" --sql "SELECT * FROM {source:<uuid>}"    # direct
+        querri view new --name "Orders" --sql "SELECT * FROM {source:<uuid>}"  # direct
         querri view new -n "Revenue" --prompt "revenue by region"
                                                        # AI + custom name
     """
