@@ -23,7 +23,7 @@ def _as_cli(client: Querri) -> Querri:
     """
     client._config.client_kind = "cli"
     client._http._client.headers["X-Querri-Client"] = client._config.client_header
-    return _as_cli(client)
+    return client
 
 
 # A workspace id is minted server-side as `workspace_<hex>` (named),
