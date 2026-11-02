@@ -5,12 +5,13 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
 import typer
 
-from querri.cli._context import get_client
+from querri.cli._context import _resolve_workspace, get_client
 from querri.cli._output import (
     handle_api_error,
     print_detail,
@@ -20,6 +21,8 @@ from querri.cli._output import (
     print_success,
     print_table,
 )
+from querri.resources.library import _ChatDrain, choice_label
+from querri.types.library import ChatResponse, NodeListItem
 
 library_app = typer.Typer(
     name="library",
@@ -32,13 +35,20 @@ library_app = typer.Typer(
 )
 
 
-# ── Workspace state ────────────────────────────────────────────────────────
+# ── Active library state ─────────────────────────────────────────────────
 #
 # Default library_id for subsequent commands. Resolution order:
 #   1. --library-id flag (when present on the command)
 #   2. QUERRI_LIBRARY_ID env var
-#   3. ~/.querri/library_context.json (set via `querri library use <id>`)
+#   3. ~/.querri/library_context.json, under this host + organization
+#      (set via `querri library use <id>`)
 #   4. error with guidance
+#
+# A library id and the chats in it belong to ONE organization, so the context
+# file is keyed by host + org. It used to be one global slot: after
+# `querri auth switch-org` every library command quietly aimed at the previous
+# org's library. A pre-2.3 file is kept under "legacy" and offered in the
+# no-library error, never adopted silently — we cannot know which org it was for.
 
 
 _LIBRARY_CONTEXT_FILE = Path.home() / ".querri" / "library_context.json"
@@ -48,37 +58,79 @@ def _short(text: str, n: int = 60) -> str:
     return (text[:n] + "…") if len(text) > n else text
 
 
-def _read_library_context() -> dict[str, str]:
+def _scope_key(client: Any) -> str:
+    """``host|org_id`` for the client's credentials."""
+    cfg = getattr(client, "_config", None)
+    host = getattr(cfg, "host", "")
+    org = getattr(cfg, "org_id", "")
+    host = host.rstrip("/") if isinstance(host, str) else ""
+    org = org if isinstance(org, str) else ""
+    return f"{host}|{org}"
+
+
+def _load_context_file() -> dict[str, Any]:
+    empty: dict[str, Any] = {"scopes": {}}
     if not _LIBRARY_CONTEXT_FILE.exists():
-        return {}
+        return empty
     try:
         data = json.loads(_LIBRARY_CONTEXT_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {}
-    return data if isinstance(data, dict) else {}
+        return empty
+    if not isinstance(data, dict):
+        return empty
+    if "scopes" not in data:
+        # Pre-2.3 global file: keep it aside, adopt nothing.
+        return {"scopes": {}, "legacy": data} if data else empty
+    if not isinstance(data["scopes"], dict):
+        data["scopes"] = {}
+    return data
 
 
-def _write_library_context(data: dict[str, str]) -> None:
+def _read_library_context(client: Any) -> dict[str, str]:
+    scoped = _load_context_file()["scopes"].get(_scope_key(client), {})
+    return dict(scoped) if isinstance(scoped, dict) else {}
+
+
+def _write_library_context(client: Any, data: dict[str, str]) -> None:
+    file = _load_context_file()
+    file["scopes"][_scope_key(client)] = data
     _LIBRARY_CONTEXT_FILE.parent.mkdir(mode=0o700, exist_ok=True)
-    _LIBRARY_CONTEXT_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    _LIBRARY_CONTEXT_FILE.write_text(json.dumps(file, indent=2), encoding="utf-8")
     with contextlib.suppress(OSError):
         os.chmod(_LIBRARY_CONTEXT_FILE, 0o600)
 
 
-def _resolve_library_id(explicit: str | None) -> str:
+def _resolve_library_id(explicit: str | None, client: Any) -> str:
     if explicit:
         return explicit
     env = os.environ.get("QUERRI_LIBRARY_ID")
     if env:
         return env
-    ctx_data = _read_library_context()
+    ctx_data = _read_library_context(client)
     if ctx_data.get("library_id"):
         return ctx_data["library_id"]
-    print_error(
-        "No active library. Pass --library-id, set QUERRI_LIBRARY_ID, "
-        "or run 'querri library use <library-id>'."
+    message = (
+        "No active library for this organization. Pass --library-id, set "
+        "QUERRI_LIBRARY_ID, or run 'querri library use <library-id>' "
+        "('querri library list-libraries' shows them)."
     )
+    legacy = _load_context_file().get("legacy") or {}
+    old_id = legacy.get("library_id") if isinstance(legacy, dict) else None
+    if old_id:
+        message += (
+            f"\n  The active library used to be global: {old_id}. If it belongs "
+            f"to this organization: querri library use {old_id}"
+        )
+    print_error(message)
     raise typer.Exit(code=1)
+
+
+def _workspace(client: Any) -> str | None:
+    """The workspace this invocation stands in (``--workspace`` or the stored
+    one), sent as the body's ``workspace_id`` on every Library create so it is
+    honoured for API keys too, not only through the header."""
+    ws = getattr(client, "workspace_id", None)
+    return ws if isinstance(ws, str) and ws else None
 
 
 # ── Health ─────────────────────────────────────────────────────────────────
@@ -159,13 +211,14 @@ def create_collection(
     question."""
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    lib_id = _resolve_library_id(library_id, client)
     try:
         coll = client.library.create_collection(
             library_id=lib_id,
             name=name,
             summary=summary,
             anchor_question_text=anchor,
+            workspace_id=_workspace(client),
         )
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
@@ -193,7 +246,7 @@ def create_question(
     ctx: typer.Context,
     question_text: str = typer.Argument(..., help="The actual question text."),
     library_id: str = typer.Option(
-        ..., "--library-id", "-l", help="Parent Library _id."
+        None, "--library-id", "-l", help="Parent Library _id (defaults to active)."
     ),
     name: str = typer.Option(
         None,
@@ -210,19 +263,22 @@ def create_question(
     """Create an AnchorQuestion or RefiningQuestion."""
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
+    lib_id = _resolve_library_id(library_id, client)
     display_name = name or question_text[:50]
     try:
         if refining:
             q = client.library.create_refining_question(
-                library_id=library_id,
+                library_id=lib_id,
                 name=display_name,
                 question_text=question_text,
+                workspace_id=_workspace(client),
             )
         else:
             q = client.library.create_anchor_question(
-                library_id=library_id,
+                library_id=lib_id,
                 name=display_name,
                 question_text=question_text,
+                workspace_id=_workspace(client),
             )
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
@@ -264,24 +320,46 @@ def get_node(
 
     if obj.get("json"):
         print_json(node.model_dump())
-    else:
-        truncated = node.summary[:120] + ("..." if len(node.summary) > 120 else "")
-        print_detail(
-            {
-                "id": node.id,
-                "name": node.name,
-                "node_kind": node.node_kind,
-                "library_id": node.library_id,
-                "summary": truncated,
-            },
-            [
-                ("id", "ID"),
-                ("name", "Name"),
-                ("node_kind", "Kind"),
-                ("library_id", "Library"),
-                ("summary", "Summary"),
-            ],
-        )
+        return
+    truncated = node.summary[:120] + ("..." if len(node.summary) > 120 else "")
+    extra = node.extra or {}
+    data: dict[str, Any] = {
+        "id": node.id,
+        "name": node.name,
+        "node_kind": node.node_kind,
+        "library_id": node.library_id,
+        "workspace_id": extra.get("workspace_id") or "—",
+        "summary": truncated,
+    }
+    fields = [
+        ("id", "ID"),
+        ("name", "Name"),
+        ("node_kind", "Kind"),
+        ("library_id", "Library"),
+        ("workspace_id", "Workspace"),
+        ("summary", "Summary"),
+    ]
+    build = extra.get("build")
+    if isinstance(build, dict):
+        data["build_status"] = build.get("status") or "—"
+        rows = build.get("row_count")
+        data["row_count"] = "—" if rows is None else rows
+        fields += [("build_status", "Build status"), ("row_count", "Rows")]
+    if "shared_to" in extra:
+        data["shared_to"] = _format_shares(extra.get("shared_to"))
+        fields.append(("shared_to", "Shared to"))
+    print_detail(data, fields)
+
+
+def _format_shares(shares: Any) -> str:
+    """``[{workspace_id, relation}]`` → ``ws_a (viewer), ws_b (editor)``."""
+    if not isinstance(shares, list) or not shares:
+        return "not shared"
+    return ", ".join(
+        f"{s.get('workspace_id', '?')} ({s.get('relation', '?')})"
+        if isinstance(s, dict) else str(s)
+        for s in shares
+    )
 
 
 # ── Workspace ──────────────────────────────────────────────────────────────
@@ -294,10 +372,13 @@ def use_library(
 ) -> None:
     """Set the active library for subsequent commands.
 
-    Stored in ``~/.querri/library_context.json`` and used as the default
-    --library-id when commands don't pass one explicitly.
+    Stored in ``~/.querri/library_context.json`` per host and organization, and
+    used as the default --library-id when commands don't pass one explicitly.
     """
-    _write_library_context({"library_id": library_id})
+    client = get_client(ctx)
+    ctx_data = _read_library_context(client)
+    ctx_data["library_id"] = library_id
+    _write_library_context(client, ctx_data)
     print_success(f"Active library set: {library_id}")
 
 
@@ -314,7 +395,7 @@ def status(
     """Show per-kind node counts for a library."""
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    lib_id = _resolve_library_id(library_id, client)
     try:
         result = client.library.status(library_id=lib_id)
     except Exception as exc:
@@ -352,7 +433,7 @@ def list_nodes(
     """List nodes of a given kind within a library."""
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    lib_id = _resolve_library_id(library_id, client)
     try:
         result = client.library.list_nodes(
             library_id=lib_id, node_kind=node_kind, limit=limit
@@ -429,7 +510,7 @@ def list_collections(
     """Enumerate every Collection in the active (or given) Library."""
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    lib_id = _resolve_library_id(library_id, client)
     try:
         result = client.library.list_collections(library_id=lib_id, limit=limit)
     except Exception as exc:
@@ -474,13 +555,14 @@ def add_refining(
     """Create a RefiningQuestion and link it (REFINES) to an AnchorQuestion."""
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    lib_id = _resolve_library_id(library_id, client)
     try:
         q = client.library.create_refining_question(
             library_id=lib_id,
             name=name or question_text[:50],
             question_text=question_text,
             anchor_question_id=anchor_id,
+            workspace_id=_workspace(client),
         )
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
@@ -556,105 +638,147 @@ def chat_cmd(
         "--show-tools",
         help="Show the agent's tool-call trace alongside the assistant message.",
     ),
+    answer: str = typer.Option(
+        None,
+        "--answer",
+        help=(
+            "Answer the choice card the agent ends on: an option number or its "
+            "label. Sent as the next message in the same chat. For scripts; in "
+            "a terminal you are prompted instead."
+        ),
+    ),
 ) -> None:
-    """Chat with the Librarian agent — search, record facts, commission views."""
-    obj = ctx.ensure_object(dict)
-    client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    """Chat with the Librarian agent — search, record facts, commission views.
 
-    ctx_data = _read_library_context()
-    resolved_chat = chat_id
+    When the agent asks you to choose (a choice card, e.g. "Build this view?"),
+    the question and numbered options are printed. In a terminal you are
+    prompted; otherwise pass ``--answer <number|label>`` (or re-run with the
+    label as the message). Approving a plan needs the option's exact label —
+    a free-text "yes" is read as a revision, not an approval. ``--json`` emits
+    the card as ``choices``; with ``--answer`` it emits ``{"turns": [...]}``.
+    """
+    obj = ctx.ensure_object(dict)
+    is_json = bool(obj.get("json"))
+    client = get_client(ctx)
+    lib_id = _resolve_library_id(library_id, client)
+
+    ctx_data = _read_library_context(client)
+    resolved_chat: str | None = chat_id
     if not resolved_chat and not new:
-        # Re-use last chat for THIS library if one exists in workspace state.
         last = ctx_data.get(f"chat_id::{lib_id}")
         if last:
             resolved_chat = str(last)
 
-    if obj.get("json"):
-        # JSON mode: drain everything into one ChatResponse.
-        try:
-            result = client.library.chat(
-                library_id=lib_id, message=message, chat_id=resolved_chat
-            )
-        except Exception as exc:
-            raise typer.Exit(
-                code=handle_api_error(exc, is_json=True)
-            ) from None
-        ctx_data[f"chat_id::{lib_id}"] = result.chat_id
-        _write_library_context(ctx_data)
-        print_json(result.model_dump())
-        return
+    turns: list[ChatResponse] = []
+    pending_answer: str | None = answer
+    next_message = message
+    while True:
+        result = _chat_turn(
+            client, lib_id, next_message, resolved_chat,
+            show_tools=show_tools and not is_json, is_json=is_json,
+        )
+        turns.append(result)
+        resolved_chat = result.chat_id or resolved_chat
+        if resolved_chat:
+            # Persist so the next invocation (or an --answer) continues it.
+            ctx_data[f"chat_id::{lib_id}"] = resolved_chat
+            _write_library_context(client, ctx_data)
+        if not is_json:
+            _print_chat_turn(result, show_tools=show_tools)
 
-    # Interactive: stream VercelStream v2 events to the terminal as they
-    # arrive. WS-B6: same wire format as `querri views` so a shared SSE
-    # consumer can be used across both agents.
-    import json as _json
-    final_chat_id = resolved_chat or ""
-    assistant_text_chunks: list[str] = []
-    final_meta: dict[str, Any] = {}
-    tool_inputs: dict[str, dict[str, Any]] = {}  # tool_call_id → {name, input}
+        card = result.choices
+        if not card:
+            break
+        if not is_json:
+            _print_choice_card(card)
+        if pending_answer is not None:
+            label = _answer_label(card, pending_answer, is_json=is_json)
+            pending_answer = None
+        elif not is_json and _is_interactive():
+            picked = _prompt_choice(card)
+            if picked is None:
+                break
+            label = picked
+        else:
+            if not is_json:
+                print(
+                    "\nAnswer with: querri library chat --answer <number|label> "
+                    "\"<same message>\"  (or send the label as the message)",
+                    file=sys.stderr,
+                )
+            break
+        if not is_json:
+            print(f"\nyou › {label}", flush=True)
+        next_message = label
+
+    if is_json:
+        if len(turns) == 1:
+            print_json(turns[0].model_dump())
+        else:
+            print_json({"turns": [t.model_dump() for t in turns]})
+
+
+def _is_interactive() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _chat_turn(
+    client: Any,
+    lib_id: str,
+    message: str,
+    chat_id: str | None,
+    *,
+    show_tools: bool,
+    is_json: bool,
+) -> ChatResponse:
+    """Stream one Librarian turn, printing the tool trace if asked."""
+    drain = _ChatDrain()
     try:
         for ev in client.library.chat_stream(
-            library_id=lib_id, message=message, chat_id=resolved_chat
+            library_id=lib_id, message=message, chat_id=chat_id
         ):
-            etype = ev.get("type", "")
-            if etype == "tool-input-available" and show_tools:
-                name = ev.get("toolName", "?")
-                inp = ev.get("input", {})
-                tool_inputs[ev.get("toolCallId", "")] = {"name": name, "input": inp}
-                inp_preview = _json.dumps(inp, default=str)[:140]
-                print(f"  • {name}({inp_preview})", flush=True)
-            elif etype == "tool-input-available":
-                tool_inputs[ev.get("toolCallId", "")] = {
-                    "name": ev.get("toolName", "?"),
-                    "input": ev.get("input", {}),
-                }
-            elif etype == "tool-output-available" and show_tools:
-                tcid = ev.get("toolCallId", "")
-                name = tool_inputs.get(tcid, {}).get("name", "?")
-                output = ev.get("output", {})
-                if isinstance(output, dict) and "error" in output:
-                    err = str(output["error"])[:120]
-                    print(f"    ✗ {name} errored: {err}", flush=True)
-                else:
-                    keys = list(output.keys())[:5] if isinstance(output, dict) else []
-                    print(f"    ✓ {name} → {keys}", flush=True)
-            elif etype in ("text-delta",):
-                # Accumulate text fragments for the final message print.
-                assistant_text_chunks.append(ev.get("delta", ""))
-            elif etype == "data-librarian":
-                # Custom librarian-data event carries chat_id + per-turn
-                # metadata that VercelStream's finish doesn't model.
-                final_meta = ev.get("data", {})
-                final_chat_id = final_meta.get("chat_id", final_chat_id)
-            elif etype == "finish":
-                # Terminal — emit summary block below the loop.
-                pass
+            drain.feed(ev)
+            if show_tools:
+                _print_tool_event(ev, drain)
     except typer.Exit:
         raise
     except Exception as exc:
-        raise typer.Exit(code=handle_api_error(exc, is_json=False)) from None
+        raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None
+    return drain.response(library_id=lib_id, chat_id=chat_id)
 
-    if show_tools and tool_inputs:
-        print()  # newline after the tool activity block
-    assistant_text = (
-        final_meta.get("assistant_message")
-        or "".join(assistant_text_chunks)
-    )
+
+def _print_tool_event(ev: dict[str, Any], drain: _ChatDrain) -> None:
+    etype = ev.get("type", "")
+    if etype == "tool-input-available":
+        preview = json.dumps(ev.get("input", {}), default=str)[:140]
+        print(f"  • {ev.get('toolName', '?')}({preview})", flush=True)
+    elif etype == "tool-output-available":
+        name = drain.tool_inputs.get(ev.get("toolCallId", ""), {}).get("name", "?")
+        output = ev.get("output", {})
+        if isinstance(output, dict) and "error" in output:
+            print(f"    ✗ {name} errored: {str(output['error'])[:120]}", flush=True)
+        else:
+            keys = list(output.keys())[:5] if isinstance(output, dict) else []
+            print(f"    ✓ {name} → {keys}", flush=True)
+
+
+def _print_chat_turn(result: ChatResponse, *, show_tools: bool) -> None:
+    # The narrative, not `assistant_message`: the server's assistant_message is
+    # the LAST turn's text only, so a run that wrote its findings, called a
+    # tool, and closed with one sentence printed just that sentence (often a
+    # fragment like "Let me check that.") and dropped the answer.
+    text = result.narrative or result.assistant_message
     print()
-    if assistant_text:
-        print(assistant_text)
+    if text:
+        print(text)
         print()
     print_detail(
         {
-            "chat_id": final_chat_id,
-            "turns_used": final_meta.get("turns_used", 0),
-            "total_ms": final_meta.get("total_ms", 0),
-            "stop_reason": final_meta.get("stop_reason", ""),
-            "tokens": (
-                f"in={final_meta.get('input_tokens', 0)} "
-                f"out={final_meta.get('output_tokens', 0)}"
-            ),
+            "chat_id": result.chat_id,
+            "turns_used": result.turns_used,
+            "total_ms": result.total_ms,
+            "stop_reason": result.stop_reason,
+            "tokens": f"in={result.input_tokens} out={result.output_tokens}",
         },
         [
             ("chat_id", "Chat"),
@@ -665,9 +789,69 @@ def chat_cmd(
         ],
     )
 
-    # Persist active chat_id so the next CLI invocation continues this chat.
-    ctx_data[f"chat_id::{lib_id}"] = final_chat_id
-    _write_library_context(ctx_data)
+
+def _print_choice_card(card: dict[str, Any]) -> None:
+    print()
+    print(f"? {card.get('question', '')}")
+    for row in card.get("review") or []:
+        if isinstance(row, dict):
+            label = row.get("label") or row.get("title") or ""
+            value = row.get("value") or row.get("text") or row.get("detail") or ""
+            print(f"    {label}: {value}" if label else f"    {value}")
+        else:
+            print(f"    {row}")
+    for i, opt in enumerate(card.get("options") or [], 1):
+        if isinstance(opt, dict):
+            desc = opt.get("description")
+            line = f"  {i}. {opt.get('label', '')}"
+            print(f"{line} — {desc}" if desc else line)
+        else:
+            print(f"  {i}. {opt}")
+    if card.get("multi_select"):
+        print("  (pick several: 1,3)")
+    if card.get("allow_other"):
+        print("  (or type your own reply)")
+
+
+def _answer_label(card: dict[str, Any], answer: str, *, is_json: bool) -> str:
+    """The message to send for ``--answer``: an option's label, or free text
+    when the card allows it. A number that names no option is an error."""
+    label = choice_label(card, answer)
+    if label is not None:
+        return label
+    looks_numeric = answer.replace(",", "").replace(" ", "").isdigit()
+    if card.get("allow_other") and not looks_numeric:
+        return answer
+    options = ", ".join(
+        f"{i}={o.get('label') if isinstance(o, dict) else o}"
+        for i, o in enumerate(card.get("options") or [], 1)
+    )
+    message = f"--answer {answer!r} matches no option. Options: {options}"
+    if is_json:
+        from querri.cli._output import print_json_error
+
+        print_json_error("invalid_answer", message, 1)
+    else:
+        print_error(message)
+    raise typer.Exit(code=1)
+
+
+def _prompt_choice(card: dict[str, Any]) -> str | None:
+    """Ask in the terminal. Empty input or EOF leaves the card unanswered."""
+    while True:
+        try:
+            raw = input("choose › ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return None
+        if not raw:
+            return None
+        label = choice_label(card, raw)
+        if label is not None:
+            return label
+        if card.get("allow_other") and not raw.replace(",", "").isdigit():
+            return raw
+        print_error("Pick an option number or type its label.")
 
 
 # ── Onboarding (Phase 3 / W01) ──────────────────────────────────────────────
@@ -707,7 +891,7 @@ def onboard(
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
 
-    ctx_data = _read_library_context()
+    ctx_data = _read_library_context(client)
 
     # Resolve / create the Library.
     lib_id = library_id or ctx_data.get("library_id")
@@ -724,7 +908,7 @@ def onboard(
             raise typer.Exit(code=handle_api_error(exc, is_json=False)) from None
         lib_id = created.id
         ctx_data["library_id"] = lib_id
-        _write_library_context(ctx_data)
+        _write_library_context(client, ctx_data)
         print(f"Library created: {lib_id}")
         print()
 
@@ -759,8 +943,9 @@ def onboard(
     final_lib_recap_chat: str | None = None
 
     def _print_assistant_block(meta: dict[str, Any], text_chunks: list[str]) -> None:
+        # The streamed text first: `assistant_message` is the last turn only.
         assistant_text = (
-            meta.get("assistant_message") or "".join(text_chunks)
+            "".join(text_chunks) or meta.get("assistant_message") or ""
         ).strip()
         if assistant_text:
             print()
@@ -825,7 +1010,7 @@ def onboard(
         _print_assistant_block(turn_meta, assistant_chunks)
         if chat_id:
             ctx_data[f"onboard_chat_id::{lib_id}"] = chat_id
-            _write_library_context(ctx_data)
+            _write_library_context(client, ctx_data)
             final_lib_recap_chat = chat_id
 
         # Prompt for the next user input.
@@ -954,7 +1139,11 @@ def record_fact(
         "contextual_note",
         "--kind",
         "-k",
-        help="contextual_note | data_quality | timing | scope_constraint",
+        help=(
+            "Fact kind, e.g. rule, definition, target, code_list, obligation, "
+            "contextual_note, data_quality, timing, scope_constraint. "
+            "`querri library fact-kinds` lists what the server accepts."
+        ),
     ),
     evidence: list[str] = typer.Option(
         None, "--evidence", "-e",
@@ -967,13 +1156,15 @@ def record_fact(
 ) -> None:
     """Record a Fact and attach it (via ABOUT edges) to one or more nodes.
 
-    Phase 2 supports the four non-hypothesis fact kinds per Workflow 03.
-    The fact lands as a first-class searchable node in the graph, so the
-    Librarian agent surfaces it on future related queries.
+    The fact lands as a first-class searchable node, homed in the active
+    workspace, so the Librarian surfaces it on related questions. If an
+    attached node cannot be seen from that workspace the fact is still
+    recorded and a warning says which.
     """
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    lib_id = _resolve_library_id(library_id, client)
+    fact_kind = _check_fact_kind(client, fact_kind, is_json=bool(obj.get("json")))
     try:
         fact = client.library.record_fact(
             library_id=lib_id,
@@ -983,6 +1174,7 @@ def record_fact(
             evidence_refs=evidence or [],
             confidence=confidence,
             name=name,
+            workspace_id=_workspace(client),
         )
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
@@ -990,6 +1182,7 @@ def record_fact(
     if obj.get("json"):
         print_json(fact.model_dump())
         return
+    _print_warnings(fact.warnings)
     if obj.get("quiet"):
         print_id(fact.id)
         return
@@ -1006,6 +1199,161 @@ def record_fact(
     if fact.source_node_ids:
         n_attached = len(fact.source_node_ids)
         print_success(f"  attached to {n_attached} node(s) via ABOUT edges")
+
+
+def _print_warnings(warnings: list[dict[str, Any]]) -> None:
+    """Server warnings go to stderr: the write succeeded, but not cleanly."""
+    for w in warnings or []:
+        ids = ", ".join(str(i) for i in w.get("node_ids") or [])
+        msg = w.get("message") or w.get("code") or "warning"
+        print(f"warning: {msg}" + (f" [{ids}]" if ids else ""), file=sys.stderr)
+
+
+def _check_fact_kind(client: Any, kind: str, *, is_json: bool) -> str:
+    """Validate ``--kind`` against the server's list (any case).
+
+    A server without ``/library/fact-kinds`` (older deploy) skips the check and
+    lets the create route reject a bad kind itself.
+    """
+    try:
+        kinds = client.library.fact_kinds()
+    except Exception:  # noqa: BLE001 — no list, no local check
+        return kind
+    if not isinstance(kinds, list) or not kinds:
+        return kind
+    for k in kinds:
+        if str(k).casefold() == kind.casefold():
+            return str(k)
+    message = f"Unknown fact kind {kind!r}. Valid kinds: {', '.join(map(str, kinds))}"
+    if is_json:
+        from querri.cli._output import print_json_error
+
+        print_json_error("invalid_fact_kind", message, 1)
+    else:
+        print_error(message)
+    raise typer.Exit(code=1)
+
+
+@library_app.command("fact-kinds")
+def fact_kinds_cmd(ctx: typer.Context) -> None:
+    """List the fact kinds `record-fact --kind` accepts."""
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    try:
+        kinds = client.library.fact_kinds()
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+    if obj.get("json"):
+        print_json(kinds)
+        return
+    for k in kinds:
+        print(k)
+
+
+@library_app.command("facts")
+def list_facts(
+    ctx: typer.Context,
+    library_id: str = typer.Option(
+        None, "--library-id", "-l", help="Library (defaults to active)."
+    ),
+    in_workspace: str = typer.Option(
+        None,
+        "--in",
+        help="Only Facts homed in this workspace (id, slug or name).",
+    ),
+    limit: int = typer.Option(100, "--limit", "-n", min=1, max=1000),
+    cursor: str = typer.Option(None, "--cursor", help="Cursor from a previous page."),
+) -> None:
+    """List Facts (business rules, definitions, notes) in a library."""
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    lib_id = _resolve_library_id(library_id, client)
+    ws_filter = _resolve_workspace(client, in_workspace, obj) if in_workspace else None
+    try:
+        result = client.library.list_facts(
+            library_id=lib_id, workspace_id=ws_filter, limit=limit, cursor=cursor
+        )
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+    if obj.get("json"):
+        print_json(result.model_dump())
+        return
+    if obj.get("quiet"):
+        for item in result.results:
+            print_id(item.id)
+        return
+    if not result.results:
+        print_error(f"No Facts in library {lib_id}.")
+        return
+    print_table(
+        [
+            {"name": item.name, "summary": _short(item.summary), "id": item.id}
+            for item in result.results
+        ],
+        [("name", "Name"), ("summary", "Statement"), ("id", "ID")],
+    )
+
+
+@library_app.command("move")
+def move_node(
+    ctx: typer.Context,
+    node_ids: list[str] = typer.Argument(..., help="Library node id(s) to re-home."),
+    to: str = typer.Option(
+        ..., "--to", help="Destination workspace (id, slug or name)."
+    ),
+) -> None:
+    """Re-home Library nodes (Facts, KPIs, Collections, questions) into another
+    workspace. Edges are kept.
+
+    For uploaded files and sources use `querri workspace move`.
+    """
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    dest = _resolve_workspace(client, to, obj)
+    results: list[dict[str, Any]] = []
+    failures = 0
+    for node_id in node_ids:
+        try:
+            moved = client.library.move_node(node_id, dest)
+            results.append({"id": node_id, **moved})
+        except Exception as exc:  # noqa: BLE001 — report each, keep going
+            failures += 1
+            results.append({"id": node_id, "error": str(exc)})
+    if obj.get("json"):
+        print_json(results)
+    else:
+        for r in results:
+            if "error" in r:
+                print_error(f"{r['id']}: {r['error']}")
+            elif obj.get("quiet"):
+                print_id(str(r["id"]))
+            else:
+                print_success(f"{r['id']} → {r.get('workspace_id') or dest}")
+    if failures:
+        raise typer.Exit(code=1)
+
+
+@library_app.command("delete")
+def delete_node(
+    ctx: typer.Context,
+    node_id: str = typer.Argument(..., help="Library node id to delete."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation."),
+) -> None:
+    """Delete a Library node (and its edges)."""
+    obj = ctx.ensure_object(dict)
+    if not yes and not typer.confirm(f"Delete {node_id}?", default=False):
+        raise typer.Exit(code=1)
+    client = get_client(ctx)
+    try:
+        result = client.library.delete_node(node_id)
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+    if obj.get("json"):
+        print_json(result)
+    elif obj.get("quiet"):
+        print_id(node_id)
+    else:
+        print_success(f"Deleted {node_id}")
 
 
 # ── Collection contents + view build + KPI (P3c) ────────────────────────────
@@ -1069,11 +1417,19 @@ def collection_show(
 def view_build(
     ctx: typer.Context,
     collection_id: str = typer.Argument(
-        ..., help="Collection to build the view into (coll_…)."
+        ..., help="Collection to build the view into: its id or its name."
     ),
     source: list[str] = typer.Option(
         ..., "--source", "-s",
-        help="SourceStub node id this view uses (repeatable).",
+        help=(
+            "Source this view uses (repeatable): a Library node id or the "
+            "source's name. A name that matches several sources is refused "
+            "with the candidates."
+        ),
+    ),
+    library_id: str = typer.Option(
+        None, "--library-id", "-l",
+        help="Library to resolve names in (defaults to active).",
     ),
     name: str = typer.Option(None, "--name", help="Short snake_case view name."),
     summary: str = typer.Option(
@@ -1092,13 +1448,26 @@ def view_build(
     """
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    if not obj.get("json"):
+    is_json = bool(obj.get("json"))
+    lib_id = _maybe_library_id(library_id, client)
+    collection_id = _resolve_node_ref(
+        client, lib_id, collection_id, ("Collection",), what="collection",
+        is_json=is_json,
+    )
+    source_ids = [
+        _resolve_node_ref(
+            client, lib_id, ref, ("SourceStub", "ViewStub"), what="source",
+            is_json=is_json,
+        )
+        for ref in source
+    ]
+    if not is_json:
         typer.echo("Building view (this can take 30-90s)…", err=True)
     result: dict[str, Any] = {}
     try:
         for ev in client.library.build_view_stream(
             collection_id=collection_id,
-            source_node_ids=source,
+            source_node_ids=source_ids,
             answers_question_ids=answers or None,
             name=name,
             summary=summary,
@@ -1129,6 +1498,116 @@ def view_build(
         print_success(f"  answers {len(answers_written)} question(s)")
 
 
+def _maybe_library_id(explicit: str | None, client: Any) -> str | None:
+    """Like :func:`_resolve_library_id`, but None instead of exiting."""
+    if explicit:
+        return explicit
+    env = os.environ.get("QUERRI_LIBRARY_ID")
+    if env:
+        return env
+    return _read_library_context(client).get("library_id") or None
+
+
+def _resolve_node_ref(
+    client: Any,
+    lib_id: str | None,
+    ref: str,
+    kinds: tuple[str, ...],
+    *,
+    what: str,
+    is_json: bool,
+) -> str:
+    """A node id, or the id of the one node of ``kinds`` named ``ref``.
+
+    Exact names only (any case): a near-miss is reported with candidates, never
+    guessed. A ref that is neither a listed id nor a name, and has no spaces, is
+    passed through as an id — the list is capped and may not hold it; the
+    server then says whether it exists.
+    """
+    if lib_id is None:
+        return ref
+    nodes: list[NodeListItem] = []
+    for kind in kinds:
+        try:
+            listed = client.library.list_nodes(
+                library_id=lib_id, node_kind=kind, limit=1000
+            )
+        except Exception:  # noqa: BLE001 — cannot resolve; let the server judge
+            return ref
+        nodes.extend(listed.results)
+    if any(n.id == ref for n in nodes):
+        return ref
+    needle = ref.strip().casefold()
+    exact = [n for n in nodes if n.name.casefold() == needle]
+    if len(exact) == 1:
+        return exact[0].id
+    if len(exact) > 1:
+        _refuse_ref(
+            f"{what.capitalize()} name {ref!r} is ambiguous; pass an id",
+            exact, is_json=is_json,
+        )
+    if not any(ch.isspace() for ch in ref):
+        return ref
+    near = [n for n in nodes if needle in n.name.casefold()]
+    _refuse_ref(f"No {what} named {ref!r}", near, is_json=is_json)
+    return ref  # unreachable: _refuse_ref exits
+
+
+def _refuse_ref(message: str, candidates: list[NodeListItem], *, is_json: bool) -> None:
+    listed = "; ".join(f"{n.name} ({n.id})" for n in candidates[:10])
+    if listed:
+        message += f". Candidates: {listed}"
+    if is_json:
+        from querri.cli._output import print_json_error
+
+        print_json_error("unresolved_reference", message, 1)
+    else:
+        print_error(message)
+    raise typer.Exit(code=1)
+
+
+@library_app.command("view-rename")
+def view_rename(
+    ctx: typer.Context,
+    view_stub_id: str = typer.Argument(
+        ..., help="ViewStub node id (view_…) to rename."
+    ),
+    name: str = typer.Option(
+        None, "--name", "-n",
+        help="New view name (sentence case welcome, e.g. 'Revenue by channel').",
+    ),
+    display_name: str = typer.Option(
+        None, "--display-name",
+        help="Friendly display title (defaults to a sentence-cased --name).",
+    ),
+    summary: str = typer.Option(
+        None, "--summary", "-s", help="New 1-3 sentence description."
+    ),
+) -> None:
+    """Rename / re-describe a view across both its layers (graph stub +
+    legacy source doc), keeping search/routing and the Sources tab in sync.
+    """
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    if name is None and display_name is None and summary is None:
+        print_error("Provide at least one of --name / --display-name / --summary.")
+        raise typer.Exit(code=1)
+    try:
+        result = client.library.rename_view(
+            view_stub_id, name=name, display_name=display_name, summary=summary
+        )
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+    if obj.get("json"):
+        print_json(result)
+        return
+    print_success(
+        f"View renamed: {result.get('name', '?')} "
+        f"({result.get('display_name') or 'no display name'}) "
+        f"[{result.get('view_stub_id', '?')}]"
+    )
+
+
 @library_app.command("kpi-create")
 def kpi_create(
     ctx: typer.Context,
@@ -1138,25 +1617,40 @@ def kpi_create(
     ),
     canonical: str = typer.Option("", "--canonical", help="Canonical name."),
     category: list[str] = typer.Option(
-        None, "--category", "-c", help="KPI category (repeatable)."
+        None,
+        "--category",
+        "-c",
+        help=(
+            "KPI category (repeatable, any case). Must be one of the library's "
+            "categories; an unknown one is refused with the list."
+        ),
     ),
     summary: str = typer.Option("", "--summary", "-s"),
     state: str = typer.Option(
         "draft", "--state", help="draft | active | deprecated | aspirational"
     ),
 ) -> None:
-    """Create a KPI node in the Data Library."""
+    """Create a KPI node in the Data Library.
+
+    A KPI is one measure, not a breakdown: it has no "by region" or "by
+    channel" dimension. To see a measure split by something, build a View
+    (`querri library view-build`) and link the KPI to the question it answers.
+    """
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    lib_id = _resolve_library_id(library_id, client)
+    categories = _match_categories(
+        client, lib_id, category or [], is_json=bool(obj.get("json"))
+    )
     try:
         kpi = client.library.create_kpi(
             library_id=lib_id,
             name=name,
             canonical_name=canonical,
-            categories=category or [],
+            categories=categories,
             summary=summary,
             state=state,
+            workspace_id=_workspace(client),
         )
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
@@ -1173,6 +1667,50 @@ def kpi_create(
         {**kpi, "id": kpi_id},
         [("name", "Name"), ("state", "State"), ("id", "ID")],
     )
+
+
+def _match_categories(
+    client: Any, lib_id: str, wanted: list[str], *, is_json: bool
+) -> list[str]:
+    """Map ``--category`` values onto the library's category names, any case.
+
+    The server's names are canonical (``Efficiency``); ``efficiency`` used to
+    be refused with a bare enum error. If the list cannot be read the values go
+    through unchanged and the server decides.
+    """
+    if not wanted:
+        return []
+    try:
+        payload = client.library.list_kpi_categories(library_id=lib_id)
+    except Exception:  # noqa: BLE001 — no list, no local check
+        return wanted
+    rows = payload.get("results") if isinstance(payload, dict) else None
+    names = [
+        str(r.get("name")) for r in rows or [] if isinstance(r, dict) and r.get("name")
+    ]
+    if not names:
+        return wanted
+    out: list[str] = []
+    unknown: list[str] = []
+    for value in wanted:
+        hit = next((n for n in names if n.casefold() == value.casefold()), None)
+        if hit is None:
+            unknown.append(value)
+        else:
+            out.append(hit)
+    if unknown:
+        message = (
+            f"Unknown KPI categor{'y' if len(unknown) == 1 else 'ies'}: "
+            f"{', '.join(unknown)}. Valid: {', '.join(names)}"
+        )
+        if is_json:
+            from querri.cli._output import print_json_error
+
+            print_json_error("invalid_category", message, 1)
+        else:
+            print_error(message)
+        raise typer.Exit(code=1)
+    return out
 
 
 # ── Seed demo ──────────────────────────────────────────────────────────────
@@ -1213,7 +1751,7 @@ def seed_demo(
     """
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    lib_id = _resolve_library_id(library_id, client)
     try:
         result = client.library.seed_fixture(
             library_id=lib_id, fixture=fixture, seed=seed, scale=scale
@@ -1254,7 +1792,7 @@ def backfill(
     """
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    lib_id = _resolve_library_id(library_id, client)
     try:
         result = client.library.backfill(
             library_id=lib_id, include_series=include_series
@@ -1305,7 +1843,7 @@ def intake(
     """
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    lib_id = _resolve_library_id(library_id, client)
     try:
         result = client.library.intake(
             library_id=lib_id, include_series=include_series
@@ -1338,6 +1876,23 @@ def intake(
     )
 
 
+
+def _print_scope(workspace_id: str | None) -> None:
+    """Say which room the answer came out of.
+
+    An answer from a wider scope than you set looks identical to a correctly
+    scoped one, so it is printed rather than assumed. The difference is not
+    cosmetic — asked "what is the total of the invoices?" over a 30-database
+    tenant, the unscoped ask fanned out across five unrelated systems and
+    opened with an airline booking total; scoped to one workspace it answered
+    the question.
+    """
+    if workspace_id:
+        print(f"\n  scope: workspace {workspace_id}", file=sys.stderr)
+    else:
+        print("\n  scope: whole organization", file=sys.stderr)
+
+
 @library_app.command("ask")
 def ask(
     ctx: typer.Context,
@@ -1349,10 +1904,15 @@ def ask(
     """Ask the library a question. Routes to the source that answers it, runs it
     under RLS, and returns a narrative answer with provenance. Read-only —
     declines honestly when no source clears the bar.
+
+    Scoped to the active workspace (``querri workspace use``, or
+    ``--workspace``): the answer comes only from data you can see from where you
+    are standing. The scope the answer was actually produced under is printed
+    with it, because the claim is a hint the server may refuse.
     """
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    lib_id = _resolve_library_id(library_id, client)
     try:
         result = client.library.ask(library_id=lib_id, question=question)
     except Exception as exc:
@@ -1367,6 +1927,9 @@ def ask(
             {"a": result.answer, "outcome": result.outcome or "—"},
             [("a", "Declined"), ("outcome", "Outcome")],
         )
+        # A decline is exactly when the scope matters most: "I found nothing"
+        # reads very differently if it only looked in one room.
+        _print_scope(result.workspace_id)
         for att in result.attempted or []:
             print_detail(
                 att,
@@ -1380,6 +1943,7 @@ def ask(
             )
         return
     print_success(result.answer)
+    _print_scope(result.workspace_id)
     # Provenance is per-cluster: one block per contributing source cluster.
     for prov in result.provenance or []:
         print_detail(
@@ -1411,7 +1975,7 @@ def eval_cmd(
     """
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    lib_id = _resolve_library_id(library_id, client)
     try:
         result = client.library.eval(library_id=lib_id, routing_only=routing_only)
     except Exception as exc:
@@ -1473,7 +2037,7 @@ def consolidate_cmd(
     """
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    lib_id = _resolve_library_id(library_id, client)
     try:
         result = client.library.consolidate(
             library_id=lib_id, commit=commit, question=question,
@@ -1589,7 +2153,7 @@ def zoom_cmd(
     """
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    lib_id = _resolve_library_id(library_id, client)
     if not query and not focal_ids:
         print_error("Pass a query argument or --focal <id> (repeatable).")
         raise typer.Exit(code=1)
@@ -1725,7 +2289,7 @@ def search(
     """Vector-ANN semantic search over the Data Library."""
     obj = ctx.ensure_object(dict)
     client = get_client(ctx)
-    lib_id = _resolve_library_id(library_id)
+    lib_id = _resolve_library_id(library_id, client)
     try:
         result = client.library.search(
             query=query,

@@ -1,325 +1,280 @@
-"""WS-D6.1 — Streaming-method coverage for Library.chat_stream / .chat.
+"""Library SSE streams — chat_stream / chat / build_view_stream.
 
-Closes the deferred half of WS-D6. The chat_stream method at
-`querri/resources/library.py:261-289` (sync) + `:549-572` (async) wasn't
-covered in D6 because respx doesn't have a clean streaming-fixture
-pattern in the existing SDK test suite. This file builds the pattern.
-
-## What chat_stream actually does (4 testable paths)
-
-```python
-with self._http._client.stream("POST", "/library/chat", json=body) as response:
-    response.raise_for_status()
-    for line in response.iter_lines():
-        if not line or not line.startswith("data: "):
-            continue
-        payload = line[len("data: "):]
-        if payload == "[DONE]":
-            break
-        try:
-            yield json.loads(payload)
-        except json.JSONDecodeError:
-            continue
-```
-
-Four behaviors to pin:
-1. POST body construction (chat_id optional).
-2. Lines without `data: ` prefix are filtered out (heartbeats, comments).
-3. `[DONE]` sentinel breaks iteration.
-4. Malformed JSON lines are swallowed silently (don't crash the stream).
-
-Plus the `.chat()` drain → ChatResponse construction.
-
-## Why not respx-streaming
-
-`respx` mocks HTTP at the transport layer, but `httpx.Client.stream` uses
-a different code path than `Client.get/post` that respx's streaming
-support has incomplete coverage for at the version pinned in this repo.
-Cleaner path for SDK testing is to patch `_http._client.stream` directly
-with a mock context manager — same level as the existing `test_streaming.py`
-pattern (MagicMock(spec=httpx.Response) + iter_lines.return_value).
+Mocked at the transport (respx), not at ``httpx.Client.stream``: the streams go
+through ``SyncHTTPClient.request(stream=True)`` so they share token renewal and
+typed error parsing with every other call, and a test that patched the httpx
+layer directly would skip exactly the code under test.
 """
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+import json
 
 import httpx
 import pytest
+import respx
 
 from querri._base_client import AsyncHTTPClient, SyncHTTPClient
 from querri._config import ClientConfig
-from querri.resources.library import AsyncLibrary, Library
+from querri._exceptions import NotFoundError, ValidationError
+from querri.resources.library import AsyncLibrary, Library, choice_label
 
 BASE = "https://test.querri.com/api/v1"
+CHAT_URL = f"{BASE}/library/chat"
 
 
-def _make_config() -> ClientConfig:
-    return ClientConfig(
+def _make_config(**overrides: object) -> ClientConfig:
+    cfg: dict[str, object] = dict(
         api_key="qk_test", org_id="org_test", base_url=BASE,
         timeout=10.0, max_retries=0,
     )
-
-
-# ── Mock helpers ──────────────────────────────────────────────────────────
+    cfg.update(overrides)
+    return ClientConfig(**cfg)  # type: ignore[arg-type]
 
 
 def _sse(payload: dict | str) -> str:
-    """Build one SSE-shaped data line (no trailing newline — iter_lines splits)."""
     if isinstance(payload, dict):
-        import json
         return f"data: {json.dumps(payload)}"
     return f"data: {payload}"
 
 
-def _mock_sync_stream_response(lines: list[str]):
-    """Mock the sync `client.stream(...)` context manager returning a
-    response whose `.iter_lines()` yields the canned lines."""
-    response = MagicMock(spec=httpx.Response)
-    response.headers = {"content-type": "text/event-stream"}
-    response.iter_lines.return_value = iter(lines)
-    response.raise_for_status = MagicMock()
-    # The `with client.stream(...) as response:` shape: stream() returns
-    # a context manager whose __enter__ yields response.
-    cm = MagicMock()
-    cm.__enter__ = MagicMock(return_value=response)
-    cm.__exit__ = MagicMock(return_value=None)
-    return cm, response
+def _stream(lines: list[str]) -> httpx.Response:
+    return httpx.Response(
+        200,
+        headers={"content-type": "text/event-stream"},
+        content="\n".join(lines).encode(),
+    )
 
 
-def _mock_async_stream_response(lines: list[str]):
-    """Async equivalent: aiter_lines() yields canned lines."""
-    response = MagicMock(spec=httpx.Response)
-    response.headers = {"content-type": "text/event-stream"}
-
-    async def _aiter():
-        for line in lines:
-            yield line
-
-    response.aiter_lines = MagicMock(return_value=_aiter())
-    response.raise_for_status = MagicMock()
-    cm = MagicMock()
-    cm.__aenter__ = AsyncMock(return_value=response)
-    cm.__aexit__ = AsyncMock(return_value=None)
-    return cm, response
+# ── chat_stream parsing ───────────────────────────────────────────────────
 
 
-# ── Sync: chat_stream behavior ────────────────────────────────────────────
-
-
-def test_sync_chat_stream_yields_parsed_events():
-    """Happy path: 3 SSE events + [DONE]. Yields 3 parsed dicts."""
-    lines = [
+@respx.mock
+def test_sync_chat_stream_yields_parsed_events() -> None:
+    respx.post(CHAT_URL).mock(return_value=_stream([
         _sse({"type": "tool_use", "name": "search_graph"}),
         _sse({"type": "tool_result", "name": "search_graph", "result": {}}),
-        _sse({"type": "done", "chat_id": "libchat_xyz", "assistant_message": "ok"}),
+        _sse({"type": "done", "chat_id": "libchat_xyz"}),
         "data: [DONE]",
-    ]
-    cm, _resp = _mock_sync_stream_response(lines)
-
+    ]))
     lib = Library(SyncHTTPClient(_make_config()))
-    lib._http._client.stream = MagicMock(return_value=cm)
-
     events = list(lib.chat_stream(library_id="lib_x", message="hi"))
-    assert len(events) == 3
-    assert events[0]["type"] == "tool_use"
-    assert events[1]["type"] == "tool_result"
-    assert events[2]["type"] == "done"
-    assert events[2]["chat_id"] == "libchat_xyz"
+    assert [e["type"] for e in events] == ["tool_use", "tool_result", "done"]
 
 
-def test_sync_chat_stream_skips_non_data_lines():
-    """Heartbeats / comments / empty lines that don't start with `data: ` are
-    silently filtered. Pins the prefix-check at resources/library.py:281."""
-    lines = [
+@respx.mock
+def test_sync_chat_stream_skips_non_data_and_malformed_lines() -> None:
+    respx.post(CHAT_URL).mock(return_value=_stream([
         "",
         ": heartbeat",
         "event: foo",
-        _sse({"type": "tool_use", "name": "search_graph"}),
-        "data: [DONE]",
-    ]
-    cm, _resp = _mock_sync_stream_response(lines)
-
-    lib = Library(SyncHTTPClient(_make_config()))
-    lib._http._client.stream = MagicMock(return_value=cm)
-
-    events = list(lib.chat_stream(library_id="lib_x", message="hi"))
-    assert len(events) == 1
-    assert events[0]["type"] == "tool_use"
-
-
-def test_sync_chat_stream_done_sentinel_breaks_iteration():
-    """`data: [DONE]` ends the stream even if more lines follow. Pins the
-    break at resources/library.py:285."""
-    lines = [
-        _sse({"type": "tool_use", "name": "search_graph"}),
-        "data: [DONE]",
-        _sse({"type": "tool_use", "name": "should_not_appear"}),
-    ]
-    cm, _resp = _mock_sync_stream_response(lines)
-
-    lib = Library(SyncHTTPClient(_make_config()))
-    lib._http._client.stream = MagicMock(return_value=cm)
-
-    events = list(lib.chat_stream(library_id="lib_x", message="hi"))
-    assert len(events) == 1
-    assert events[0]["name"] == "search_graph"
-
-
-def test_sync_chat_stream_swallows_malformed_json_lines():
-    """A malformed JSON payload is logged-or-silently-skipped, not raised.
-    Pins the try/except at resources/library.py:286-289 — protects the
-    stream consumer from a single bad event killing the iteration."""
-    lines = [
-        _sse({"type": "tool_use", "name": "search_graph"}),
-        "data: {not valid json",  # malformed
-        _sse({"type": "done", "chat_id": "libchat_xyz", "assistant_message": "ok"}),
-        "data: [DONE]",
-    ]
-    cm, _resp = _mock_sync_stream_response(lines)
-
-    lib = Library(SyncHTTPClient(_make_config()))
-    lib._http._client.stream = MagicMock(return_value=cm)
-
-    events = list(lib.chat_stream(library_id="lib_x", message="hi"))
-    # 2 events (malformed swallowed), not 3.
-    assert len(events) == 2
-    assert events[1]["type"] == "done"
-
-
-def test_sync_chat_stream_includes_chat_id_in_body_when_provided():
-    """When `chat_id` is supplied, body carries it; otherwise omitted.
-    Pins the body construction at resources/library.py:272-274."""
-    cm, _ = _mock_sync_stream_response(["data: [DONE]"])
-    lib = Library(SyncHTTPClient(_make_config()))
-    spy = MagicMock(return_value=cm)
-    lib._http._client.stream = spy
-
-    list(lib.chat_stream(
-        library_id="lib_x", message="hi", chat_id="libchat_existing",
-    ))
-    sent_json = spy.call_args.kwargs["json"]
-    assert sent_json["chat_id"] == "libchat_existing"
-    assert sent_json["library_id"] == "lib_x"
-    assert sent_json["message"] == "hi"
-
-
-def test_sync_chat_stream_omits_chat_id_when_not_provided():
-    cm, _ = _mock_sync_stream_response(["data: [DONE]"])
-    lib = Library(SyncHTTPClient(_make_config()))
-    spy = MagicMock(return_value=cm)
-    lib._http._client.stream = spy
-
-    list(lib.chat_stream(library_id="lib_x", message="hi"))
-    sent_json = spy.call_args.kwargs["json"]
-    assert "chat_id" not in sent_json
-
-
-# ── Sync: chat() drain → ChatResponse construction ────────────────────────
-
-
-def test_sync_chat_drains_stream_into_chat_response():
-    """`chat()` consumes the VercelStream v2 stream (post WS-B6) + builds a
-    ChatResponse from the tool-input/output + data-librarian events."""
-    lines = [
-        _sse({
-            "type": "tool-input-available",
-            "toolCallId": "tu_1",
-            "toolName": "search_graph",
-            "input": {"query": "x"},
-        }),
-        _sse({
-            "type": "tool-output-available",
-            "toolCallId": "tu_1",
-            "output": {"focal_nodes": []},
-        }),
-        _sse({
-            "type": "data-librarian",
-            "data": {
-                "chat_id": "libchat_xyz",
-                "library_id": "lib_x",
-                "assistant_message": "Final answer",
-                "turns_used": 2,
-                "stop_reason": "end_turn",
-                "input_tokens": 100,
-                "output_tokens": 50,
-                "total_ms": 1234,
-            },
-        }),
-        _sse({"type": "finish", "finishReason": "stop"}),
-        "data: [DONE]",
-    ]
-    cm, _ = _mock_sync_stream_response(lines)
-    lib = Library(SyncHTTPClient(_make_config()))
-    lib._http._client.stream = MagicMock(return_value=cm)
-
-    result = lib.chat(library_id="lib_x", message="hi")
-    assert result.chat_id == "libchat_xyz"
-    assert result.assistant_message == "Final answer"
-    assert result.turns_used == 2
-    assert result.stop_reason == "end_turn"
-    assert len(result.tool_calls) == 1
-    # tool_calls items are ChatToolCall objects (attr access), not dicts.
-    assert result.tool_calls[0].name == "search_graph"
-
-
-# ── Async parity (3 mirror tests) ─────────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_async_chat_stream_yields_parsed_events():
-    lines = [
-        _sse({"type": "tool_use", "name": "search_graph"}),
-        _sse({"type": "done", "chat_id": "libchat_xyz", "assistant_message": "ok"}),
-        "data: [DONE]",
-    ]
-    cm, _resp = _mock_async_stream_response(lines)
-
-    lib = AsyncLibrary(AsyncHTTPClient(_make_config()))
-    lib._http._client.stream = MagicMock(return_value=cm)
-
-    events = [ev async for ev in lib.chat_stream(library_id="lib_x", message="hi")]
-    assert len(events) == 2
-    assert events[0]["type"] == "tool_use"
-    assert events[1]["type"] == "done"
-
-
-@pytest.mark.asyncio
-async def test_async_chat_stream_done_sentinel_breaks():
-    lines = [
-        _sse({"type": "tool_use", "name": "search_graph"}),
+        _sse({"type": "tool_use"}),
+        "data: {not valid json",
+        _sse({"type": "done"}),
         "data: [DONE]",
         _sse({"type": "should_not_appear"}),
-    ]
-    cm, _ = _mock_async_stream_response(lines)
+    ]))
+    lib = Library(SyncHTTPClient(_make_config()))
+    events = list(lib.chat_stream(library_id="lib_x", message="hi"))
+    assert [e["type"] for e in events] == ["tool_use", "done"]
+
+
+@respx.mock
+def test_sync_chat_stream_body_carries_chat_id_only_when_given() -> None:
+    route = respx.post(CHAT_URL).mock(return_value=_stream(["data: [DONE]"]))
+    lib = Library(SyncHTTPClient(_make_config()))
+    list(lib.chat_stream(library_id="lib_x", message="hi", chat_id="libchat_1"))
+    list(lib.chat_stream(library_id="lib_x", message="hi"))
+    first = json.loads(route.calls[0].request.content)
+    second = json.loads(route.calls[1].request.content)
+    assert first == {
+        "library_id": "lib_x", "message": "hi", "mode": "default",
+        "chat_id": "libchat_1",
+    }
+    assert "chat_id" not in second
+
+
+# ── errors and renewal (the reason streams go through request()) ──────────
+
+
+@respx.mock
+def test_sync_chat_stream_raises_typed_error_with_server_message() -> None:
+    respx.post(CHAT_URL).mock(return_value=httpx.Response(
+        422, json={"error": {"code": "invalid", "message": "message is empty"}},
+    ))
+    lib = Library(SyncHTTPClient(_make_config()))
+    with pytest.raises(ValidationError) as exc_info:
+        list(lib.chat_stream(library_id="lib_x", message=""))
+    assert "message is empty" in str(exc_info.value)
+
+
+@respx.mock
+async def test_async_chat_stream_raises_typed_error() -> None:
+    respx.post(CHAT_URL).mock(return_value=httpx.Response(
+        404, json={"error": {"code": "not_found", "message": "no such library"}},
+    ))
     lib = AsyncLibrary(AsyncHTTPClient(_make_config()))
-    lib._http._client.stream = MagicMock(return_value=cm)
+    with pytest.raises(NotFoundError):
+        async for _ in lib.chat_stream(library_id="lib_x", message="hi"):
+            pass
 
-    events = [ev async for ev in lib.chat_stream(library_id="lib_x", message="hi")]
-    assert len(events) == 1
+
+@respx.mock
+def test_sync_chat_stream_renews_an_expired_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stream that 401s with a store-sourced token renews it and retries."""
+    import querri._base_client as base
+
+    monkeypatch.setattr(base, "_renew_token", lambda cfg: "fresh_tok")
+    route = respx.post(CHAT_URL).mock(side_effect=[
+        httpx.Response(401, json={"error": {"message": "expired"}}),
+        _stream([_sse({"type": "done"}), "data: [DONE]"]),
+    ])
+    cfg = _make_config(api_key=None, access_token="old_tok", token_profile="default")
+    lib = Library(SyncHTTPClient(cfg))
+    events = list(lib.chat_stream(library_id="lib_x", message="hi"))
+    assert [e["type"] for e in events] == ["done"]
+    assert route.calls[1].request.headers["Authorization"] == "Bearer fresh_tok"
 
 
-@pytest.mark.asyncio
-async def test_async_chat_drains_into_chat_response():
-    lines = [
-        _sse({
-            "type": "data-librarian",
-            "data": {
-                "chat_id": "libchat_xyz",
-                "library_id": "lib_x",
-                "assistant_message": "async answer",
-                "turns_used": 1,
-                "stop_reason": "end_turn",
-            },
-        }),
-        _sse({"type": "finish", "finishReason": "stop"}),
+@respx.mock
+async def test_async_chat_stream_renews_an_expired_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import querri._base_client as base
+
+    monkeypatch.setattr(base, "_renew_token", lambda cfg: "fresh_tok")
+    route = respx.post(CHAT_URL).mock(side_effect=[
+        httpx.Response(401, json={"error": {"message": "expired"}}),
+        _stream([_sse({"type": "done"}), "data: [DONE]"]),
+    ])
+    cfg = _make_config(api_key=None, access_token="old_tok", token_profile="default")
+    lib = AsyncLibrary(AsyncHTTPClient(cfg))
+    events = [e async for e in lib.chat_stream(library_id="lib_x", message="hi")]
+    assert [e["type"] for e in events] == ["done"]
+    assert route.calls[1].request.headers["Authorization"] == "Bearer fresh_tok"
+
+
+@respx.mock
+def test_sync_build_view_stream_goes_through_request() -> None:
+    url = f"{BASE}/library/collections/coll_1/views"
+    route = respx.post(url).mock(return_value=_stream([
+        _sse({"type": "data-view-built", "data": {"view_uuid": "v1", "status": "ok"}}),
+        "data: [DONE]",
+    ]))
+    lib = Library(SyncHTTPClient(_make_config()))
+    result = lib.build_view(collection_id="coll_1", source_node_ids=["src_1"])
+    assert result == {"view_uuid": "v1", "status": "ok"}
+    assert json.loads(route.calls[0].request.content) == {"source_node_ids": ["src_1"]}
+
+
+@respx.mock
+async def test_async_build_view_stream_raises_typed_error() -> None:
+    url = f"{BASE}/library/collections/coll_1/views"
+    respx.post(url).mock(return_value=httpx.Response(
+        404, json={"error": {"message": "collection not found"}},
+    ))
+    lib = AsyncLibrary(AsyncHTTPClient(_make_config()))
+    with pytest.raises(NotFoundError):
+        await lib.build_view(collection_id="coll_1", source_node_ids=["src_1"])
+
+
+# ── chat() drain ──────────────────────────────────────────────────────────
+
+_CARD = {
+    "presented": True,
+    "question": "Build this view?",
+    "options": [
+        {"label": "Build the view"}, {"label": "Change the plan"},
+        {"label": "Not now"},
+    ],
+    "multi_select": False,
+    "allow_other": True,
+    "review": [{"label": "View", "value": "one row per order"}],
+    "confirm_label": "Build the view",
+}
+
+
+def _card_turn() -> list[str]:
+    return [
+        _sse({"type": "text-start", "id": "t1"}),
+        _sse({"type": "text-delta", "id": "t1", "delta": "Orders has 4,210 rows "}),
+        _sse({"type": "text-delta", "id": "t1", "delta": "and two date columns."}),
+        _sse({"type": "tool-input-available", "toolCallId": "tu_1",
+              "toolName": "ask_choices", "input": {"question": "Build this view?"}}),
+        _sse({"type": "tool-output-available", "toolCallId": "tu_1", "output": _CARD}),
+        _sse({"type": "text-delta", "id": "t2", "delta": "Shall I go ahead?"}),
+        _sse({"type": "data-librarian", "data": {
+            "chat_id": "libchat_xyz", "library_id": "lib_x",
+            # The server's assistant_message is the LAST turn's text only.
+            "assistant_message": "Shall I go ahead?",
+            "turns_used": 2, "stop_reason": "end_turn",
+        }}),
+        _sse({"type": "finish"}),
         "data: [DONE]",
     ]
-    cm, _ = _mock_async_stream_response(lines)
-    lib = AsyncLibrary(AsyncHTTPClient(_make_config()))
-    lib._http._client.stream = MagicMock(return_value=cm)
 
-    result = await lib.chat(library_id="lib_x", message="hi")
+
+@respx.mock
+def test_sync_chat_keeps_every_text_segment_and_the_card() -> None:
+    respx.post(CHAT_URL).mock(return_value=_stream(_card_turn()))
+    lib = Library(SyncHTTPClient(_make_config()))
+    result = lib.chat(library_id="lib_x", message="hi")
     assert result.chat_id == "libchat_xyz"
-    assert result.assistant_message == "async answer"
-    assert result.stop_reason == "end_turn"
+    assert result.assistant_message == "Shall I go ahead?"
+    assert result.narrative == (
+        "Orders has 4,210 rows and two date columns.\n\nShall I go ahead?"
+    )
+    assert result.choices == _CARD
+    assert result.tool_calls[0].name == "ask_choices"
+    assert result.turns_used == 2
+
+
+@respx.mock
+async def test_async_chat_keeps_every_text_segment_and_the_card() -> None:
+    respx.post(CHAT_URL).mock(return_value=_stream(_card_turn()))
+    lib = AsyncLibrary(AsyncHTTPClient(_make_config()))
+    result = await lib.chat(library_id="lib_x", message="hi")
+    assert result.narrative.startswith("Orders has 4,210 rows")
+    assert result.choices is not None
+    assert result.choices["confirm_label"] == "Build the view"
+
+
+@respx.mock
+def test_sync_chat_without_deltas_falls_back_to_assistant_message() -> None:
+    respx.post(CHAT_URL).mock(return_value=_stream([
+        _sse({"type": "data-librarian", "data": {
+            "chat_id": "c", "library_id": "lib_x", "assistant_message": "Done.",
+        }}),
+        "data: [DONE]",
+    ]))
+    lib = Library(SyncHTTPClient(_make_config()))
+    result = lib.chat(library_id="lib_x", message="hi")
+    assert result.narrative == "Done."
+    assert result.choices is None
+
+
+def test_error_output_is_not_a_card() -> None:
+    from querri.resources.library import is_choice_card
+
+    assert not is_choice_card({"error": "ask_choices needs a `question`"})
+    assert not is_choice_card({"presented": True, "options": []})
+    assert is_choice_card(_CARD)
+
+
+# ── choice_label ──────────────────────────────────────────────────────────
+
+
+def test_choice_label_by_number_and_label() -> None:
+    assert choice_label(_CARD, "1") == "Build the view"
+    assert choice_label(_CARD, "not NOW") == "Not now"
+    assert choice_label(_CARD, "4") is None
+    assert choice_label(_CARD, "Sí") is None
+
+
+def test_choice_label_multi_select() -> None:
+    card = {"options": [{"label": "A"}, {"label": "B"}, {"label": "C"}],
+            "multi_select": True}
+    assert choice_label(card, "1, c") == "A, C"
+    assert choice_label(card, "1, nope") is None

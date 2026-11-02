@@ -11,6 +11,7 @@ import stat
 import sys
 import webbrowser
 from dataclasses import asdict, dataclass, field
+from dataclasses import fields as dc_fields
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from threading import Thread
@@ -49,9 +50,45 @@ class TokenProfile:
     host: str = ""  # server used for login (used for token refresh)
     all_organizations: dict[str, str] = field(default_factory=dict)
     # Active workspace state
+    # The Querri workspace the CLI is standing in — sent as `X-Querri-Workspace`,
+    # so it homes what you create and scopes what you read. Empty means
+    # "Everything": creates fall back to your personal workspace, reads are
+    # unscoped. Set by `querri workspace use`.
+    active_workspace_id: str = ""
+    active_workspace_name: str = ""
     active_project_id: str = ""
     active_project_name: str = ""
+    # Legacy single-field active chat (mirrors active_chats[active_project_id]).
+    # Kept for backward compatibility; active_chats is authoritative.
     active_chat_id: str = ""
+    # Per-project active chat: {project_id: chat_id}. Lets the CLI remember
+    # which chat a project is "in" regardless of how the project was chosen
+    # (--project flag or `project select`), so follow-up messages continue the
+    # same conversation without needing --chat.
+    active_chats: dict[str, str] = field(default_factory=dict)
+
+    def get_active_chat(self, project_id: str) -> str:
+        """Return the remembered chat id for ``project_id`` ("" if none).
+
+        Falls back to the legacy ``active_chat_id`` when it belongs to the
+        given project (so pre-existing token stores keep working).
+        """
+        cid = self.active_chats.get(project_id, "")
+        if cid:
+            return cid
+        if self.active_chat_id and self.active_project_id == project_id:
+            return self.active_chat_id
+        return ""
+
+    def set_active_chat(self, project_id: str, chat_id: str) -> None:
+        """Remember (or clear, if ``chat_id`` is falsy) a project's active chat."""
+        if chat_id:
+            self.active_chats[project_id] = chat_id
+        else:
+            self.active_chats.pop(project_id, None)
+        # Mirror into the legacy field when this is the active project.
+        if project_id and project_id == self.active_project_id:
+            self.active_chat_id = chat_id or ""
 
     def __repr__(self) -> str:
         """Redact tokens to prevent accidental exposure."""
@@ -130,24 +167,24 @@ class TokenStore:
             return store
 
         store.active_profile = data.get("active_profile", "default")
+        # Read whatever `TokenProfile` declares, and ignore anything else the
+        # file holds. This used to be a hand-written kwarg list, which is a
+        # field you must remember to add in two places — and forgetting is
+        # SILENT and DESTRUCTIVE, because the missing key loads as the default
+        # and the next `save()` writes that default back over the real value.
+        # `active_workspace_id` was lost exactly this way: `workspace use`
+        # stored it, the very next command read it as "" and re-saved, and the
+        # CLI reported "Everything" while insisting it had switched.
+        # `fields(...)` cannot fall out of step with the dataclass; unknown keys
+        # are dropped so an older CLI can still read a newer file.
+        known = {f.name for f in dc_fields(TokenProfile)}
         for name, profile_data in data.get("profiles", {}).items():
             if isinstance(profile_data, dict):
-                store.profiles[name] = TokenProfile(
-                    auth_type=profile_data.get("auth_type", "jwt"),
-                    access_token=profile_data.get("access_token", ""),
-                    refresh_token=profile_data.get("refresh_token", ""),
-                    expires_at=profile_data.get("expires_at", ""),
-                    org_id=profile_data.get("org_id", ""),
-                    user_email=profile_data.get("user_email", ""),
-                    user_id=profile_data.get("user_id", ""),
-                    user_name=profile_data.get("user_name", ""),
-                    org_name=profile_data.get("org_name", ""),
-                    host=profile_data.get("host", ""),
-                    all_organizations=profile_data.get("all_organizations", {}),
-                    active_project_id=profile_data.get("active_project_id", ""),
-                    active_project_name=profile_data.get("active_project_name", ""),
-                    active_chat_id=profile_data.get("active_chat_id", ""),
-                )
+                kwargs = {
+                    k: v for k, v in profile_data.items()
+                    if k in known and v is not None
+                }
+                store.profiles[name] = TokenProfile(**kwargs)
         return store
 
     def save(self) -> None:

@@ -58,14 +58,39 @@ querri --project <uuid> chat -p "..."        # or pass explicitly
 
 ---
 
-## `invalid token format` from curl
+## Raw API calls with curl (`invalid token format`, 401 after a while)
 
-The JWT stored in `~/.querri/tokens.json` is a Querri-internal token, not a raw WorkOS JWT. It can't be used directly in `Authorization: Bearer` headers with curl. Use the API key flow instead:
+Don't copy the token out of `~/.querri/tokens.json`: it ages out within minutes
+and the file's copy is not refreshed until the CLI next runs. Ask the CLI for a
+current one at the moment of the call — `querri auth token` refreshes it first:
 
 ```bash
-export QUERRI_API_KEY="sk_live_..."
-querri --json project list
+curl -s -H "Authorization: Bearer $(querri auth token)" \
+  https://app.querri.com/api/v1/workspaces
 ```
+
+For long scripts, call `$(querri auth token)` per request, or use an API key
+(`Authorization: Bearer qk_...` plus `X-Tenant-ID: org_...`). The SDK and every
+CLI command (Library chat and view builds included) renew the login token
+themselves when the server says it expired.
+
+---
+
+## `library chat` stops at a question / "Sí" didn't approve it
+
+The Librarian asked you to choose (a choice card). It approves only when the
+next message is the option's exact label. Answer with the number or label:
+
+```bash
+querri library chat "<same message>" --answer 1
+querri library chat "Build the view"            # or send the label itself
+```
+
+## `No active library for this organization`
+
+The active library is stored per host + organization. After `auth switch-org`
+(or on another host) run `querri library use <id>` once. If the message names
+the library that used to be global, use it only if it belongs to this org.
 
 ---
 
@@ -113,3 +138,48 @@ For local dev, it should be `http://localhost`. Override if needed:
 ```bash
 export QUERRI_HOST=http://localhost
 ```
+
+---
+
+## View `run` fails / `preview` returns "Source '...' has not been materialized (no QDF attached)"
+
+The view references a source that has no materialized table (QDF). Most common cause: the source is
+an **Excel** file (`.xlsx`/`.xls`), which is **not** materialized on upload (it's parsed on demand
+only inside a chat/project). A view scans sources directly, so the Excel source has nothing to scan.
+
+Fix: convert the sheet to CSV and upload that — CSV/JSON/Parquet materialize on upload — then point
+the view at the CSV's source UUID:
+```bash
+querri --json file upload data.csv          # grab the returned source id
+querri view update <view_id> --sql "SELECT ... FROM {source:<csv_source_id>} ..."
+querri view run --view-ids <view_id>
+```
+Confirm a source is materialized first: `querri --json source describe <id>` should show a non-null
+`row_count` and non-empty `columns`. (`source sync` to force materialization is **not** available via
+the public API — it returns 501.)
+
+---
+
+## View returns the wrong rows / scans the wrong source
+
+When you create a view with `--prompt` (AI authoring), the agent picks the source(s) and the CLI does
+**not** print which UUID it chose. It can pick a different source than you intended. Always verify:
+```bash
+querri --json view get <view_id>     # read sql_definition → check the FROM {source:UUID} token
+```
+If it's wrong, overwrite the SQL with the correct source UUID (from `source list`):
+```bash
+querri view update <view_id> --sql "SELECT ... FROM {source:<correct_uuid>} ..."
+querri view run --view-ids <view_id>
+```
+Remember: view SQL uses `FROM {source:UUID}` tokens, **not** plain table names and **not** the
+`FROM data` convention that `source query` uses.
+
+---
+
+## `dashboard new` / `dashboard delete` / `source sync` return HTTP 501 not_implemented
+
+These three operations are not yet bridged to the public API (tracked gaps, not permanent). Use the
+Querri **web app** to create/delete dashboards or pin charts. From the CLI, dashboards support only
+`list`, `get`, `update` (name/description), `refresh`, and `refresh-status`. A Querri project's
+"Data Flow" view already shows all its charts, so it can serve as a lightweight dashboard substitute.

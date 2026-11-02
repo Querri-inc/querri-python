@@ -26,6 +26,92 @@ sources_app = typer.Typer(
 )
 
 
+@sources_app.command("ready")
+def sources_ready(
+    ctx: typer.Context,
+    wait: bool = typer.Option(
+        False, "--wait", help="Block until nothing is still processing."
+    ),
+    timeout: float = typer.Option(1800.0, "--timeout", help="Seconds to wait."),
+    interval: float = typer.Option(5.0, "--interval", help="Seconds between polls."),
+    limit: int = typer.Option(100, "--limit", help="Sources to examine (1-100)."),
+) -> None:
+    """Are the sources in this scope usable yet?
+
+    "Usable" means parsed and queryable, not merely uploaded — those are minutes
+    apart on a real load, and everything downstream (queries, projects, the
+    knowledge graph, an agent finding it) needs the first, not the second.
+
+    Scoped by the active workspace, so after ``querri workspace use finance``
+    this answers for Finance rather than the whole organization.
+
+    Exits 0 when everything settled ready, 1 if anything is still processing or
+    failed — so it composes into a script:
+
+        querri source ready --wait && querri project chat -m "what changed?"
+    """
+    import time
+
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    deadline = time.monotonic() + timeout
+
+    while True:
+        try:
+            rows = list(client.sources.list(limit=limit))
+        except Exception as exc:
+            raise typer.Exit(
+                code=handle_api_error(exc, is_json=obj.get("json"))
+            ) from None
+
+        ready, processing, failed = [], [], []
+        for r in rows:
+            if r.get("materialized"):
+                ready.append(r)
+            elif str(r.get("status", "")).lower() in {"error", "failed"}:
+                failed.append(r)
+            else:
+                processing.append(r)
+
+        settled = not processing
+        if settled or not wait or time.monotonic() >= deadline:
+            break
+        if not obj.get("json"):
+            print(
+                f"\r  {len(ready)} ready, {len(processing)} processing, "
+                f"{len(failed)} failed   ",
+                end="", file=sys.stderr, flush=True,
+            )
+        time.sleep(interval)
+
+    if wait and not obj.get("json"):
+        print(file=sys.stderr)
+
+    if obj.get("json"):
+        print_json({
+            "workspace_id": client.workspace_id,
+            "total": len(rows),
+            "ready": len(ready),
+            "processing": [r.get("id") for r in processing],
+            "failed": [
+                {"id": r.get("id"), "name": r.get("name")} for r in failed
+            ],
+        })
+    else:
+        scope = client.workspace_id or "everything"
+        print(f"{len(rows)} sources in scope ({scope})", file=sys.stderr)
+        print(f"  ready       {len(ready)}", file=sys.stderr)
+        print(f"  processing  {len(processing)}", file=sys.stderr)
+        print(f"  failed      {len(failed)}", file=sys.stderr)
+        for r in processing[:20]:
+            print(f"    …  {r.get('name')}  {r.get('id')}", file=sys.stderr)
+        for r in failed[:20]:
+            print(f"    ✗  {r.get('name')}  {r.get('id')}", file=sys.stderr)
+
+    if processing or failed:
+        raise typer.Exit(code=1)
+
+
 @sources_app.command("list")
 def list_sources(
     ctx: typer.Context,

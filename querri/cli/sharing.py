@@ -6,7 +6,7 @@ import sys
 
 import typer
 
-from querri.cli._context import get_client
+from querri.cli._context import _resolve_workspace, get_client
 from querri.cli._output import (
     handle_api_error,
     print_error,
@@ -17,7 +17,7 @@ from querri.cli._output import (
 
 sharing_app = typer.Typer(
     name="share",
-    help="Share projects, dashboards, and sources with users.",
+    help="Share projects, dashboards, and sources with users or workspaces.",
     no_args_is_help=True,
 )
 
@@ -33,7 +33,17 @@ share_source_app = typer.Typer(
 
 sharing_app.add_typer(share_project_app, name="project")
 sharing_app.add_typer(share_dashboard_app, name="dashboard")
+share_workspace_app = typer.Typer(
+    name="workspace",
+    help=(
+        "Share any item with a whole workspace (project, dashboard, source, "
+        "connector, site, collection — whatever the server shares)."
+    ),
+    no_args_is_help=True,
+)
+
 sharing_app.add_typer(share_source_app, name="source")
+sharing_app.add_typer(share_workspace_app, name="workspace")
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -54,6 +64,39 @@ def _resolve_arg(value: str | None, name: str, prompt: str, usage: str) -> str:
         raise typer.Exit(code=1)
 
 
+_RELATION_BY_PERMISSION = {"view": "viewer", "edit": "editor"}
+
+
+def _share_with_workspace(
+    ctx: typer.Context,
+    resource_type: str,
+    resource_id: str,
+    workspace: str,
+    permission_or_relation: str,
+) -> None:
+    """Share one item with a workspace; ``view``/``edit`` map to the
+    workspace grant's ``viewer``/``editor``."""
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    workspace_id = _resolve_workspace(client, workspace, obj)
+    relation = _RELATION_BY_PERMISSION.get(
+        permission_or_relation, permission_or_relation
+    )
+    try:
+        result = client.sharing.share_workspace(
+            resource_type, resource_id, workspace_id, relation=relation
+        )
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+    if obj.get("json"):
+        print_json(result)
+    else:
+        print_success(
+            f"Shared {resource_type} {resource_id} with workspace "
+            f"{workspace_id} ({relation})"
+        )
+
+
 # ── Project sharing ──────────────────────────────────────────────────────────
 
 
@@ -67,6 +110,12 @@ def add_project_share(
     permission: str = typer.Option(
         "view", "--permission", help="Permission: view or edit."
     ),
+    workspace: str | None = typer.Option(
+        None,
+        "--workspace",
+        "-w",
+        help="Share with a whole workspace (id, slug or name) instead of a user.",
+    ),
 ) -> None:
     """Share a project with a user."""
     project_id = _resolve_arg(
@@ -75,6 +124,9 @@ def add_project_share(
         "Project ID: ",
         "querri share project add PROJECT_ID --user-id USER_ID",
     )
+    if workspace:
+        _share_with_workspace(ctx, "project", project_id, workspace, permission)
+        return
     user_id = _resolve_arg(
         user_id,
         "USER_ID",
@@ -170,6 +222,12 @@ def add_dashboard_share(
     permission: str = typer.Option(
         "view", "--permission", help="Permission: view or edit."
     ),
+    workspace: str | None = typer.Option(
+        None,
+        "--workspace",
+        "-w",
+        help="Share with a whole workspace (id, slug or name) instead of a user.",
+    ),
 ) -> None:
     """Share a dashboard with a user."""
     dashboard_id = _resolve_arg(
@@ -178,6 +236,9 @@ def add_dashboard_share(
         "Dashboard ID: ",
         "querri share dashboard add DASHBOARD_ID --user-id USER_ID",
     )
+    if workspace:
+        _share_with_workspace(ctx, "dashboard", dashboard_id, workspace, permission)
+        return
     user_id = _resolve_arg(
         user_id,
         "USER_ID",
@@ -277,6 +338,12 @@ def add_source_share(
     permission: str = typer.Option(
         "view", "--permission", help="Permission: view or edit."
     ),
+    workspace: str | None = typer.Option(
+        None,
+        "--workspace",
+        "-w",
+        help="Share with a whole workspace (id, slug or name) instead of a user.",
+    ),
 ) -> None:
     """Share a data source with a user."""
     source_id = _resolve_arg(
@@ -285,6 +352,9 @@ def add_source_share(
         "Source ID: ",
         "querri share source add SOURCE_ID --user-id USER_ID",
     )
+    if workspace:
+        _share_with_workspace(ctx, "source", source_id, workspace, permission)
+        return
     user_id = _resolve_arg(
         user_id,
         "USER_ID",
@@ -408,3 +478,79 @@ def org_source_share(
         print_success(f"Shared source {source_id} with organization ({permission})")
     else:
         print_success(f"Disabled org-wide sharing for source {source_id}")
+
+
+# ── Workspace sharing (any resource type) ────────────────────────────────────
+
+
+@share_workspace_app.command("add")
+def add_workspace_share(
+    ctx: typer.Context,
+    resource_type: str = typer.Argument(
+        ..., help="Item type: project, dashboard, source, connector, site, collection…"
+    ),
+    resource_id: str = typer.Argument(..., help="Item id."),
+    to: str = typer.Option(..., "--to", help="Workspace (id, slug or name)."),
+    relation: str = typer.Option(
+        "viewer", "--relation", "-r", help="viewer (default) or editor."
+    ),
+) -> None:
+    """Share an item with every member of a workspace. It stays homed where it
+    is; the server says which types it can share."""
+    _share_with_workspace(ctx, resource_type, resource_id, to, relation)
+
+
+@share_workspace_app.command("remove")
+def remove_workspace_share(
+    ctx: typer.Context,
+    resource_type: str = typer.Argument(..., help="Item type."),
+    resource_id: str = typer.Argument(..., help="Item id."),
+    from_: str = typer.Option(
+        ..., "--from", help="Workspace to un-share from (id, slug or name)."
+    ),
+) -> None:
+    """Stop sharing an item with a workspace."""
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    workspace_id = _resolve_workspace(client, from_, obj)
+    try:
+        result = client.sharing.unshare_workspace(
+            resource_type, resource_id, workspace_id
+        )
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+    if obj.get("json"):
+        print_json(result or {
+            "resource_type": resource_type, "resource_id": resource_id,
+            "workspace_id": workspace_id, "revoked": True,
+        })
+    else:
+        print_success(
+            f"Stopped sharing {resource_type} {resource_id} with {workspace_id}"
+        )
+
+
+@share_workspace_app.command("list")
+def list_workspace_shares(
+    ctx: typer.Context,
+    resource_type: str = typer.Argument(..., help="Item type."),
+    resource_id: str = typer.Argument(..., help="Item id."),
+) -> None:
+    """List the workspaces an item is shared with."""
+    obj = ctx.ensure_object(dict)
+    client = get_client(ctx)
+    try:
+        shares = client.sharing.list_workspace_shares(resource_type, resource_id)
+    except Exception as exc:
+        raise typer.Exit(code=handle_api_error(exc, is_json=obj.get("json"))) from None
+    if obj.get("json"):
+        print_json(shares)
+        return
+    if not shares:
+        print_error(f"{resource_type} {resource_id} is not shared with a workspace.")
+        return
+    print_table(
+        shares,
+        [("workspace_id", "Workspace"), ("relation", "Relation")],
+        ctx=ctx,
+    )

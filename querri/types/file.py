@@ -16,3 +16,8 @@ class File(BaseModel):
     created_at: str | None = None  #: ISO-8601 upload timestamp.
     columns: list[str] | None = None  #: Column names (for tabular files).
     row_count: int | None = None  #: Number of data rows.
+    #: Processing state at the moment of upload — ``processing`` for anything
+    #: queued for parsing. An upload returns before its data is readable; use
+    #: ``client.sources.wait_until_ready(file.id)`` (or ``--wait``) to block.
+    status: str | None = None
+    workspace_id: str | None = None  #: The workspace the upload was homed in.

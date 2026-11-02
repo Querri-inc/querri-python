@@ -151,6 +151,7 @@ class TestUsersCommands:
         mock_client.users.create.assert_called_once_with(
             email="alice@example.com",
             role="admin",
+            role_id=None,
             external_id=None,
             first_name=None,
             last_name=None,

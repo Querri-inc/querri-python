@@ -18,6 +18,7 @@ from querri.cli.library import library_app
 from querri.cli.policies import policies_app
 from querri.cli.projects import projects_app
 from querri.cli.roles import roles_app
+from querri.cli.settings import flags_app, settings_app
 from querri.cli.sharing import sharing_app
 from querri.cli.sources import sources_app
 from querri.cli.steps import steps_app
@@ -25,6 +26,7 @@ from querri.cli.usage import usage_app
 from querri.cli.users import users_app
 from querri.cli.views import view_app
 from querri.cli.whoami import whoami_app
+from querri.cli.workspaces import workspace_app
 
 # ---------------------------------------------------------------------------
 # TTY detection — drives output behavior across the CLI
@@ -148,6 +150,14 @@ def _global_options(
         help="Chat ID (overrides active chat).",
         show_default=False,
     ),
+    workspace: str | None = typer.Option(
+        None,
+        "--workspace",
+        "-w",
+        envvar="QUERRI_WORKSPACE_ID",
+        help="Workspace id or slug (overrides the active workspace).",
+        show_default=False,
+    ),
     version: bool = typer.Option(
         False,
         "--version",
@@ -187,6 +197,7 @@ def _global_options(
     ctx.obj["profile"] = profile
     ctx.obj["project"] = project
     ctx.obj["chat"] = chat
+    ctx.obj["workspace"] = workspace
     ctx.obj["json"] = json_output
     ctx.obj["quiet"] = quiet
     ctx.obj["verbose"] = verbose
@@ -206,6 +217,11 @@ main_app.add_typer(
 )
 
 # ── Projects & Data ─────────────────────────────────────────────────────
+main_app.add_typer(
+    workspace_app,
+    name="workspace",
+    rich_help_panel="[#f15a24]Projects & Data[/#f15a24]",
+)
 main_app.add_typer(
     projects_app, name="project", rich_help_panel="[#f15a24]Projects & Data[/#f15a24]"
 )
@@ -252,6 +268,14 @@ main_app.add_typer(
 main_app.add_typer(roles_app, name="roles", hidden=True)
 main_app.add_typer(
     sharing_app, name="share", rich_help_panel="[#f15a24]Administration[/#f15a24]"
+)
+main_app.add_typer(
+    settings_app,
+    name="settings",
+    rich_help_panel="[#f15a24]Administration[/#f15a24]",
+)
+main_app.add_typer(
+    flags_app, name="flags", rich_help_panel="[#f15a24]Administration[/#f15a24]"
 )
 
 # ── Advanced ────────────────────────────────────────────────────────────

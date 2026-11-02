@@ -86,6 +86,12 @@ class AskResponse(_LibraryBase):
     # On decline: one entry per attempted cluster — {cluster, tables, sql, ...}.
     attempted: list[dict[str, Any]] | None = None
     sources_used: list[str] = []
+    #: The workspace the answer was produced FROM, or None for the whole
+    #: organization. An answer that silently came from a wider set than you
+    #: asked for is the failure this field exists to make visible — check it
+    #: rather than assuming the scope you set was honoured (an API key's is
+    #: not: the server has no membership to validate it against).
+    workspace_id: str | None = None
     rounds: int = 0
     llm_calls: int = 0
     total_ms: int = 0
@@ -208,7 +214,18 @@ class ChatToolCall(_LibraryBase):
 class ChatResponse(_LibraryBase):
     chat_id: str
     library_id: str
+    #: The server's text for the agent's LAST turn only. A run that writes its
+    #: findings, calls a tool, then closes with one sentence holds only that
+    #: sentence here — read :attr:`narrative` for what a person should see.
     assistant_message: str
+    #: Every text segment the agent streamed this run, in order, separated by
+    #: blank lines. Falls back to ``assistant_message`` when nothing streamed.
+    narrative: str = ""
+    #: The ``ask_choices`` card the agent ended on, if any: ``question``,
+    #: ``options`` (each with a ``label``), ``multi_select``, ``allow_other``,
+    #: and for a creation review ``review`` + ``confirm_label``. Answer it by
+    #: sending the chosen option's ``label`` as the next message in the chat.
+    choices: dict[str, Any] | None = None
     tool_calls: list[ChatToolCall] = []
     turns_used: int = 0
     stop_reason: str = ""
@@ -227,6 +244,11 @@ class FactResponse(_LibraryBase):
     confidence: float = 1.0
     node_kind: str = "Fact"
     library_id: str
+    workspace_id: str | None = None  #: Home workspace.
+    #: Non-fatal problems, e.g. ``{"code": "targets_not_visible",
+    #: "node_ids": [...], "message": ...}`` when an ABOUT target cannot be
+    #: seen from the Fact's home workspace.
+    warnings: list[dict[str, Any]] = []
 
 
 class ZoomResponse(_LibraryBase):

@@ -17,6 +17,20 @@ class Source(BaseModel):
         None  #: Mapping of column name to type string.
     )
     row_count: int | None = None  #: Total number of rows in the source.
+    #: Where it came from — ``upload``, ``view``, a connector.
+    service: str | None = None
+    #: True once the source has a parsed dataframe attached. Only materialized
+    #: sources are queryable or usable in a view. An .xlsx upload stays False
+    #: until analyzed.
+    materialized: bool | None = None
+    #: Processing state: ``active`` (done), ``processing``, ``error``. Read this
+    #: alongside ``materialized`` — on its own, ``materialized=False`` cannot
+    #: tell "still working" from "gave up", and a poller will wait out the
+    #: timeout on a source that failed in the first ten seconds.
+    status: str | None = None
+    progress: int | None = None  #: Percent complete while ``status='processing'``.
+    error_message: str | None = None  #: Why processing failed, when it did.
+    workspace_id: str | None = None  #: The workspace this source is homed in.
     access_controlled: bool | None = None  #: Whether RLS is enabled for this source.
     updated_at: str | None = None  #: ISO-8601 last-update timestamp.
 

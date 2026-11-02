@@ -107,7 +107,17 @@ def get_user(
 def new_user(
     ctx: typer.Context,
     email: str | None = typer.Option(None, "--email", "-e", help="User email."),
-    role: str = typer.Option("member", "--role", "-r", help="Role (member, admin)."),
+    role: str | None = typer.Option(
+        None, "--role", "-r", help="System role: member (default), admin, guest."
+    ),
+    role_id: str | None = typer.Option(
+        None,
+        "--role-id",
+        help=(
+            "Custom Role id or key (see `querri role list`). The seat follows "
+            "the role; --role is only needed if it names the same seat."
+        ),
+    ),
     external_id: str | None = typer.Option(None, "--external-id", help="External ID."),
     first_name: str | None = typer.Option(None, "--first-name", help="First name."),
     last_name: str | None = typer.Option(None, "--last-name", help="Last name."),
@@ -132,6 +142,7 @@ def new_user(
         user = client.users.create(
             email=email,
             role=role,
+            role_id=role_id,
             external_id=external_id,
             first_name=first_name,
             last_name=last_name,
@@ -152,7 +163,16 @@ def update_user(
     ctx: typer.Context,
     user_id: str | None = typer.Argument(None, help="User ID."),
     role: str | None = typer.Option(
-        None, "--role", "-r", help="New role (member, admin)."
+        None, "--role", "-r", help="New system role: member, admin, guest."
+    ),
+    role_id: str | None = typer.Option(
+        None,
+        "--role-id",
+        help=(
+            "Assign a Custom Role by id or key (see `querri role list`). The "
+            "seat follows the role; --role is only needed if it names the same "
+            "seat."
+        ),
     ),
     first_name: str | None = typer.Option(None, "--first-name", help="New first name."),
     last_name: str | None = typer.Option(None, "--last-name", help="New last name."),
@@ -177,6 +197,8 @@ def update_user(
         kwargs: dict[str, str] = {}
         if role is not None:
             kwargs["role"] = role
+        if role_id is not None:
+            kwargs["role_id"] = role_id
         if first_name is not None:
             kwargs["first_name"] = first_name
         if last_name is not None:

@@ -168,6 +168,87 @@ class Sharing:
         )
         return resp.json()  # type: ignore[no-any-return]
 
+    # ── Workspace sharing ────────────────────────────────
+
+    def list_workspace_shares(
+        self, resource_type: str, resource_id: str
+    ) -> list[dict[str, Any]]:
+        """Workspaces an item is shared with.
+
+        Args:
+            resource_type: The item's type, as the server names it (e.g.
+                ``"source"``, ``"project"``, ``"dashboard"``, ``"collection"``).
+                Not checked client-side: the server's list is authoritative.
+            resource_id: The item's id.
+
+        Returns:
+            ``[{"workspace_id", "relation"}]``.
+        """
+        resp = self._http.get(
+            "/sharing/workspace",
+            params={"resource_type": resource_type, "resource_id": resource_id},
+        )
+        return list(resp.json().get("data", []))
+
+    def share_workspace(
+        self,
+        resource_type: str,
+        resource_id: str,
+        workspace_id: str,
+        *,
+        relation: str = "viewer",
+    ) -> dict[str, Any]:
+        """Share an item with every member of a workspace. The item stays
+        where it is homed.
+
+        Args:
+            resource_type: The item's type, as the server names it. A type the
+                server does not share raises ``ValidationError`` with its list.
+            resource_id: The item's id.
+            workspace_id: The workspace to share with.
+            relation: ``"viewer"`` (default) or ``"editor"``.
+
+        Returns:
+            The server's confirmation.
+        """
+        resp = self._http.post(
+            "/sharing/workspace",
+            json={
+                "resource_type": resource_type,
+                "resource_id": resource_id,
+                "workspace_id": workspace_id,
+                "relation": relation,
+            },
+        )
+        return dict(resp.json())
+
+    def unshare_workspace(
+        self, resource_type: str, resource_id: str, workspace_id: str
+    ) -> dict[str, Any]:
+        """Stop sharing an item with a workspace.
+
+        Takes no ``relation``: a workspace holds one grant level per item, and
+        naming it would only make the revoke fail when the guess is wrong.
+
+        Args:
+            resource_type: The item's type, as the server names it.
+            resource_id: The item's id.
+            workspace_id: The workspace to un-share from.
+
+        Returns:
+            The server's confirmation.
+        """
+        resp = self._http.request(
+            "DELETE",
+            "/sharing/workspace",
+            json={
+                "resource_type": resource_type,
+                "resource_id": resource_id,
+                "workspace_id": workspace_id,
+            },
+        )
+        return dict(resp.json()) if resp.content else {}
+
 
 class AsyncSharing:
     """Asynchronous sharing resource.
@@ -328,3 +409,84 @@ class AsyncSharing:
             json={"enabled": enabled, "permission": permission},
         )
         return resp.json()  # type: ignore[no-any-return]
+
+    # ── Workspace sharing ────────────────────────────────
+
+    async def list_workspace_shares(
+        self, resource_type: str, resource_id: str
+    ) -> list[dict[str, Any]]:
+        """Workspaces an item is shared with.
+
+        Args:
+            resource_type: The item's type, as the server names it (e.g.
+                ``"source"``, ``"project"``, ``"dashboard"``, ``"collection"``).
+                Not checked client-side: the server's list is authoritative.
+            resource_id: The item's id.
+
+        Returns:
+            ``[{"workspace_id", "relation"}]``.
+        """
+        resp = await self._http.get(
+            "/sharing/workspace",
+            params={"resource_type": resource_type, "resource_id": resource_id},
+        )
+        return list(resp.json().get("data", []))
+
+    async def share_workspace(
+        self,
+        resource_type: str,
+        resource_id: str,
+        workspace_id: str,
+        *,
+        relation: str = "viewer",
+    ) -> dict[str, Any]:
+        """Share an item with every member of a workspace. The item stays
+        where it is homed.
+
+        Args:
+            resource_type: The item's type, as the server names it. A type the
+                server does not share raises ``ValidationError`` with its list.
+            resource_id: The item's id.
+            workspace_id: The workspace to share with.
+            relation: ``"viewer"`` (default) or ``"editor"``.
+
+        Returns:
+            The server's confirmation.
+        """
+        resp = await self._http.post(
+            "/sharing/workspace",
+            json={
+                "resource_type": resource_type,
+                "resource_id": resource_id,
+                "workspace_id": workspace_id,
+                "relation": relation,
+            },
+        )
+        return dict(resp.json())
+
+    async def unshare_workspace(
+        self, resource_type: str, resource_id: str, workspace_id: str
+    ) -> dict[str, Any]:
+        """Stop sharing an item with a workspace.
+
+        Takes no ``relation``: a workspace holds one grant level per item, and
+        naming it would only make the revoke fail when the guess is wrong.
+
+        Args:
+            resource_type: The item's type, as the server names it.
+            resource_id: The item's id.
+            workspace_id: The workspace to un-share from.
+
+        Returns:
+            The server's confirmation.
+        """
+        resp = await self._http.request(
+            "DELETE",
+            "/sharing/workspace",
+            json={
+                "resource_type": resource_type,
+                "resource_id": resource_id,
+                "workspace_id": workspace_id,
+            },
+        )
+        return dict(resp.json()) if resp.content else {}

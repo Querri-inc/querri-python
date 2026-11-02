@@ -97,7 +97,21 @@ def chat_command(
         False,
         "--experimental-v2",
         "--v2",
-        help="Use experimental v2 agent (faster, direct SQL execution).",
+        help="Deprecated and ignored by the server — v2 is the only planner path.",
+    ),
+    fast: bool = typer.Option(
+        False,
+        "--fast",
+        help="One shot per analysis step: write the query on DuckDB, build the "
+             "table, return. Skips the verification pass (no post-execution "
+             "review, no independent second derivation, no retry loop). Roughly "
+             "one model call per step instead of several.",
+    ),
+    thorough: bool = typer.Option(
+        False,
+        "--thorough",
+        help="Force the full verification loop for every analysis step, even if "
+             "the organization's default is fast.",
     ),
     debug: bool = typer.Option(
         False, "--debug", help="Log all stream events to ~/.querri/debug.log"
@@ -112,9 +126,18 @@ def chat_command(
         querri project chat -m "summarize the data"
         querri project chat --message "show me Q4 revenue" --model gpt-4o
         querri project chat -m "start over" --new
+        querri project chat -m "revenue by region" --fast
     """
     if ctx.invoked_subcommand is not None:
         return
+
+    # WHICH TABLE AGENT. Named explicitly on the wire when either flag is
+    # given, and omitted otherwise so the organization's setting decides —
+    # "the user did not choose" and "the user chose thorough" are different
+    # requests and the server logs them differently.
+    if fast and thorough:
+        raise typer.BadParameter("--fast and --thorough are mutually exclusive.")
+    table_agent_mode = "fast" if fast else ("thorough" if thorough else None)
     if prompt is None:
         ctx.get_help()
         return
@@ -132,27 +155,27 @@ def chat_command(
     user_id = resolve_user_id(ctx)
     client = get_client(ctx)
 
-    # Resolve or create chat
-    chat_id = obj.get("chat")  # explicit --chat flag
+    # Resolve or create chat.
+    # Precedence: explicit --chat > the project's remembered chat > the
+    # project's most-recent existing chat > a freshly created chat. Only
+    # --new forces a brand-new chat. This keeps a single conversation going
+    # per project without having to pass --chat each time — and works whether
+    # the project came from --project or `project select`.
+    chat_id = obj.get("chat")  # explicit --chat flag wins
+    profile = _get_profile(ctx)
+
+    if not chat_id and not new and profile:
+        # Per-project remembered chat (keyed by project, not a single global).
+        chat_id = profile.get_active_chat(project_id) or None
 
     if not chat_id and not new:
-        # Check stored active chat
-        profile = _get_profile(ctx)
-        if (
-            profile
-            and profile.active_chat_id
-            and profile.active_project_id == project_id
-        ):
-            chat_id = profile.active_chat_id
-
-    if not chat_id and not new:
-        # Try to find existing chat for this project
+        # Nothing remembered yet — continue the project's most recent chat.
         existing = _fetch_project_chat(client, project_id)
         if existing:
             chat_id = existing.get("uuid") or existing.get("id")
 
     if not chat_id or new:
-        # Create a new chat
+        # Create a new chat (explicit --new, or nothing to reuse).
         try:
             chat = client.projects.chats.create(project_id)
             chat_id = chat.id
@@ -162,10 +185,11 @@ def chat_command(
         if not is_json and not obj.get("quiet"):
             print(f"  New chat: {chat_id}", file=sys.stderr)
 
-    # Save active chat
-    profile = _get_profile(ctx)
+    # Remember this chat as the project's active chat for next time.
+    if profile is None:
+        profile = _get_profile(ctx)
     if profile:
-        profile.active_chat_id = chat_id
+        profile.set_active_chat(project_id, chat_id)
         _save_profile(ctx, profile)
 
     # Echo the user prompt before streaming
@@ -202,6 +226,7 @@ def chat_command(
             user_id=user_id,
             model=model,
             experimental_v2=experimental_v2,
+            table_agent_mode=table_agent_mode,
         )
     except Exception as exc:
         raise typer.Exit(code=handle_api_error(exc, is_json=is_json)) from None

@@ -62,6 +62,46 @@ def _node_from_get(payload: dict[str, Any]) -> LibraryNode:
 _TModel = TypeVar("_TModel", bound=BaseModel)
 
 
+def _sse_event(line: str) -> dict[str, Any] | None | bool:
+    """One SSE line → its parsed event, ``None`` to skip, ``False`` at ``[DONE]``."""
+    if not line or not line.startswith("data: "):
+        return None
+    payload = line[len("data: "):]
+    if payload == "[DONE]":
+        return False
+    try:
+        event = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    return event if isinstance(event, dict) else None
+
+
+def _node_list(envelope_json: dict[str, Any]) -> NodeListResponse:
+    """A node list from either envelope shape.
+
+    The Library routes wrap ``{data: {results: [...]}, library_id}``; the
+    newer v1 aliases use the plain ``{data: [...], has_more}`` list shape.
+    """
+    data = envelope_json.get("data")
+    if isinstance(data, list):
+        return NodeListResponse.model_validate({
+            "library_id": envelope_json.get("library_id"),
+            "node_kind": envelope_json.get("node_kind"),
+            "results": [
+                {**row, "id": row.get("id") or row.get("_id", "")}
+                for row in data
+                if isinstance(row, dict)
+            ],
+        })
+    return _unwrap_envelope(envelope_json, NodeListResponse)
+
+
+def _workspace_body(body: dict[str, Any], workspace_id: str | None) -> dict[str, Any]:
+    if workspace_id:
+        body["workspace_id"] = workspace_id
+    return body
+
+
 def _unwrap_dict(envelope_json: dict[str, Any]) -> dict[str, Any]:
     """Dict-returning sibling of `_unwrap_envelope`. Returns the
     envelope's `data` dict with `library_id` splatted in for parity with
@@ -105,6 +145,127 @@ def _unwrap_envelope(
     })
 
 
+class _ChatDrain:
+    """Fold a Library chat's VercelStream v2 events into a :class:`ChatResponse`.
+
+    Shared by ``Library.chat``, ``AsyncLibrary.chat`` and the CLI, so all three
+    read the stream the same way:
+
+    * ``tool-input-available`` / ``tool-output-available`` pair into tool calls;
+    * an ``ask_choices`` output (``presented`` + ``options``) becomes
+      :attr:`ChatResponse.choices`;
+    * ``text-delta`` chunks build :attr:`ChatResponse.narrative`, a new text
+      id starting a new paragraph;
+    * ``data-librarian`` carries chat id, turn and token metadata.
+    """
+
+    def __init__(self) -> None:
+        self.tool_inputs: dict[str, dict[str, Any]] = {}
+        self._t0: dict[str, float] = {}
+        self.tool_calls: list[dict[str, Any]] = []
+        self._segments: list[list[str]] = []
+        self._text_id: object = None
+        self.meta: dict[str, Any] = {}
+        self.choices: dict[str, Any] | None = None
+
+    def feed(self, ev: dict[str, Any]) -> None:
+        etype = ev.get("type", "")
+        if etype == "tool-input-available":
+            tcid = ev.get("toolCallId", "")
+            self.tool_inputs[tcid] = {
+                "name": ev.get("toolName", ""),
+                "input": ev.get("input", {}),
+            }
+            self._t0[tcid] = time.monotonic()
+        elif etype == "tool-output-available":
+            tcid = ev.get("toolCallId", "")
+            called = self.tool_inputs.get(tcid, {})
+            output = ev.get("output", {})
+            t0 = self._t0.get(tcid, time.monotonic())
+            self.tool_calls.append({
+                "name": called.get("name", ""),
+                "input": called.get("input", {}),
+                "result": output,
+                "duration_ms": int((time.monotonic() - t0) * 1000),
+            })
+            if is_choice_card(output):
+                self.choices = output
+        elif etype == "text-delta":
+            text_id = ev.get("id")
+            if not self._segments or text_id != self._text_id:
+                self._segments.append([])
+                self._text_id = text_id
+            self._segments[-1].append(str(ev.get("delta", "")))
+        elif etype == "data-librarian":
+            self.meta = ev.get("data", {}) or {}
+
+    @property
+    def narrative(self) -> str:
+        parts = ["".join(seg).strip() for seg in self._segments]
+        return "\n\n".join(p for p in parts if p)
+
+    def response(self, *, library_id: str, chat_id: str | None) -> ChatResponse:
+        meta = self.meta
+        narrative = self.narrative
+        return ChatResponse(
+            chat_id=meta.get("chat_id", chat_id or ""),
+            library_id=meta.get("library_id", library_id),
+            assistant_message=meta.get("assistant_message") or narrative,
+            narrative=narrative or str(meta.get("assistant_message") or ""),
+            choices=self.choices,
+            tool_calls=self.tool_calls,  # type: ignore[arg-type]
+            turns_used=meta.get("turns_used", 0),
+            stop_reason=meta.get("stop_reason", ""),
+            input_tokens=meta.get("input_tokens", 0),
+            output_tokens=meta.get("output_tokens", 0),
+            total_ms=meta.get("total_ms", 0),
+        )
+
+
+def is_choice_card(output: Any) -> bool:
+    """Is this tool output an ``ask_choices`` card the person must answer?"""
+    return (
+        isinstance(output, dict)
+        and bool(output.get("presented"))
+        and isinstance(output.get("options"), list)
+        and bool(output.get("options"))
+    )
+
+
+def choice_label(card: dict[str, Any], answer: str) -> str | None:
+    """Resolve an answer to a card option's label.
+
+    ``answer`` may be a 1-based option number, or a label (any case). For a
+    multi-select card, several numbers or labels may be comma-separated; their
+    labels come back joined by ``", "``. Returns None when nothing matches.
+
+    Args:
+        card: The ``ask_choices`` output (:attr:`ChatResponse.choices`).
+        answer: What the person picked.
+
+    Returns:
+        The exact option label(s) to send as the next message, or None.
+    """
+    labels = [
+        str(o.get("label", "")) if isinstance(o, dict) else str(o)
+        for o in card.get("options", [])
+    ]
+    parts = [answer] if not card.get("multi_select") else answer.split(",")
+    picked: list[str] = []
+    for raw in parts:
+        item = raw.strip()
+        if not item:
+            continue
+        if item.isdigit() and 1 <= int(item) <= len(labels):
+            picked.append(labels[int(item) - 1])
+            continue
+        match = next((lb for lb in labels if lb.casefold() == item.casefold()), None)
+        if match is None:
+            return None
+        picked.append(match)
+    return ", ".join(picked) if picked else None
+
+
 class Library:
     """Synchronous Data Library client.
 
@@ -136,10 +297,25 @@ class Library:
         summary: str = "",
         anchor_question_text: str | None = None,
         anchor_question_name: str | None = None,
+        workspace_id: str | None = None,
     ) -> dict[str, Any]:
-        body: dict[str, Any] = {
+        """Create a Collection, optionally seeded with an anchor question.
+
+        Args:
+            library_id: Parent Library id.
+            name: Display name.
+            summary: Optional summary.
+            anchor_question_text: Creates an AnchorQuestion in the same call.
+            anchor_question_name: Display name for that anchor question.
+            workspace_id: Workspace to home it in. Defaults to the client's
+                active workspace (the ``X-Querri-Workspace`` header).
+
+        Returns:
+            The created Collection (with ``anchor_question`` when seeded).
+        """
+        body: dict[str, Any] = _workspace_body({
             "library_id": library_id, "name": name, "summary": summary,
-        }
+        }, workspace_id)
         if anchor_question_text:
             body["anchor_question_text"] = anchor_question_text
             if anchor_question_name:
@@ -155,13 +331,14 @@ class Library:
         question_text: str,
         summary: str = "",
         collection_id: str | None = None,
+        workspace_id: str | None = None,
     ) -> LibraryNodeSummary:
-        body: dict[str, Any] = {
+        body: dict[str, Any] = _workspace_body({
             "library_id": library_id,
             "name": name,
             "question_text": question_text,
             "summary": summary,
-        }
+        }, workspace_id)
         if collection_id:
             body["collection_id"] = collection_id
         resp = self._http.post("/library/questions/anchor", json=body)
@@ -176,13 +353,14 @@ class Library:
         summary: str = "",
         anchor_question_id: str | None = None,
         collection_id: str | None = None,
+        workspace_id: str | None = None,
     ) -> LibraryNodeSummary:
-        body: dict[str, Any] = {
+        body: dict[str, Any] = _workspace_body({
             "library_id": library_id,
             "name": name,
             "question_text": question_text,
             "summary": summary,
-        }
+        }, workspace_id)
         if anchor_question_id:
             body["anchor_question_id"] = anchor_question_id
         if collection_id:
@@ -290,15 +468,34 @@ class Library:
         evidence_refs: list[str] | None = None,
         confidence: float = 1.0,
         name: str | None = None,
+        workspace_id: str | None = None,
     ) -> FactResponse:
-        body: dict[str, Any] = {
+        """Record a Fact, attached by ABOUT edges to ``source_node_ids``.
+
+        Args:
+            library_id: Library to record into.
+            statement: The fact itself.
+            fact_kind: One of :meth:`fact_kinds` (the server validates it).
+            source_node_ids: Nodes the fact is about.
+            evidence_refs: Evidence URLs or document references.
+            confidence: 0-1.
+            name: Display name (default: derived from the statement).
+            workspace_id: Workspace to home it in. Defaults to the client's
+                active workspace.
+
+        Returns:
+            The Fact. ``warnings`` lists non-fatal problems the server found,
+            e.g. ``targets_not_visible`` when an ABOUT target cannot be seen
+            from the Fact's home workspace.
+        """
+        body: dict[str, Any] = _workspace_body({
             "library_id": library_id,
             "statement": statement,
             "fact_kind": fact_kind,
             "source_node_ids": source_node_ids or [],
             "evidence_refs": evidence_refs or [],
             "confidence": confidence,
-        }
+        }, workspace_id)
         if name:
             body["name"] = name
         resp = self._http.post("/library/facts", json=body)
@@ -326,21 +523,26 @@ class Library:
         }
         if chat_id:
             body["chat_id"] = chat_id
-        # httpx.Client.stream is a context manager; yield from inside it.
-        with self._http._client.stream(
-            "POST", "/library/chat", json=body
-        ) as response:
-            response.raise_for_status()
+        yield from self._stream("/library/chat", body)
+
+    def _stream(self, path: str, body: dict[str, Any]) -> Iterator[dict[str, Any]]:
+        """POST and yield SSE events, through the base client.
+
+        Going through ``request(stream=True)`` gives a stream what every other
+        call has: an aged-out login token is renewed and retried once, and an
+        error answer raises the typed ``APIError`` with the server's message
+        instead of a bare ``httpx.HTTPStatusError``.
+        """
+        response = self._http.request("POST", path, json=body, stream=True)
+        try:
             for line in response.iter_lines():
-                if not line or not line.startswith("data: "):
-                    continue
-                payload = line[len("data: "):]
-                if payload == "[DONE]":
+                event = _sse_event(line)
+                if event is False:
                     break
-                try:
-                    yield json.loads(payload)
-                except json.JSONDecodeError:
-                    continue
+                if isinstance(event, dict):
+                    yield event
+        finally:
+            response.close()
 
     def create_kpi(
         self,
@@ -353,7 +555,28 @@ class Library:
         state: str = "draft",
         parent_kpis: list[str] | None = None,
         measurement: dict[str, Any] | None = None,
+        workspace_id: str | None = None,
     ) -> dict[str, Any]:
+        """Create a KPI node.
+
+        A KPI is a single measure: it has no breakdown or dimension. To see it
+        split by region, channel, etc., build a View (:meth:`build_view`).
+
+        Args:
+            library_id: Library to create it in.
+            name: Display name.
+            canonical_name: Canonical name.
+            categories: Values from :meth:`list_kpi_categories` (any case).
+            summary: Optional summary.
+            state: ``draft`` | ``active`` | ``deprecated`` | ``aspirational``.
+            parent_kpis: Parent KPI ids.
+            measurement: Optional measurement definition.
+            workspace_id: Workspace to home it in. Defaults to the client's
+                active workspace.
+
+        Returns:
+            The created KPI.
+        """
         body: dict[str, Any] = {
             "library_id": library_id,
             "name": name,
@@ -365,6 +588,7 @@ class Library:
         }
         if measurement is not None:
             body["measurement"] = measurement
+        _workspace_body(body, workspace_id)
         resp = self._http.post("/library/kpis", json=body)
         return cast("dict[str, Any]", resp.json())
 
@@ -421,57 +645,25 @@ class Library:
         chat_id: str | None = None,
         mode: str = "default",
     ) -> ChatResponse:
-        # WS-B6: server now emits VercelStream v2 events. Drain them
-        # into ChatResponse:
-        #   tool-input-available  → captured by tool_use_id for matching
-        #   tool-output-available → folded into tool_calls list with the
-        #                           saved input + output
-        #   text-delta            → accumulated into assistant_message
-        #   data-librarian        → carries chat_id/library_id/turns/
-        #                           tokens/total_ms (custom event for
-        #                           per-chat metadata Vercel finish doesn't
-        #                           model)
-        #   finish                → terminal — no payload needed
-        tool_inputs: dict[str, dict[str, Any]] = {}
-        tool_call_t0: dict[str, float] = {}
-        tool_calls: list[dict[str, Any]] = []
-        text_chunks: list[str] = []
-        meta: dict[str, Any] = {}
+        """Run one Librarian turn and drain it into a :class:`ChatResponse`.
+
+        Args:
+            library_id: Library to chat in.
+            message: The person's message. To answer an ``ask_choices`` card,
+                send the chosen option's ``label`` (see :func:`choice_label`).
+            chat_id: Continue this chat.
+            mode: ``default`` or ``onboarding``.
+
+        Returns:
+            The turn. Show ``narrative`` to a person; ``choices`` is set when
+            the agent is waiting on a choice.
+        """
+        drain = _ChatDrain()
         for ev in self.chat_stream(
             library_id=library_id, message=message, chat_id=chat_id, mode=mode
         ):
-            etype = ev.get("type", "")
-            if etype == "tool-input-available":
-                tool_inputs[ev.get("toolCallId", "")] = {
-                    "name": ev.get("toolName", ""),
-                    "input": ev.get("input", {}),
-                }
-                tool_call_t0[ev.get("toolCallId", "")] = time.monotonic()
-            elif etype == "tool-output-available":
-                tcid = ev.get("toolCallId", "")
-                meta_in = tool_inputs.get(tcid, {})
-                t0 = tool_call_t0.get(tcid, time.monotonic())
-                tool_calls.append({
-                    "name": meta_in.get("name", ""),
-                    "input": meta_in.get("input", {}),
-                    "result": ev.get("output", {}),
-                    "duration_ms": int((time.monotonic() - t0) * 1000),
-                })
-            elif etype == "text-delta":
-                text_chunks.append(ev.get("delta", ""))
-            elif etype == "data-librarian":
-                meta = ev.get("data", {})
-        return ChatResponse(
-            chat_id=meta.get("chat_id", chat_id or ""),
-            library_id=meta.get("library_id", library_id),
-            assistant_message=meta.get("assistant_message") or "".join(text_chunks),
-            tool_calls=tool_calls,  # type: ignore[arg-type]
-            turns_used=meta.get("turns_used", 0),
-            stop_reason=meta.get("stop_reason", ""),
-            input_tokens=meta.get("input_tokens", 0),
-            output_tokens=meta.get("output_tokens", 0),
-            total_ms=meta.get("total_ms", 0),
-        )
+            drain.feed(ev)
+        return drain.response(library_id=library_id, chat_id=chat_id)
 
     # ── Collection contents + view build (P3c) ────────────────────────────────
 
@@ -512,20 +704,7 @@ class Library:
             body["summary"] = summary
         if instructions is not None:
             body["instructions"] = instructions
-        with self._http._client.stream(
-            "POST", f"/library/collections/{collection_id}/views", json=body
-        ) as response:
-            response.raise_for_status()
-            for line in response.iter_lines():
-                if not line or not line.startswith("data: "):
-                    continue
-                payload = line[len("data: "):]
-                if payload == "[DONE]":
-                    break
-                try:
-                    yield json.loads(payload)
-                except json.JSONDecodeError:
-                    continue
+        yield from self._stream(f"/library/collections/{collection_id}/views", body)
 
     def build_view(
         self,
@@ -572,9 +751,93 @@ class Library:
         resp = self._http.request("PATCH", f"/library/nodes/{node_id}", json=body)
         return _node_from_get(resp.json())
 
+    def rename_view(
+        self,
+        view_stub_id: str,
+        *,
+        name: str | None = None,
+        display_name: str | None = None,
+        summary: str | None = None,
+    ) -> dict[str, Any]:
+        """Rename / re-describe a library view across BOTH its layers.
+
+        Unlike :meth:`patch_node` (graph node only), this also syncs the
+        legacy source document the Sources tab and preview modal render
+        (name + display_name + description), so the two layers can't drift.
+        ``display_name`` defaults server-side to a friendly sentence-cased
+        form of ``name`` (e.g. ``revenue_by_channel`` → ``Revenue by
+        channel``). At least one field is required.
+        """
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if display_name is not None:
+            body["display_name"] = display_name
+        if summary is not None:
+            body["summary"] = summary
+        resp = self._http.request(
+            "PATCH", f"/library/views/{view_stub_id}", json=body
+        )
+        return cast("dict[str, Any]", resp.json())
+
     def delete_node(self, node_id: str) -> dict[str, Any]:
         resp = self._http.request("DELETE", f"/library/nodes/{node_id}")
         return cast("dict[str, Any]", resp.json())
+
+    def move_node(self, node_id: str, workspace_id: str) -> dict[str, Any]:
+        """Re-home a Library node (Fact, KPI, Collection, question, ...).
+
+        Its edges are kept; only the home workspace changes.
+
+        Args:
+            node_id: The node to move.
+            workspace_id: Destination workspace id.
+
+        Returns:
+            The node, with its new ``workspace_id``.
+        """
+        resp = self._http.post(
+            f"/library/nodes/{node_id}/move", json={"workspace_id": workspace_id}
+        )
+        return _unwrap_dict(resp.json())
+
+    def list_facts(
+        self,
+        *,
+        library_id: str | None = None,
+        workspace_id: str | None = None,
+        limit: int = 100,
+        cursor: str | None = None,
+    ) -> NodeListResponse:
+        """List Fact nodes.
+
+        Args:
+            library_id: Restrict to one Library.
+            workspace_id: Restrict to Facts homed in this workspace.
+            limit: Page size.
+            cursor: Cursor from a previous page.
+
+        Returns:
+            The Facts, as a :class:`NodeListResponse`.
+        """
+        params: dict[str, Any] = {"limit": limit}
+        if library_id:
+            params["library_id"] = library_id
+        if workspace_id:
+            params["workspace_id"] = workspace_id
+        if cursor:
+            params["cursor"] = cursor
+        resp = self._http.get("/library/facts", params=params)
+        return _node_list(resp.json())
+
+    def fact_kinds(self) -> list[str]:
+        """The fact kinds the server accepts for :meth:`record_fact`.
+
+        Returns:
+            Kind names, e.g. ``["rule", "definition", ...]``.
+        """
+        resp = self._http.get("/library/fact-kinds")
+        return [str(k) for k in resp.json().get("data", [])]
 
     # ── Search ──────────────────────────────────────────────────────────────
 
@@ -631,11 +894,21 @@ class Library:
         )
         return EvalResponse.model_validate(resp.json())
 
-    def ask(self, *, library_id: str, question: str) -> AskResponse:
-        resp = self._http.post(
-            "/library/ask",
-            json={"library_id": library_id, "question": question},
-        )
+    def ask(
+        self, *, library_id: str, question: str, workspace_id: str | None = None
+    ) -> AskResponse:
+        """Answer a question from the library, with provenance.
+
+        Scoped to the client's active workspace by default (the
+        ``X-Querri-Workspace`` header every request carries). ``workspace_id``
+        scopes a single call without changing the client. The response reports
+        the scope it actually answered under — the claim is a hint the server
+        may refuse, so read ``AskResponse.workspace_id`` rather than assuming.
+        """
+        body: dict[str, Any] = {"library_id": library_id, "question": question}
+        if workspace_id:
+            body["workspace_id"] = workspace_id
+        resp = self._http.post("/library/ask", json=body)
         return AskResponse.model_validate(resp.json())
 
     def consolidate(
@@ -694,10 +967,25 @@ class AsyncLibrary:
         summary: str = "",
         anchor_question_text: str | None = None,
         anchor_question_name: str | None = None,
+        workspace_id: str | None = None,
     ) -> dict[str, Any]:
-        body: dict[str, Any] = {
+        """Create a Collection, optionally seeded with an anchor question.
+
+        Args:
+            library_id: Parent Library id.
+            name: Display name.
+            summary: Optional summary.
+            anchor_question_text: Creates an AnchorQuestion in the same call.
+            anchor_question_name: Display name for that anchor question.
+            workspace_id: Workspace to home it in. Defaults to the client's
+                active workspace (the ``X-Querri-Workspace`` header).
+
+        Returns:
+            The created Collection (with ``anchor_question`` when seeded).
+        """
+        body: dict[str, Any] = _workspace_body({
             "library_id": library_id, "name": name, "summary": summary,
-        }
+        }, workspace_id)
         if anchor_question_text:
             body["anchor_question_text"] = anchor_question_text
             if anchor_question_name:
@@ -713,13 +1001,14 @@ class AsyncLibrary:
         question_text: str,
         summary: str = "",
         collection_id: str | None = None,
+        workspace_id: str | None = None,
     ) -> LibraryNodeSummary:
-        body: dict[str, Any] = {
+        body: dict[str, Any] = _workspace_body({
             "library_id": library_id,
             "name": name,
             "question_text": question_text,
             "summary": summary,
-        }
+        }, workspace_id)
         if collection_id:
             body["collection_id"] = collection_id
         resp = await self._http.post("/library/questions/anchor", json=body)
@@ -734,13 +1023,14 @@ class AsyncLibrary:
         summary: str = "",
         anchor_question_id: str | None = None,
         collection_id: str | None = None,
+        workspace_id: str | None = None,
     ) -> LibraryNodeSummary:
-        body: dict[str, Any] = {
+        body: dict[str, Any] = _workspace_body({
             "library_id": library_id,
             "name": name,
             "question_text": question_text,
             "summary": summary,
-        }
+        }, workspace_id)
         if anchor_question_id:
             body["anchor_question_id"] = anchor_question_id
         if collection_id:
@@ -846,15 +1136,34 @@ class AsyncLibrary:
         evidence_refs: list[str] | None = None,
         confidence: float = 1.0,
         name: str | None = None,
+        workspace_id: str | None = None,
     ) -> FactResponse:
-        body: dict[str, Any] = {
+        """Record a Fact, attached by ABOUT edges to ``source_node_ids``.
+
+        Args:
+            library_id: Library to record into.
+            statement: The fact itself.
+            fact_kind: One of :meth:`fact_kinds` (the server validates it).
+            source_node_ids: Nodes the fact is about.
+            evidence_refs: Evidence URLs or document references.
+            confidence: 0-1.
+            name: Display name (default: derived from the statement).
+            workspace_id: Workspace to home it in. Defaults to the client's
+                active workspace.
+
+        Returns:
+            The Fact. ``warnings`` lists non-fatal problems the server found,
+            e.g. ``targets_not_visible`` when an ABOUT target cannot be seen
+            from the Fact's home workspace.
+        """
+        body: dict[str, Any] = _workspace_body({
             "library_id": library_id,
             "statement": statement,
             "fact_kind": fact_kind,
             "source_node_ids": source_node_ids or [],
             "evidence_refs": evidence_refs or [],
             "confidence": confidence,
-        }
+        }, workspace_id)
         if name:
             body["name"] = name
         resp = await self._http.post("/library/facts", json=body)
@@ -875,20 +1184,24 @@ class AsyncLibrary:
         }
         if chat_id:
             body["chat_id"] = chat_id
-        async with self._http._client.stream(
-            "POST", "/library/chat", json=body
-        ) as response:
-            response.raise_for_status()
+        async for event in self._stream("/library/chat", body):
+            yield event
+
+    async def _stream(
+        self, path: str, body: dict[str, Any]
+    ) -> AsyncIterator[dict[str, Any]]:
+        """POST and yield SSE events, through the base client (token renewal +
+        typed errors). See :meth:`Library._stream`."""
+        response = await self._http.request("POST", path, json=body, stream=True)
+        try:
             async for line in response.aiter_lines():
-                if not line or not line.startswith("data: "):
-                    continue
-                payload = line[len("data: "):]
-                if payload == "[DONE]":
+                event = _sse_event(line)
+                if event is False:
                     break
-                try:
-                    yield json.loads(payload)
-                except json.JSONDecodeError:
-                    continue
+                if isinstance(event, dict):
+                    yield event
+        finally:
+            await response.aclose()
 
     async def create_kpi(
         self,
@@ -901,7 +1214,28 @@ class AsyncLibrary:
         state: str = "draft",
         parent_kpis: list[str] | None = None,
         measurement: dict[str, Any] | None = None,
+        workspace_id: str | None = None,
     ) -> dict[str, Any]:
+        """Create a KPI node.
+
+        A KPI is a single measure: it has no breakdown or dimension. To see it
+        split by region, channel, etc., build a View (:meth:`build_view`).
+
+        Args:
+            library_id: Library to create it in.
+            name: Display name.
+            canonical_name: Canonical name.
+            categories: Values from :meth:`list_kpi_categories` (any case).
+            summary: Optional summary.
+            state: ``draft`` | ``active`` | ``deprecated`` | ``aspirational``.
+            parent_kpis: Parent KPI ids.
+            measurement: Optional measurement definition.
+            workspace_id: Workspace to home it in. Defaults to the client's
+                active workspace.
+
+        Returns:
+            The created KPI.
+        """
         body: dict[str, Any] = {
             "library_id": library_id,
             "name": name,
@@ -913,6 +1247,7 @@ class AsyncLibrary:
         }
         if measurement is not None:
             body["measurement"] = measurement
+        _workspace_body(body, workspace_id)
         resp = await self._http.post("/library/kpis", json=body)
         return cast("dict[str, Any]", resp.json())
 
@@ -961,48 +1296,25 @@ class AsyncLibrary:
         chat_id: str | None = None,
         mode: str = "default",
     ) -> ChatResponse:
-        # WS-B6: mirror the sync drainer — same VercelStream event types,
-        # same accumulation logic.
-        tool_inputs: dict[str, dict[str, Any]] = {}
-        tool_call_t0: dict[str, float] = {}
-        tool_calls: list[dict[str, Any]] = []
-        text_chunks: list[str] = []
-        meta: dict[str, Any] = {}
+        """Run one Librarian turn and drain it into a :class:`ChatResponse`.
+
+        Args:
+            library_id: Library to chat in.
+            message: The person's message. To answer an ``ask_choices`` card,
+                send the chosen option's ``label`` (see :func:`choice_label`).
+            chat_id: Continue this chat.
+            mode: ``default`` or ``onboarding``.
+
+        Returns:
+            The turn. Show ``narrative`` to a person; ``choices`` is set when
+            the agent is waiting on a choice.
+        """
+        drain = _ChatDrain()
         async for ev in self.chat_stream(
             library_id=library_id, message=message, chat_id=chat_id, mode=mode
         ):
-            etype = ev.get("type", "")
-            if etype == "tool-input-available":
-                tool_inputs[ev.get("toolCallId", "")] = {
-                    "name": ev.get("toolName", ""),
-                    "input": ev.get("input", {}),
-                }
-                tool_call_t0[ev.get("toolCallId", "")] = time.monotonic()
-            elif etype == "tool-output-available":
-                tcid = ev.get("toolCallId", "")
-                meta_in = tool_inputs.get(tcid, {})
-                t0 = tool_call_t0.get(tcid, time.monotonic())
-                tool_calls.append({
-                    "name": meta_in.get("name", ""),
-                    "input": meta_in.get("input", {}),
-                    "result": ev.get("output", {}),
-                    "duration_ms": int((time.monotonic() - t0) * 1000),
-                })
-            elif etype == "text-delta":
-                text_chunks.append(ev.get("delta", ""))
-            elif etype == "data-librarian":
-                meta = ev.get("data", {})
-        return ChatResponse(
-            chat_id=meta.get("chat_id", chat_id or ""),
-            library_id=meta.get("library_id", library_id),
-            assistant_message=meta.get("assistant_message") or "".join(text_chunks),
-            tool_calls=tool_calls,  # type: ignore[arg-type]
-            turns_used=meta.get("turns_used", 0),
-            stop_reason=meta.get("stop_reason", ""),
-            input_tokens=meta.get("input_tokens", 0),
-            output_tokens=meta.get("output_tokens", 0),
-            total_ms=meta.get("total_ms", 0),
-        )
+            drain.feed(ev)
+        return drain.response(library_id=library_id, chat_id=chat_id)
 
     async def collection_contents(self, collection_id: str) -> CollectionContents:
         """Async parallel of :meth:`Library.collection_contents`."""
@@ -1033,20 +1345,10 @@ class AsyncLibrary:
             body["summary"] = summary
         if instructions is not None:
             body["instructions"] = instructions
-        async with self._http._client.stream(
-            "POST", f"/library/collections/{collection_id}/views", json=body
-        ) as response:
-            response.raise_for_status()
-            async for line in response.aiter_lines():
-                if not line or not line.startswith("data: "):
-                    continue
-                payload = line[len("data: "):]
-                if payload == "[DONE]":
-                    break
-                try:
-                    yield json.loads(payload)
-                except json.JSONDecodeError:
-                    continue
+        async for event in self._stream(
+            f"/library/collections/{collection_id}/views", body
+        ):
+            yield event
 
     async def build_view(
         self,
@@ -1087,9 +1389,88 @@ class AsyncLibrary:
         resp = await self._http.request("PATCH", f"/library/nodes/{node_id}", json=body)
         return _node_from_get(resp.json())
 
+    async def rename_view(
+        self,
+        view_stub_id: str,
+        *,
+        name: str | None = None,
+        display_name: str | None = None,
+        summary: str | None = None,
+    ) -> dict[str, Any]:
+        """Rename / re-describe a library view across BOTH its layers.
+
+        See :meth:`LibraryResource.rename_view` for semantics.
+        """
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if display_name is not None:
+            body["display_name"] = display_name
+        if summary is not None:
+            body["summary"] = summary
+        resp = await self._http.request(
+            "PATCH", f"/library/views/{view_stub_id}", json=body
+        )
+        return cast("dict[str, Any]", resp.json())
+
     async def delete_node(self, node_id: str) -> dict[str, Any]:
         resp = await self._http.request("DELETE", f"/library/nodes/{node_id}")
         return cast("dict[str, Any]", resp.json())
+
+    async def move_node(self, node_id: str, workspace_id: str) -> dict[str, Any]:
+        """Re-home a Library node (Fact, KPI, Collection, question, ...).
+
+        Its edges are kept; only the home workspace changes.
+
+        Args:
+            node_id: The node to move.
+            workspace_id: Destination workspace id.
+
+        Returns:
+            The node, with its new ``workspace_id``.
+        """
+        resp = await self._http.post(
+            f"/library/nodes/{node_id}/move", json={"workspace_id": workspace_id}
+        )
+        return _unwrap_dict(resp.json())
+
+    async def list_facts(
+        self,
+        *,
+        library_id: str | None = None,
+        workspace_id: str | None = None,
+        limit: int = 100,
+        cursor: str | None = None,
+    ) -> NodeListResponse:
+        """List Fact nodes.
+
+        Args:
+            library_id: Restrict to one Library.
+            workspace_id: Restrict to Facts homed in this workspace.
+            limit: Page size.
+            cursor: Cursor from a previous page.
+
+        Returns:
+            The Facts, as a :class:`NodeListResponse`.
+        """
+        params: dict[str, Any] = {"limit": limit}
+        if library_id:
+            params["library_id"] = library_id
+        if workspace_id:
+            params["workspace_id"] = workspace_id
+        if cursor:
+            params["cursor"] = cursor
+        resp = await self._http.get("/library/facts", params=params)
+        return _node_list(resp.json())
+
+    async def fact_kinds(self) -> list[str]:
+        """The fact kinds the server accepts for :meth:`record_fact`.
+
+        Returns:
+            Kind names, e.g. ``["rule", "definition", ...]``.
+        """
+        resp = await self._http.get("/library/fact-kinds")
+        return [str(k) for k in resp.json().get("data", [])]
 
     async def search(
         self,
@@ -1142,11 +1523,14 @@ class AsyncLibrary:
         )
         return EvalResponse.model_validate(resp.json())
 
-    async def ask(self, *, library_id: str, question: str) -> AskResponse:
-        resp = await self._http.post(
-            "/library/ask",
-            json={"library_id": library_id, "question": question},
-        )
+    async def ask(
+        self, *, library_id: str, question: str, workspace_id: str | None = None
+    ) -> AskResponse:
+        """Answer a question from the library. See :meth:`Library.ask`."""
+        body: dict[str, Any] = {"library_id": library_id, "question": question}
+        if workspace_id:
+            body["workspace_id"] = workspace_id
+        resp = await self._http.post("/library/ask", json=body)
         return AskResponse.model_validate(resp.json())
 
     async def consolidate(
